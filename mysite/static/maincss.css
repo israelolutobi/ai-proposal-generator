@@ -1,0 +1,16 @@
+form {
+    width: 500px;
+    overflow: hidden;
+    background-color: yellow;
+}
+input {
+    width: 100%;
+}
+span {
+    display: block;
+    overflow: hidden;
+    padding-right:10px;
+}
+button {
+    float: right;
+}

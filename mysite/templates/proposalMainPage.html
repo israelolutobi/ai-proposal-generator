@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>proposalMainPage</title>
+
+    <style>
+        .wrapper {
+            padding: 20px;
+            margin: 15px 0;
+            background-color: #0f9d58;
+        }
+
+        textarea {
+            font-size: 20px;
+            width: 100%;
+            field-sizing: content;
+        }
+
+        input {
+            width: 100%
+        }
+
+
+
+
+
+
+
+
+    </style>
+</head>
+<body>
+
+
+<h1>Job Description</h1>
+
+
+<form method="POST">
+    {% csrf_token %}
+    <!--    <input type="text" name="user_post_url_input" placeholder="Type here..."/>-->
+
+    <textarea id="jobDescription" name="jobDescription"></textarea>
+
+    <h1>Provide a description of your relevant experience to this posting</h1>
+
+    <!--    <p><label for="w3review">Review of W3Schools:</label></p>-->
+    <textarea id="experienceDescription" name="experienceDescription"></textarea>
+
+    <br>
+    <button type="submit">Submit</button>
+    <br>
+</form>
+
+<!--{% if user_input %}-->
+<!--<h2>You entered: {{ user_input }}</h2>-->
+<!--{% endif %}-->
+
+
+{% if ai_response %}
+<h2>AI says:</h2>
+<textarea id="aiGeneratedProposal" name="aiGeneratedProposal"
+          oninput='this.style.height = "";this.style.height = this.scrollHeight + "px"'>{{ ai_response }}</textarea>
+<!--<p>{{ ai_response }}</p>-->
+{% endif %}
+
+
+</body>
+</html>
