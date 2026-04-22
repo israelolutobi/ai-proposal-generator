@@ -46,6 +46,11 @@
     <!--    <p><label for="w3review">Review of W3Schools:</label></p>-->
     <textarea id="experienceDescription" name="experienceDescription"></textarea>
 
+       <h1>Provide your github Url</h1>
+
+    <textarea id="githubDescription" name="githubeDescription"></textarea>
+
+
     <br>
     <button type="submit">Submit</button>
     <br>
@@ -56,12 +61,22 @@
 <!--{% endif %}-->
 
 
-{% if ai_response %}
-<h2>AI says:</h2>
+{% if open_ai_response %}
+<h2>Openai says:</h2>
 <textarea id="aiGeneratedProposal" name="aiGeneratedProposal"
-          oninput='this.style.height = "";this.style.height = this.scrollHeight + "px"'>{{ ai_response }}</textarea>
-<!--<p>{{ ai_response }}</p>-->
+          oninput='this.style.height = "";this.style.height = this.scrollHeight + "px"'>{{ open_ai_response }}</textarea>
+<!--<p>{{ open_ai_response }}</p>-->
 {% endif %}
+
+
+{% if gemini_ai_response %}
+<h2>Gemini says:</h2>
+<textarea id="geminiGeneratedProposal" name="geminiGeneratedProposal"
+          oninput='this.style.height = "";this.style.height = this.scrollHeight + "px"'>{{ gemini_ai_response }}</textarea>
+<!--<p>{{ open_ai_response }}</p>-->
+{% endif %}
+
+
 
 
 </body>
