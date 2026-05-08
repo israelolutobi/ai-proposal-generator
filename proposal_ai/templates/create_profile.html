@@ -1,0 +1,19 @@
+<h1>Create / Update Freelancer Profile</h1>
+
+<form method="POST">
+    {% csrf_token %}
+
+    <label>Professional Title</label>
+    <input type="text" name="professional_title" value="{{ profile.professional_title|default:'' }}">
+
+    <label>Main Skills</label>
+    <textarea name="main_skills">{{ profile.main_skills|default:'' }}</textarea>
+
+    <label>Years Experience</label>
+    <input type="number" name="years_experience" value="{{ profile.years_experience|default:'' }}">
+
+    <label>Preferred Tone</label>
+    <input type="text" name="preferred_tone" value="{{ profile.preferred_tone|default:'professional' }}">
+
+    <button type="submit">Save Profile</button>
+</form>

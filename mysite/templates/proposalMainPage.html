@@ -22,44 +22,41 @@
 
 
 
-
-
-
-
-
     </style>
 </head>
 <body>
 
+{% if user.is_authenticated %}
+<h>User logged in</h>
+<p>Welcome {{ user.username }}</p>
 
-<h1>Job Description</h1>
 
+<h1>Generate Proposal</h1>
+
+<h4>Job Description</h4>
 
 <form method="POST">
     {% csrf_token %}
-    <!--    <input type="text" name="user_post_url_input" placeholder="Type here..."/>-->
 
-    <textarea id="jobDescription" name="jobDescription"></textarea>
+    <textarea name="jobDescription"></textarea>
 
-    <h1>Provide a description of your relevant experience to this posting</h1>
+    <h4>Extra Notes </h4>
+    <textarea name="extraNotes"></textarea>
 
-    <!--    <p><label for="w3review">Review of W3Schools:</label></p>-->
-    <textarea id="experienceDescription" name="experienceDescription"></textarea>
+    <!--    <h1>Provide a description of your relevant experience to this posting</h1>-->
 
-       <h1>Provide your github Url</h1>
+    <!--    &lt;!&ndash;    <p><label for="w3review">Review of W3Schools:</label></p>&ndash;&gt;-->
+    <!--    <textarea name="experienceDescription"></textarea>-->
 
-    <textarea id="githubDescription" name="githubeDescription"></textarea>
+    <!--    <h1>Provide your github Url</h1>-->
 
+    <!--    <textarea name="githubeDescription"></textarea>-->
 
+    <!--    <br>-->
     <br>
     <button type="submit">Submit</button>
     <br>
 </form>
-
-<!--{% if user_input %}-->
-<!--<h2>You entered: {{ user_input }}</h2>-->
-<!--{% endif %}-->
-
 
 {% if open_ai_response %}
 <h2>Openai says:</h2>
@@ -75,8 +72,50 @@
           oninput='this.style.height = "";this.style.height = this.scrollHeight + "px"'>{{ gemini_ai_response }}</textarea>
 <!--<p>{{ open_ai_response }}</p>-->
 {% endif %}
+{% else %}
+<p>Please log in to save your proposals</p>
+<h>User not logged in</h>
+
+<h1>Job Description</h1>
 
 
+<form method="POST">
+    {% csrf_token %}
+    <!--    <input type="text" name="user_post_url_input" placeholder="Type here..."/>-->
+
+
+    <textarea name="jobDescription"></textarea>
+
+    <h1>Provide a description of your relevant experience to this posting</h1>
+
+    <!--    <p><label for="w3review">Review of W3Schools:</label></p>-->
+    <textarea name="experienceDescription"></textarea>
+
+    <h1>Provide your github Url</h1>
+
+    <textarea name="githubeDescription"></textarea>
+
+    <br>
+    <button type="submit">Submit</button>
+    <br>
+</form>
+
+{% if open_ai_response %}
+<h2>Openai says:</h2>
+<textarea name="aiGeneratedProposal"
+          oninput='this.style.height = "";this.style.height = this.scrollHeight + "px"'>{{ open_ai_response }}</textarea>
+<!--<p>{{ open_ai_response }}</p>-->
+{% endif %}
+
+
+{% if gemini_ai_response %}
+<h2>Gemini says:</h2>
+<textarea name="geminiGeneratedProposal"
+          oninput='this.style.height = "";this.style.height = this.scrollHeight + "px"'>{{ gemini_ai_response }}</textarea>
+<!--<p>{{ open_ai_response }}</p>-->
+{% endif %}
+
+{% endif %}
 
 
 </body>

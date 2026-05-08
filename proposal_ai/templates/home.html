@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Proposal AI</title>
+</head>
+<body>
+
+<h1>Proposal AI Home</h1>
+
+<p>You are logged in as: {{ user.username }}</p>
+
+<hr>
+
+<!-- 🔹 Proposal Form -->
+<h2>Generate Proposal</h2>
+
+<form method="POST">
+    {% csrf_token %}
+
+    <label>Job Title</label><br>
+    <input type="text" name="job_title"><br><br>
+
+    <label>Job Description</label><br>
+    <textarea name="job_description"></textarea><br><br>
+
+    <button type="submit">Generate Proposal</button>
+</form>
+
+<hr>
+
+<!-- 🔹 Generated Proposal -->
+{% if generated_proposal %}
+<h2>Generated Proposal</h2>
+<p>{{ generated_proposal }}</p>
+<hr>
+{% endif %}
+
+<!-- 🔹 Saved Proposals -->
+<h2>Your Saved Proposals</h2>
+
+{% if saved_proposals %}
+{% for proposal in saved_proposals %}
+<div>
+    <h3>{{ proposal.job_post.job_title }}</h3>
+    <p><strong>Created:</strong> {{ proposal.created_at }}</p>
+    <p>{{ proposal.final_text }}</p>
+</div>
+<hr>
+{% endfor %}
+{% else %}
+<p>No saved proposals yet.</p>
+{% endif %}
+
+</body>
+</html>
