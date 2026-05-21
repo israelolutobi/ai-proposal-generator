@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+
+{% load static %}
+
+<head>
+    <title>Edit Experience - ProposalIQ</title>
+</head>
+
+<body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
+
+<div style="display:flex; align-items:center; justify-content:space-between; padding:20px; background-color:#05070d; border-bottom:1px solid #1e293b;">
+
+    <a href="/dashboard/" style="display:flex; align-items:center; text-decoration:none;">
+        <img src="{% static 'images/proposallogo.png' %}" alt="ProposalIQ Logo" style="height:55px; margin-right:15px;">
+
+        <h1 style="color:white; font-size:32px; margin:0; letter-spacing:2px;">
+            Proposal<span style="color:#1e90ff;">IQ</span>
+        </h1>
+    </a>
+
+    <form method="POST" action="/logout/" style="margin:0;">
+        {% csrf_token %}
+        <button type="submit" style="background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer;">
+            Logout
+        </button>
+    </form>
+
+</div>
+
+<div style="max-width:750px; margin:60px auto; background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
+
+    <h2 style="margin-top:0; font-size:36px;">Edit Work Experience</h2>
+
+    <p style="color:#cbd5e1; margin-bottom:35px; line-height:1.6;">
+        Update this saved experience so ProposalIQ can use accurate details when generating proposals.
+    </p>
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <label>Role / Project Title</label><br>
+        <input type="text"
+               name="job_title"
+               required
+               value="{{ experience.job_title|default:'' }}"
+               style="width:100%; padding:14px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"><br>
+
+        <label>Company or Project Name</label><br>
+        <input type="text"
+               name="company_or_project"
+               value="{{ experience.company_or_project|default:'' }}"
+               style="width:100%; padding:14px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"><br>
+
+        <label>Relevant Tasks / Responsibilities</label><br>
+        <textarea name="tasks"
+                  required
+                  style="width:100%; padding:14px; height:130px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;">{{ experience.tasks|default:'' }}</textarea><br>
+
+        <label>Skills Used</label><br>
+        <textarea name="skills_used"
+                  style="width:100%; padding:14px; height:90px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;">{{ experience.skills_used|default:'' }}</textarea><br>
+
+        <label>Experience Depth</label><br>
+        <textarea name="experience_depth"
+                  style="width:100%; padding:14px; height:120px; margin-top:8px; margin-bottom:35px; border-radius:8px; border:none;">{{ experience.experience_depth|default:'' }}</textarea><br>
+
+        <div style="display:flex; gap:15px; flex-wrap:wrap;">
+
+            <button type="submit"
+                    style="background-color:#1e90ff; color:white; padding:16px 24px; border:none; border-radius:10px; font-size:16px; font-weight:bold; cursor:pointer;">
+                Save Changes
+            </button>
+
+            <a href="/my-experiences/"
+               style="display:inline-block; background-color:#334155; color:white; padding:16px 24px; border-radius:10px; text-decoration:none; font-size:16px; font-weight:bold;">
+                ← Back To Experiences
+            </a>
+
+        </div>
+
+    </form>
+
+</div>
+
+</body>
+</html>

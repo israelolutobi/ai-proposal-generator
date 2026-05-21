@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+
+{% load static %}
+
+<head>
+    <title>Add Experience - ProposalIQ</title>
+</head>
+
+<body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
+
+<div style="display:flex; align-items:center; justify-content:space-between; padding:20px; background-color:#05070d; border-bottom:1px solid #1e293b;">
+
+    <a href="/dashboard/" style="display:flex; align-items:center; text-decoration:none;">
+        <img src="{% static 'images/proposallogo.png' %}" alt="ProposalIQ Logo" style="height:55px; margin-right:15px;">
+
+        <h1 style="color:white; font-size:32px; margin:0; letter-spacing:2px;">
+            Proposal<span style="color:#1e90ff;">IQ</span>
+        </h1>
+    </a>
+
+    <form method="POST" action="/logout/" style="margin:0;">
+        {% csrf_token %}
+        <button type="submit" style="background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer;">
+            Logout
+        </button>
+    </form>
+
+</div>
+
+<div style="max-width:750px; margin:60px auto; background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
+
+    <h2 style="margin-top:0; font-size:36px;">Add Work Experience</h2>
+
+    <p style="color:#cbd5e1; margin-bottom:35px; line-height:1.6;">
+        Add one role or project experience at a time. This helps ProposalIQ match your experience more accurately to future job descriptions.
+    </p>
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <label>Role / Project Title</label><br>
+        <input type="text"
+               name="job_title"
+               required
+               placeholder="e.g. Python Backend Developer"
+               style="width:100%; padding:14px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"><br>
+
+        <label>Company or Project Name</label><br>
+        <input type="text"
+               name="company_or_project"
+               placeholder="e.g. Personal AI Proposal System"
+               style="width:100%; padding:14px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"><br>
+
+        <label>Relevant Tasks / Responsibilities</label><br>
+        <textarea name="tasks"
+                  required
+                  placeholder="e.g. Built Django views, connected PostgreSQL database, integrated OpenAI API..."
+                  style="width:100%; padding:14px; height:130px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"></textarea><br>
+
+        <label>Skills Used</label><br>
+        <textarea name="skills_used"
+                  placeholder="e.g. Python, Django, PostgreSQL, OpenAI API, HTML, CSS"
+                  style="width:100%; padding:14px; height:90px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"></textarea><br>
+
+        <label>Experience Depth</label><br>
+        <textarea name="experience_depth"
+                  placeholder="e.g. Python - 2 years&#10;Django - 1 year&#10;PostgreSQL - 6 months&#10;OpenAI API - current project"
+                  style="width:100%; padding:14px; height:120px; margin-top:8px; margin-bottom:35px; border-radius:8px; border:none;"></textarea><br>
+
+        <div style="display:flex; gap:15px; flex-wrap:wrap;">
+
+            <button type="submit"
+                    name="add_another"
+                    style="background-color:#1e90ff; color:white; padding:16px 24px; border:none; border-radius:10px; font-size:16px; font-weight:bold; cursor:pointer;">
+                Save & Add Another
+            </button>
+
+            <button type="submit"
+                    name="finish"
+                    style="background-color:#22c55e; color:white; padding:16px 24px; border:none; border-radius:10px; font-size:16px; font-weight:bold; cursor:pointer;">
+                Save & Finish Profile
+            </button>
+
+            <a href="/create-profile/"
+               style="display:inline-block; background-color:#334155; color:white; padding:16px 24px; border-radius:10px; text-decoration:none; font-size:16px; font-weight:bold;">
+                ← Back To Profile
+            </a>
+
+        </div>
+
+    </form>
+
+</div>
+
+</body>
+</html>

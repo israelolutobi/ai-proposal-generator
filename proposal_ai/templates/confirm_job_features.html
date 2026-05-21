@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+
+{% load static %}
+
+<head>
+    <title>Confirm Job Features - ProposalIQ</title>
+</head>
+
+<body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
+
+<div style="max-width:900px; margin:70px auto; background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
+
+    <h1>Confirm Extracted Job Features</h1>
+
+    <p style="color:#cbd5e1;">
+        Review and edit the extracted details before generating the proposal.
+    </p>
+
+    <form method="POST">
+        {% csrf_token %}
+
+        <label>Platform</label><br>
+        <input type="text" name="platform" value="{{ job_post.platform|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <label>Job Title</label><br>
+        <input type="text" name="job_title" value="{{ job_post.job_title|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <label>Job Description</label><br>
+        <textarea name="job_description" style="width:100%; height:180px; padding:12px;">{{ job_post.job_description|default:'' }}</textarea><br><br>
+
+        <label>Budget Type</label><br>
+        <input type="text" name="budget_type" value="{{ job_post.budget_type|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <label>Hourly Min</label><br>
+        <input type="number" step="0.01" name="hourly_min" value="{{ job_post.hourly_min|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <label>Hourly Max</label><br>
+        <input type="number" step="0.01" name="hourly_max" value="{{ job_post.hourly_max|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <label>Experience Level</label><br>
+        <input type="text" name="experience_level" value="{{ job_post.experience_level|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <label>Project Duration</label><br>
+        <input type="text" name="project_duration" value="{{ job_post.project_duration|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <label>Hours Per Week</label><br>
+        <input type="text" name="hours_per_week" value="{{ job_post.hours_per_week|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <label>Skills Required</label><br>
+        <textarea name="skills_required" style="width:100%; height:100px; padding:12px;">{{ job_post.skills_required|default:'' }}</textarea><br><br>
+
+        <label>Client Location</label><br>
+        <input type="text" name="client_location" value="{{ job_post.client_location|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <label>Proposal Count</label><br>
+        <input type="text" name="proposal_count" value="{{ job_post.proposal_count|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <label>Interviewing Count</label><br>
+        <input type="text" name="interviewing_count" value="{{ job_post.interviewing_count|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <label>Invites Sent</label><br>
+        <input type="text" name="invites_sent" value="{{ job_post.invites_sent|default:'' }}" style="width:100%; padding:12px;"><br><br>
+
+        <button type="submit"
+                style="background-color:#22c55e; color:white; padding:16px 28px; border:none; border-radius:10px; font-weight:bold;">
+            Confirm & Generate Proposal
+        </button>
+
+    </form>
+
+</div>
+
+</body>
+</html>

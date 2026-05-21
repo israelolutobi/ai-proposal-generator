@@ -1,55 +1,183 @@
 <!DOCTYPE html>
 <html>
+
+{% load static %}
+
 <head>
-    <title>Proposal AI</title>
+    <title>Dashboard - ProposalIQ</title>
 </head>
-<body>
 
-<h1>Proposal AI Home</h1>
+<body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
 
-<p>You are logged in as: {{ user.username }}</p>
+<div style="display:flex; align-items:center; justify-content:space-between; padding:20px; background-color:#05070d; border-bottom:1px solid #1e293b;">
 
-<hr>
+    <a href="/dashboard/" style="display:flex; align-items:center; text-decoration:none;">
 
-<!-- 🔹 Proposal Form -->
-<h2>Generate Proposal</h2>
+        <img src="{% static 'images/proposallogo.png' %}"
+             alt="ProposalIQ Logo"
+             style="height:55px; margin-right:15px;">
 
-<form method="POST">
-    {% csrf_token %}
+        <h1 style="color:white; font-size:32px; margin:0; letter-spacing:2px;">
+            Proposal<span style="color:#1e90ff;">IQ</span>
+        </h1>
 
-    <label>Job Title</label><br>
-    <input type="text" name="job_title"><br><br>
+    </a>
 
-    <label>Job Description</label><br>
-    <textarea name="job_description"></textarea><br><br>
+    <div style="display:flex; gap:20px; align-items:center;">
 
-    <button type="submit">Generate Proposal</button>
-</form>
+        <span style="color:#cbd5e1; font-size:16px;">
+            Logged in as:
+            <strong style="color:white;">{{ user.username }}</strong>
+        </span>
 
-<hr>
+        <form method="POST" action="/logout/" style="margin:0;">
+            {% csrf_token %}
 
-<!-- 🔹 Generated Proposal -->
-{% if generated_proposal %}
-<h2>Generated Proposal</h2>
-<p>{{ generated_proposal }}</p>
-<hr>
-{% endif %}
+            <button type="submit"
+                    style="background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer;">
+                Logout
+            </button>
 
-<!-- 🔹 Saved Proposals -->
-<h2>Your Saved Proposals</h2>
+        </form>
 
-{% if saved_proposals %}
-{% for proposal in saved_proposals %}
-<div>
-    <h3>{{ proposal.job_post.job_title }}</h3>
-    <p><strong>Created:</strong> {{ proposal.created_at }}</p>
-    <p>{{ proposal.final_text }}</p>
+    </div>
+
 </div>
-<hr>
-{% endfor %}
-{% else %}
-<p>No saved proposals yet.</p>
-{% endif %}
+
+<div style="max-width:1000px; margin:60px auto; padding:0 20px;">
+
+    <h1 style="font-size:44px; margin-bottom:10px;">
+        ProposalIQ Dashboard
+    </h1>
+
+    <p style="color:#cbd5e1; font-size:18px; margin-bottom:35px;">
+        Paste a full job post, extract key features, confirm them, then generate a tailored proposal.
+    </p>
+
+    <div style="background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
+
+        <h2 style="margin-top:0; font-size:36px;">
+            Extract Job Features
+        </h2>
+
+        <p style="color:#cbd5e1; line-height:1.6; margin-bottom:30px;">
+            Copy the full job posting text and paste it below. ProposalIQ will extract the job title, platform,
+            skills, budget, experience level and other useful proposal features before generating anything.
+        </p>
+
+        <form method="POST" action="/extract-job/">
+            {% csrf_token %}
+
+            <label>Full Job Post Text</label><br>
+
+            <textarea name="raw_job_text"
+                      required
+                      placeholder="Paste the full copied job post here..."
+                      style="width:100%; padding:14px; height:320px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"></textarea><br>
+
+            <button type="submit"
+                    style="background-color:#1e90ff; color:white; padding:16px 28px; border:none; border-radius:10px; font-size:16px; font-weight:bold; cursor:pointer;">
+                Extract Job Features
+            </button>
+
+        </form>
+
+    </div>
+
+    {% if generated_proposal %}
+
+        <div style="margin-top:35px; background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
+
+            <h2 style="margin-top:0;">
+                Generated Proposal
+            </h2>
+
+            <div style="background-color:#0f172a; padding:25px; border-radius:12px; line-height:1.7; white-space:pre-wrap;">
+                {{ generated_proposal }}
+            </div>
+
+        </div>
+
+    {% endif %}
+
+    <div style="margin-top:35px; background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
+
+        <h2 style="margin-top:0;">
+            Saved Proposals
+        </h2>
+
+        {% if proposals %}
+
+            {% for proposal in proposals %}
+
+                <div style="background-color:#0f172a; padding:25px; border-radius:12px; margin-bottom:25px; border:1px solid #1e293b;">
+
+                    <h3 style="margin-top:0;">
+                        {{ proposal.job_post.job_title }}
+                    </h3>
+
+                    <p style="color:#94a3b8;">
+                        {{ proposal.job_post.job_description }}
+                    </p>
+
+                    <p style="color:#94a3b8;">
+                        Status:
+                        <strong style="color:white;">
+                            {{ proposal.status }}
+                        </strong>
+                    </p>
+
+                    <p style="color:#94a3b8;">
+                        Created:
+                        {{ proposal.created_at }}
+                    </p>
+
+                    <div style="line-height:1.7; white-space:pre-wrap; margin-top:20px;">
+                        {{ proposal.final_text }}
+                    </div>
+
+                    <div style="margin-top:25px;">
+
+                        {% if proposal.used_by_user %}
+
+                            <p style="color:#22c55e; font-weight:bold;">
+                                Used by user
+                            </p>
+
+                        {% else %}
+
+                            <a href="/use-proposal/{{ proposal.id }}/"
+                               style="
+                                    background-color:#22c55e;
+                                    color:white;
+                                    padding:12px 18px;
+                                    border-radius:8px;
+                                    font-weight:bold;
+                                    text-decoration:none;
+                                    display:inline-block;
+                               ">
+                                Use This Proposal
+                            </a>
+
+                        {% endif %}
+
+                    </div>
+
+                </div>
+
+            {% endfor %}
+
+        {% else %}
+
+            <p style="color:#cbd5e1;">
+                No saved proposals yet.
+            </p>
+
+        {% endif %}
+
+    </div>
+
+</div>
 
 </body>
 </html>

@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+
+{% load static %}
+
+<head>
+    <title>Confirm Proposal Usage - ProposalIQ</title>
+</head>
+
+<body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
+
+<div style="display:flex; align-items:center; justify-content:space-between; padding:20px; background-color:#05070d; border-bottom:1px solid #1e293b;">
+
+    <a href="/dashboard/" style="display:flex; align-items:center; text-decoration:none;">
+
+        <img src="{% static 'images/proposallogo.png' %}"
+             alt="ProposalIQ Logo"
+             style="height:55px; margin-right:15px;">
+
+        <h1 style="color:white; font-size:32px; margin:0; letter-spacing:2px;">
+            Proposal<span style="color:#1e90ff;">IQ</span>
+        </h1>
+
+    </a>
+
+    <form method="POST" action="/logout/" style="margin:0;">
+        {% csrf_token %}
+
+        <button type="submit"
+                style="background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer;">
+            Logout
+        </button>
+
+    </form>
+
+</div>
+
+<div style="max-width:900px; margin:60px auto; padding:0 20px;">
+
+    <div style="
+        background-color:#111827;
+        padding:40px;
+        border-radius:16px;
+        border:1px solid #1e293b;
+    ">
+
+        <h2 style="margin-top:0; font-size:36px;">
+            Confirm Proposal Usage
+        </h2>
+
+        <p style="color:#cbd5e1; line-height:1.6; margin-bottom:35px;">
+            Confirm where and how this proposal was used. This helps ProposalIQ learn which proposal strategies perform best over time.
+        </p>
+
+        <div style="
+            background-color:#0f172a;
+            padding:25px;
+            border-radius:12px;
+            margin-bottom:35px;
+        ">
+
+            <h3 style="margin-top:0;">
+                {{ proposal.job_post.job_title }}
+            </h3>
+
+            <p style="color:#94a3b8; white-space:pre-wrap;">
+                {{ proposal.job_post.job_description }}
+            </p>
+
+        </div>
+
+        <form method="POST">
+
+            {% csrf_token %}
+
+            <label>Freelance Platform</label><br>
+
+            <input type="text"
+                   name="platform"
+                   required
+                   placeholder="e.g. Upwork, Freelancer, Fiverr"
+                   style="
+                        width:100%;
+                        padding:14px;
+                        margin-top:8px;
+                        margin-bottom:25px;
+                        border-radius:8px;
+                        border:none;
+                   "><br>
+
+            <label>Client Name / Author</label><br>
+
+            <input type="text"
+                   name="client_name"
+                   placeholder="Optional"
+                   style="
+                        width:100%;
+                        padding:14px;
+                        margin-top:8px;
+                        margin-bottom:25px;
+                        border-radius:8px;
+                        border:none;
+                   "><br>
+
+            <label>Job URL</label><br>
+
+            <input type="url"
+                   name="job_url"
+                   placeholder="Optional link to the job post"
+                   style="
+                        width:100%;
+                        padding:14px;
+                        margin-top:8px;
+                        margin-bottom:25px;
+                        border-radius:8px;
+                        border:none;
+                   "><br>
+
+            <label>Final Submitted Proposal</label><br>
+
+            <textarea name="submitted_proposal_text"
+                      placeholder="Paste the final version you actually submitted if modified..."
+                      style="
+                            width:100%;
+                            padding:14px;
+                            height:220px;
+                            margin-top:8px;
+                            margin-bottom:25px;
+                            border-radius:8px;
+                            border:none;
+                      ">{{ proposal.final_text }}</textarea><br>
+
+            <label>Extra Notes</label><br>
+
+            <textarea name="notes"
+                      placeholder="Optional observations or comments..."
+                      style="
+                            width:100%;
+                            padding:14px;
+                            height:120px;
+                            margin-top:8px;
+                            margin-bottom:35px;
+                            border-radius:8px;
+                            border:none;
+                      "></textarea><br>
+
+            <button type="submit"
+                    style="
+                        background-color:#22c55e;
+                        color:white;
+                        padding:16px 28px;
+                        border:none;
+                        border-radius:10px;
+                        font-size:16px;
+                        font-weight:bold;
+                        cursor:pointer;
+                    ">
+                Confirm & Save Usage
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+</body>
+</html>
