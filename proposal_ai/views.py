@@ -11,6 +11,8 @@ from .models import ProposalUseConfirmation
 from django.utils import timezone
 import json
 from .models import JobPost, Proposal
+from proposal_ai.models import ProposalOutcome
+from .models import Proposal, ProposalOutcome, ProposalUseConfirmation
 
 
 # load_dotenv()
@@ -50,7 +52,8 @@ def register_user(request):
 
 
 api_key = os.getenv("OPENAI_API_KEY")
-print(api_key)
+
+
 
 client = OpenAI(api_key=api_key)
 
@@ -174,7 +177,6 @@ def create_freelancer_profile(request):
 
 @login_required
 def generate_proposal(request):
-
     generated_proposal = None
 
     proposals = Proposal.objects.filter(
@@ -188,84 +190,25 @@ def generate_proposal(request):
     if not profile:
         return redirect("create_freelancer_profile")
 
-    if request.method == "POST":
+    pending_outcomes = []
 
-        # USER CHOOSES TO USE A GENERATED PROPOSAL
-        if "use_proposal_id" in request.POST:
+    used_proposals = Proposal.objects.filter(
+        user=request.user,
+        used_by_user=True
+    )
 
-            proposal_id = request.POST.get("use_proposal_id")
+    for proposal in used_proposals:
+        outcome_exists = ProposalOutcome.objects.filter(
+            proposal=proposal
+        ).exists()
 
-            proposal = Proposal.objects.get(
-                id=proposal_id,
-                user=request.user
-            )
-
-            proposal.used_by_user = True
-            proposal.status = "used"
-            proposal.used_at = timezone.now()
-            proposal.save()
-
-            return redirect("dashboard")
-
-        # GENERATE NEW PROPOSAL
-        job_title = request.POST.get("job_title") or "Untitled Job"
-        job_description = request.POST.get("job_description")
-
-        profile_context = (
-            "Professional Title: " + str(profile.professional_title) + ". "
-            "Profile Summary: " + str(profile.profile_summary) + ". "
-            "Preferred Tone: " + str(profile.preferred_tone) + "."
-        )
-
-        prompt = f"""
-        You are an expert freelance proposal writer.
-
-        Use this freelancer profile:
-
-        {profile_context}
-
-        Job Title:
-        {job_title}
-
-        Job Summary / Description:
-        {job_description}
-
-        Write a high-quality personalised freelance proposal.
-        """
-
-        response = client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        )
-
-        generated_proposal = response.choices[0].message.content
-
-        job_post = JobPost.objects.create(
-            user=request.user,
-            job_title=job_title,
-            job_description=job_description,
-            platform="Unknown"
-        )
-
-        Proposal.objects.create(
-            user=request.user,
-            job_post=job_post,
-            final_text=generated_proposal,
-            status="generated"
-        )
-
-        proposals = Proposal.objects.filter(
-            user=request.user
-        ).order_by("-created_at")
+        if not outcome_exists:
+            pending_outcomes.append(proposal)
 
     return render(request, "home.html", {
         "generated_proposal": generated_proposal,
         "proposals": proposals,
+        "pending_outcomes": pending_outcomes,
     })
 
 
@@ -307,13 +250,13 @@ def extract_job_features(request):
         raw_job_text = request.POST.get("raw_job_text")
 
         prompt = (
-            "Extract structured job information from this freelance job post. "
-            "Return ONLY valid JSON with these keys: "
-            "platform, job_title, job_description, budget_type, hourly_min, hourly_max, "
-            "experience_level, project_duration, hours_per_week, skills_required, "
-            "client_location, proposal_count, interviewing_count, invites_sent. "
-            "If unknown, use an empty string. "
-            "Job post text: " + raw_job_text
+                "Extract structured job information from this freelance job post. "
+                "Return ONLY valid JSON with these keys: "
+                "platform, job_title, job_description, budget_type, hourly_min, hourly_max, "
+                "experience_level, project_duration, hours_per_week, skills_required, "
+                "client_location, proposal_count, interviewing_count, invites_sent. "
+                "If unknown, use an empty string. "
+                "Job post text: " + raw_job_text
         )
 
         response = client.chat.completions.create(
@@ -390,26 +333,30 @@ def confirm_job_features(request, job_post_id):
         job_post.save()
 
         profile_context = (
-            "Professional Title: " + str(profile.professional_title) + ". "
-            "Profile Summary: " + str(profile.profile_summary) + ". "
-            "Preferred Tone: " + str(profile.preferred_tone) + "."
+                "Professional Title: " + str(profile.professional_title) + ". "
+                                                                           "Profile Summary: " + str(
+            profile.profile_summary) + ". "
+                                       "Preferred Tone: " + str(profile.preferred_tone) + "."
         )
 
         job_context = (
-            "Platform: " + str(job_post.platform) + ". "
-            "Job Title: " + str(job_post.job_title) + ". "
-            "Job Description: " + str(job_post.job_description) + ". "
-            "Budget Type: " + str(job_post.budget_type) + ". "
-            "Hourly Range: " + str(job_post.hourly_min) + " - " + str(job_post.hourly_max) + ". "
-            "Experience Level: " + str(job_post.experience_level) + ". "
-            "Skills Required: " + str(job_post.skills_required) + ". "
+                "Platform: " + str(job_post.platform) + ". "
+                                                        "Job Title: " + str(job_post.job_title) + ". "
+                                                                                                  "Job Description: " + str(
+            job_post.job_description) + ". "
+                                        "Budget Type: " + str(job_post.budget_type) + ". "
+                                                                                      "Hourly Range: " + str(
+            job_post.hourly_min) + " - " + str(job_post.hourly_max) + ". "
+                                                                      "Experience Level: " + str(
+            job_post.experience_level) + ". "
+                                         "Skills Required: " + str(job_post.skills_required) + ". "
         )
 
         prompt = (
-            "You are an expert freelance proposal writer. "
-            "Use the freelancer profile and confirmed job details below to write a highly tailored proposal. "
-            "Freelancer Profile: " + profile_context + " "
-            "Confirmed Job Details: " + job_context
+                "You are an expert freelance proposal writer. "
+                "Use the freelancer profile and confirmed job details below to write a highly tailored proposal. "
+                "Freelancer Profile: " + profile_context + " "
+                                                           "Confirmed Job Details: " + job_context
         )
 
         response = client.chat.completions.create(
@@ -435,4 +382,39 @@ def confirm_job_features(request, job_post_id):
 
     return render(request, "confirm_job_features.html", {
         "job_post": job_post
+    })
+
+
+@login_required
+def update_outcome(request, proposal_id):
+    proposal = get_object_or_404(
+        Proposal,
+        id=proposal_id,
+        user=request.user
+    )
+
+    use_confirmation = ProposalUseConfirmation.objects.filter(
+        proposal=proposal
+    ).first()
+
+    if request.method == "POST":
+        outcome_status = request.POST.get("outcome_status")
+        notes = request.POST.get("notes")
+
+        ProposalOutcome.objects.update_or_create(
+            proposal=proposal,
+            defaults={
+                "status": outcome_status,
+                "notes": notes,
+            }
+        )
+
+        proposal.status = outcome_status
+        proposal.save()
+
+        return redirect("dashboard")
+
+    return render(request, "update_outcome.html", {
+        "proposal": proposal,
+        "use_confirmation": use_confirmation,
     })

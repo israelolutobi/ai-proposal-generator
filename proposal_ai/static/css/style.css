@@ -1,0 +1,28 @@
+body {
+    background-color: #0b1120;
+    color: white;
+    font-family: Arial;
+    margin: 0;
+}
+
+a,
+button {
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+a:hover,
+button:hover {
+    opacity: 0.85;
+    transform: translateY(-1px);
+}
+
+button:hover {
+    box-shadow: 0 0 10px rgba(30, 144, 255, 0.3);
+}
+
+input,
+textarea,
+button {
+    font-family: Arial;
+}

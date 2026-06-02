@@ -15,4 +15,5 @@ urlpatterns = [
     path("use-proposal/<int:proposal_id>/", views.confirm_use_proposal, name="confirm_use_proposal"),
     path("extract-job/", views.extract_job_features, name="extract_job_features"),
     path("confirm-job/<int:job_post_id>/", views.confirm_job_features, name="confirm_job_features"),
+    path("update-outcome/<int:proposal_id>/", views.update_outcome, name="update_outcome"),
 ]

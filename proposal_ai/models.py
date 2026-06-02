@@ -128,26 +128,27 @@ class Proposal(models.Model):
 
 
 class ProposalOutcome(models.Model):
+
     proposal = models.OneToOneField(
         Proposal,
         on_delete=models.CASCADE
     )
 
-    STATUS_CHOICES = [
-        ("no_response", "No Response"),
-        ("replied", "Replied"),
-        ("interview", "Interview"),
-        ("hired", "Hired"),
-        ("rejected", "Rejected"),
-    ]
+    status = models.CharField(
+        max_length=50
+    )
 
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    notes = models.TextField(
+        blank=True,
+        null=True
+    )
 
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(
+        auto_now_add=True
+    )
 
     def __str__(self):
-        return f"{self.proposal} - {self.status}"
-
+        return f"{self.proposal.job_post.job_title} - {self.status}"
 
 class ProposalUseConfirmation(models.Model):
     proposal = models.OneToOneField(

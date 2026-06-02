@@ -5,6 +5,7 @@
 
 <head>
     <title>Confirm Proposal Usage - ProposalIQ</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 
 <body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
@@ -27,7 +28,7 @@
         {% csrf_token %}
 
         <button type="submit"
-                style="background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer;">
+                style="background:none; border:none; color:#ef4444; font-size:18px;">
             Logout
         </button>
 
@@ -49,7 +50,8 @@
         </h2>
 
         <p style="color:#cbd5e1; line-height:1.6; margin-bottom:35px;">
-            Confirm where and how this proposal was used. This helps ProposalIQ learn which proposal strategies perform best over time.
+            Confirm where and how this proposal was used. This helps ProposalIQ learn
+            which proposal strategies perform best over time.
         </p>
 
         <div style="
@@ -144,19 +146,35 @@
                             border:none;
                       "></textarea><br>
 
-            <button type="submit"
-                    style="
-                        background-color:#22c55e;
+            <div style="display:flex; gap:15px; margin-top:35px;">
+
+                <a href="/dashboard/"
+                   style="
+                        background-color:#1e293b;
                         color:white;
                         padding:16px 28px;
-                        border:none;
                         border-radius:10px;
-                        font-size:16px;
+                        text-decoration:none;
                         font-weight:bold;
-                        cursor:pointer;
-                    ">
-                Confirm & Save Usage
-            </button>
+                        display:inline-block;
+                   ">
+                    Back to Dashboard
+                </a>
+
+                <button type="submit"
+                        style="
+                            background-color:#22c55e;
+                            color:white;
+                            padding:16px 28px;
+                            border:none;
+                            border-radius:10px;
+                            font-size:16px;
+                            font-weight:bold;
+                        ">
+                    Confirm & Save Usage
+                </button>
+
+            </div>
 
         </form>
 

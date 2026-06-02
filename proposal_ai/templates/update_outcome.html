@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+
+{% load static %}
+
+<head>
+    <title>Update Outcome - ProposalIQ</title>
+
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+
+<body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
+
+<div style="display:flex; align-items:center; justify-content:space-between; padding:20px; background-color:#05070d; border-bottom:1px solid #1e293b;">
+
+    <a href="/dashboard/" style="display:flex; align-items:center; text-decoration:none;">
+
+        <img src="{% static 'images/proposallogo.png' %}"
+             alt="ProposalIQ Logo"
+             style="height:55px; margin-right:15px;">
+
+        <h1 style="color:white; font-size:32px; margin:0; letter-spacing:2px;">
+            Proposal<span style="color:#1e90ff;">IQ</span>
+        </h1>
+
+    </a>
+
+    <form method="POST" action="/logout/" style="margin:0;">
+        {% csrf_token %}
+
+        <button type="submit"
+                style="background:none; border:none; color:#ef4444; font-size:18px;">
+            Logout
+        </button>
+    </form>
+
+</div>
+
+<div style="max-width:950px; margin:60px auto; padding:0 20px;">
+
+    <div style="background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
+
+        <h2 style="margin-top:0; font-size:36px;">
+            Update Proposal Outcome
+        </h2>
+
+        <p style="color:#cbd5e1; line-height:1.6; margin-bottom:35px;">
+            Review the job and submitted proposal, then record what happened after you used it.
+        </p>
+
+        <div style="background-color:#0f172a; padding:25px; border-radius:12px; margin-bottom:30px;">
+
+            <h3 style="margin-top:0;">
+                Job Details
+            </h3>
+
+            <p>
+                <strong>Job Title:</strong>
+                {{ proposal.job_post.job_title }}
+            </p>
+
+            <p>
+                <strong>Platform:</strong>
+                {{ proposal.job_post.platform }}
+            </p>
+
+            {% if use_confirmation %}
+
+                <p>
+                    <strong>Client / Author:</strong>
+                    {{ use_confirmation.client_name }}
+                </p>
+
+                <p>
+                    <strong>Job URL:</strong>
+                    {{ use_confirmation.job_url }}
+                </p>
+
+            {% endif %}
+
+            <p style="color:#cbd5e1; white-space:pre-wrap;">
+                {{ proposal.job_post.job_description }}
+            </p>
+
+        </div>
+
+        <div style="background-color:#0f172a; padding:25px; border-radius:12px; margin-bottom:30px;">
+
+            <h3 style="margin-top:0;">
+                Proposal Used
+            </h3>
+
+            {% if use_confirmation and use_confirmation.submitted_proposal_text %}
+
+                <div style="line-height:1.7; white-space:pre-wrap;">{{ use_confirmation.submitted_proposal_text }}</div>
+
+            {% else %}
+
+                <div style="line-height:1.7; white-space:pre-wrap;">{{ proposal.final_text }}</div>
+
+            {% endif %}
+
+        </div>
+
+        <form method="POST">
+            {% csrf_token %}
+
+            <label>Outcome</label><br>
+
+            <select name="outcome_status"
+                    required
+                    style="
+                        width:100%;
+                        padding:14px;
+                        margin-top:8px;
+                        margin-bottom:25px;
+                        border-radius:8px;
+                        border:none;
+                    ">
+
+                <option value="">Select outcome</option>
+                <option value="no_response">No Response</option>
+                <option value="reply">Reply Received</option>
+                <option value="interview">Interview</option>
+                <option value="hired">Hired</option>
+                <option value="rejected">Rejected</option>
+
+            </select><br>
+
+            <label>Outcome Notes</label><br>
+
+            <textarea name="notes"
+                      placeholder="Optional: add anything useful, e.g. client replied after 2 days, asked for portfolio, rejected due to budget..."
+                      style="
+                            width:100%;
+                            padding:14px;
+                            height:140px;
+                            margin-top:8px;
+                            margin-bottom:35px;
+                            border-radius:8px;
+                            border:none;
+                      "></textarea><br>
+
+            <div style="display:flex; gap:15px; flex-wrap:wrap;">
+
+                <a href="/dashboard/"
+                   style="
+                        background-color:#334155;
+                        color:white;
+                        padding:16px 28px;
+                        border-radius:10px;
+                        text-decoration:none;
+                        font-weight:bold;
+                        display:inline-block;
+                   ">
+                    Back To Dashboard
+                </a>
+
+                <button type="submit"
+                        style="
+                            background-color:#22c55e;
+                            color:white;
+                            padding:16px 28px;
+                            border:none;
+                            border-radius:10px;
+                            font-size:16px;
+                            font-weight:bold;
+                        ">
+                    Save Outcome
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+</body>
+</html>
