@@ -8,3 +8,4 @@ db.sqlite3
 .venv-1/
 .env
 db.sqlite3
+staticfiles/
