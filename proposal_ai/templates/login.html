@@ -15,49 +15,7 @@
     margin:0;
 ">
 
-<div style="
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:20px;
-    background-color:#05070d;
-    border-bottom:1px solid #1e293b;
-">
-
-    <a href="/"
-       style="
-            display:flex;
-            align-items:center;
-            text-decoration:none;
-       ">
-
-        <img src="{% static 'images/proposallogo.png' %}"
-             alt="ProposalIQ Logo"
-             style="
-                height:55px;
-                margin-right:15px;
-             ">
-
-        <h1 style="
-            color:white;
-            font-size:32px;
-            margin:0;
-            letter-spacing:2px;
-        ">
-            Proposal<span style="color:#1e90ff;">IQ</span>
-        </h1>
-
-    </a>
-
-    <a href="/register/" style="
-        color:white;
-        text-decoration:none;
-        font-size:18px;
-    ">
-        Register
-    </a>
-
-</div>
+{% include "partials/public_navbar.html" %}
 
 <div style="
     max-width:450px;
@@ -76,9 +34,11 @@
     </h2>
 
     {% if error_message %}
+
         <p style="color:#ef4444;">
             {{ error_message }}
         </p>
+
     {% endif %}
 
     <form method="POST">
@@ -87,41 +47,73 @@
 
         <label>Username</label><br>
 
-        <input type="text"
-               name="username"
-               required
-               style="
-                    width:100%;
-                    padding:12px;
-                    margin:8px 0 18px;
-               "><br>
+        <input
+            type="text"
+            name="username"
+            required
+            style="
+                width:100%;
+                padding:12px;
+                margin:8px 0 18px;
+                border:none;
+                border-radius:8px;
+            "
+        ><br>
 
         <label>Password</label><br>
 
-        <input type="password"
-               name="password"
-               required
-               style="
-                    width:100%;
-                    padding:12px;
-                    margin:8px 0 25px;
-               "><br>
+        <input
+            type="password"
+            name="password"
+            required
+            style="
+                width:100%;
+                padding:12px;
+                margin:8px 0 25px;
+                border:none;
+                border-radius:8px;
+            "
+        ><br>
 
-        <button type="submit"
-                style="
-                    width:100%;
-                    background-color:#1e90ff;
-                    color:white;
-                    padding:14px;
-                    border:0;
-                    border-radius:8px;
-                    font-size:16px;
-                    font-weight:bold;
-                ">
+        <button
+            type="submit"
+            style="
+                width:100%;
+                background-color:#1e90ff;
+                color:white;
+                padding:14px;
+                border:none;
+                border-radius:8px;
+                font-size:16px;
+                font-weight:bold;
+                cursor:pointer;
+            "
+        >
             Login
         </button>
 
     </form>
+
+    <p style="
+        text-align:center;
+        margin-top:25px;
+        color:#cbd5e1;
+    ">
+
+        Don't have an account?
+
+        <a href="/register/"
+           style="
+                color:#1e90ff;
+                text-decoration:none;
+                font-weight:bold;
+           ">
+
+            Register here
+
+        </a>
+
+    </p>
 
 </div>
 

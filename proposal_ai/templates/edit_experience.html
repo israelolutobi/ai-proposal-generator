@@ -10,24 +10,7 @@
 
 <body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
 
-<div style="display:flex; align-items:center; justify-content:space-between; padding:20px; background-color:#05070d; border-bottom:1px solid #1e293b;">
-
-    <a href="/dashboard/" style="display:flex; align-items:center; text-decoration:none;">
-        <img src="{% static 'images/proposallogo.png' %}" alt="ProposalIQ Logo" style="height:55px; margin-right:15px;">
-
-        <h1 style="color:white; font-size:32px; margin:0; letter-spacing:2px;">
-            Proposal<span style="color:#1e90ff;">IQ</span>
-        </h1>
-    </a>
-
-    <form method="POST" action="/logout/" style="margin:0;">
-        {% csrf_token %}
-        <button type="submit" style="background:none; border:none; color:#ef4444; font-size:18px; cursor:pointer;">
-            Logout
-        </button>
-    </form>
-
-</div>
+{% include "partials/navbar.html" %}
 
 <div style="max-width:750px; margin:60px auto; background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
 

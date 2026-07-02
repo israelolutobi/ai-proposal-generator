@@ -10,6 +10,8 @@
 
 <body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
 
+{% include "partials/navbar.html" %}
+
 <div style="max-width:900px; margin:70px auto; background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
 
     <h1>Confirm Extracted Job Features</h1>
@@ -63,10 +65,19 @@
         <label>Invites Sent</label><br>
         <input type="text" name="invites_sent" value="{{ job_post.invites_sent|default:'' }}" style="width:100%; padding:12px;"><br><br>
 
-        <button type="submit"
-                style="background-color:#22c55e; color:white; padding:16px 28px; border:none; border-radius:10px; font-weight:bold;">
-            Confirm & Generate Proposal
-        </button>
+        <div style="display:flex; gap:15px; flex-wrap:wrap;">
+
+            <a href="/dashboard/"
+               style="background-color:#334155; color:white; padding:16px 28px; border-radius:10px; text-decoration:none; font-weight:bold;">
+                ← Cancel
+            </a>
+
+            <button type="submit"
+                    style="background-color:#22c55e; color:white; padding:16px 28px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;">
+                Confirm & Generate Proposal
+            </button>
+
+        </div>
 
     </form>
 

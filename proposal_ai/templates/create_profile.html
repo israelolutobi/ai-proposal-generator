@@ -4,139 +4,178 @@
 {% load static %}
 
 <head>
-    <title>Create Profile - ProposalIQ</title>
+
+    <title>{{ page_title }} - ProposalIQ</title>
+
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
 </head>
 
 <body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
 
-<div style="display:flex; align-items:center; justify-content:space-between; padding:20px; background-color:#05070d; border-bottom:1px solid #1e293b;">
+{% include "partials/navbar.html" %}
 
-    <a href="/dashboard/" style="display:flex; align-items:center; text-decoration:none;">
-        <img src="{% static 'images/proposallogo.png' %}" alt="ProposalIQ Logo" style="height:55px; margin-right:15px;">
+<div style="max-width:850px; margin:60px auto;">
 
-        <h1 style="color:white; font-size:32px; margin:0; letter-spacing:2px;">
-            Proposal<span style="color:#1e90ff;">IQ</span>
-        </h1>
-    </a>
+    <div style="
+        background-color:#111827;
+        padding:40px;
+        border-radius:16px;
+        border:1px solid #1e293b;
+    ">
 
-    <div style="display:flex; gap:20px; align-items:center;">
+        <h2 style="
+            margin-top:0;
+            font-size:38px;
+        ">
+            {{ page_title }}
+        </h2>
 
-        <span style="color:#cbd5e1; font-size:16px;">
-            {{ user.username }}
-        </span>
+        <p style="
+            color:#cbd5e1;
+            line-height:1.6;
+            margin-bottom:35px;
+        ">
+            {{ page_description }}
+        </p>
 
-        <form method="POST" action="/logout/" style="margin:0;">
+        <form method="POST">
+
             {% csrf_token %}
 
-            <button type="submit" style="
-                background:none;
-                border:none;
-                color:#ef4444;
-                font-size:18px;
-                cursor:pointer;
-            ">
-                Logout
-            </button>
-        </form>
+            <input type="hidden"
+                   name="next"
+                   value="{{ next_page|default:'' }}">
 
-    </div>
+            <label>Professional Title</label><br>
 
-</div>
-
-<div style="
-    max-width:700px;
-    margin:60px auto;
-    background-color:#111827;
-    padding:40px;
-    border-radius:16px;
-    border:1px solid #1e293b;
-">
-
-    <h2 style="
-        margin-top:0;
-        font-size:36px;
-    ">
-        Create Your Freelancer Profile
-    </h2>
-
-    <p style="
-        color:#cbd5e1;
-        margin-bottom:35px;
-        line-height:1.6;
-    ">
-        Set up your basic freelancer identity first. You will add structured work experience after this step.
-    </p>
-
-    <form method="POST">
-
-        {% csrf_token %}
-
-        <input type="hidden"
-               name="next"
-               value="{{ next_page }}">
-
-        <label>Professional Title</label><br>
-
-        <input type="text"
-               name="professional_title"
-               value="{{ profile.professional_title|default:'' }}"
-               placeholder="e.g. Python Backend Developer"
-               style="
+            <input
+                type="text"
+                name="professional_title"
+                value="{{ profile.professional_title|default:'' }}"
+                placeholder="e.g. Python Backend Developer"
+                required
+                style="
                     width:100%;
                     padding:14px;
                     margin-top:8px;
                     margin-bottom:25px;
                     border-radius:8px;
                     border:none;
-               "><br>
+                "
+            ><br>
 
-        <label>Profile Summary</label><br>
+            <label>Profile Summary</label><br>
 
-        <textarea name="profile_summary"
-                  placeholder="Briefly describe who you are, the services you offer, and the type of work you want to win."
-                  style="
-                        width:100%;
-                        padding:14px;
-                        height:160px;
-                        margin-top:8px;
-                        margin-bottom:25px;
-                        border-radius:8px;
-                        border:none;
-                  ">{{ profile.profile_summary|default:'' }}</textarea><br>
+            <textarea
+                name="profile_summary"
+                required
+                placeholder="Describe your experience, strengths and what makes you a good freelancer..."
+                style="
+                    width:100%;
+                    height:180px;
+                    padding:14px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                "
+            >{{ profile.profile_summary|default:'' }}</textarea><br>
 
-        <label>Preferred Proposal Tone</label><br>
+            <label>Preferred Proposal Tone</label><br>
 
-        <input type="text"
-               name="preferred_tone"
-               value="{{ profile.preferred_tone|default:'' }}"
-               placeholder="Professional, confident, conversational..."
-               style="
+            <select
+                name="preferred_tone"
+                style="
                     width:100%;
                     padding:14px;
                     margin-top:8px;
                     margin-bottom:35px;
                     border-radius:8px;
                     border:none;
-               "><br>
-
-        <button type="submit"
-                style="
-                    background-color:#1e90ff;
-                    color:white;
-                    padding:16px 28px;
-                    border:none;
-                    border-radius:10px;
-                    font-size:16px;
-                    font-weight:bold;
-                    cursor:pointer;
                 ">
-            Continue
-        </button>
 
-    </form>
+                <option value="professional"
+                    {% if profile.preferred_tone == "professional" %}selected{% endif %}>
+                    Professional
+                </option>
+
+                <option value="friendly"
+                    {% if profile.preferred_tone == "friendly" %}selected{% endif %}>
+                    Friendly
+                </option>
+
+                <option value="confident"
+                    {% if profile.preferred_tone == "confident" %}selected{% endif %}>
+                    Confident
+                </option>
+
+                <option value="technical"
+                    {% if profile.preferred_tone == "technical" %}selected{% endif %}>
+                    Technical
+                </option>
+
+            </select>
+
+            <div style="
+                display:flex;
+                gap:15px;
+                flex-wrap:wrap;
+            ">
+
+                <a href="/dashboard/"
+                   style="
+                        background-color:#334155;
+                        color:white;
+                        padding:16px 26px;
+                        border-radius:10px;
+                        text-decoration:none;
+                        font-weight:bold;
+                   ">
+
+                    Dashboard
+
+                </a>
+
+                <a href="/my-experiences/"
+                   style="
+                        background-color:#1e293b;
+                        color:white;
+                        padding:16px 26px;
+                        border-radius:10px;
+                        text-decoration:none;
+                        font-weight:bold;
+                   ">
+
+                    My Experiences
+
+                </a>
+
+                <button
+                    type="submit"
+                    style="
+                        background-color:#1e90ff;
+                        color:white;
+                        padding:16px 28px;
+                        border:none;
+                        border-radius:10px;
+                        font-size:16px;
+                        font-weight:bold;
+                        cursor:pointer;
+                    ">
+
+                    {{ button_text }}
+
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
 
 </div>
 
 </body>
+
 </html>

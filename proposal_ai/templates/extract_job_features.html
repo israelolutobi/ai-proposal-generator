@@ -4,37 +4,142 @@
 {% load static %}
 
 <head>
+
     <title>Extract Job Features - ProposalIQ</title>
+
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
 </head>
 
 <body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
 
-<div style="max-width:900px; margin:70px auto; background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
+{% include "partials/navbar.html" %}
 
-    <h1>Paste Job Post</h1>
+<div style="max-width:1000px; margin:50px auto;">
 
-    <p style="color:#cbd5e1;">
-        Copy the full job post text and paste it below. ProposalIQ will extract the key job features automatically.
-    </p>
+    <div style="background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
 
-    <form method="POST">
-        {% csrf_token %}
+        <h2 style="margin-top:0;">
+            Extract Job Features
+        </h2>
 
-        <textarea name="raw_job_text"
-                  required
-                  placeholder="Paste full job post here..."
-                  style="width:100%; height:350px; padding:14px; border-radius:8px; border:none;"></textarea>
+        <p style="color:#cbd5e1;">
+            Paste the complete job description below.
+            ProposalIQ will first validate the quality of the job post before
+            extracting its features.
+        </p>
 
-        <br><br>
+        {% if validation_score is not None %}
 
-        <button type="submit"
-                style="background-color:#1e90ff; color:white; padding:16px 28px; border:none; border-radius:10px; font-weight:bold;">
-            Extract Features
-        </button>
-    </form>
+            <div style="margin-top:30px;
+                        margin-bottom:30px;
+                        padding:25px;
+                        border-radius:12px;
+                        background-color:#3f1d1d;
+                        border:2px solid #ef4444;">
+
+                <h3 style="margin-top:0; color:#fca5a5;">
+                    Job Validation Report
+                </h3>
+
+                <p>
+                    <strong>Quality Score:</strong>
+                    {{ validation_score }}/100
+                </p>
+
+                {% if validation_issues %}
+
+                    <ul>
+                        {% for issue in validation_issues %}
+                            <li>{{ issue }}</li>
+                        {% endfor %}
+                    </ul>
+
+                {% endif %}
+
+                <p style="margin-top:20px;">
+                    ProposalIQ believes this may not be a complete freelance
+                    job posting.
+                </p>
+
+            </div>
+
+        {% endif %}
+
+        <form method="POST">
+
+            {% csrf_token %}
+
+            <label>
+                Full Job Description
+            </label>
+
+            <textarea
+                    name="raw_job_text"
+                    required
+                    style="
+                        width:100%;
+                        height:350px;
+                        padding:15px;
+                        margin-top:10px;
+                        border-radius:10px;
+                        border:none;
+                    ">{{ raw_job_text|default:'' }}</textarea>
+
+            <div style="margin-top:30px; display:flex; gap:15px; flex-wrap:wrap;">
+
+                <button
+                        type="submit"
+                        style="
+                            background-color:#1e90ff;
+                            color:white;
+                            border:none;
+                            padding:15px 25px;
+                            border-radius:10px;
+                            font-weight:bold;
+                        ">
+                    Extract Features
+                </button>
+
+                {% if validation_score is not None and validation_score < 50 %}
+
+                    <button
+                            type="submit"
+                            name="continue_anyway"
+                            value="true"
+                            style="
+                                background-color:#f59e0b;
+                                color:white;
+                                border:none;
+                                padding:15px 25px;
+                                border-radius:10px;
+                                font-weight:bold;
+                            ">
+                        Continue Anyway
+                    </button>
+
+                {% endif %}
+
+                <a href="/dashboard/"
+                   style="
+                        background-color:#374151;
+                        color:white;
+                        padding:15px 25px;
+                        border-radius:10px;
+                        text-decoration:none;
+                        font-weight:bold;
+                   ">
+                    Cancel
+                </a>
+
+            </div>
+
+        </form>
+
+    </div>
 
 </div>
 
 </body>
+
 </html>

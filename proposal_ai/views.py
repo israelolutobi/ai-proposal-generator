@@ -154,6 +154,15 @@ def create_freelancer_profile(request):
 
     next_page = request.GET.get("next") or request.POST.get("next")
 
+    if profile:
+        page_title = "Your Freelancer Profile"
+        page_description = "Review and update your freelancer profile details. ProposalIQ uses this information when generating tailored proposals."
+        button_text = "Save Profile Changes"
+    else:
+        page_title = "Create Your Freelancer Profile"
+        page_description = "Create your freelancer profile so ProposalIQ can generate proposals that match your skills, tone and experience."
+        button_text = "Create Profile"
+
     if request.method == "POST":
         FreelancerProfile.objects.update_or_create(
             user=request.user,
@@ -172,6 +181,9 @@ def create_freelancer_profile(request):
     return render(request, "create_profile.html", {
         "profile": profile,
         "next_page": next_page,
+        "page_title": page_title,
+        "page_description": page_description,
+        "button_text": button_text,
     })
 
 
@@ -243,20 +255,77 @@ def confirm_use_proposal(request, proposal_id):
         "proposal": proposal
     })
 
+def validate_job_text(raw_text):
+    score = 0
+    issues = []
+
+    raw_text = raw_text or ""
+    lowered_text = raw_text.lower()
+
+    if len(raw_text.strip()) < 100:
+        issues.append("Job post is too short.")
+    else:
+        score += 20
+
+    job_keywords = [
+        "developer", "assistant", "designer", "writer", "specialist",
+        "looking for", "need", "hiring", "project", "freelancer"
+    ]
+
+    skill_keywords = [
+        "python", "django", "javascript", "excel", "data entry",
+        "design", "api", "postgresql", "admin", "copywriting"
+    ]
+
+    budget_keywords = [
+        "$", "hourly", "fixed", "budget", "per hour", "hrs/week"
+    ]
+
+    if any(keyword in lowered_text for keyword in job_keywords):
+        score += 30
+    else:
+        issues.append("No clear job/project wording detected.")
+
+    if any(keyword in lowered_text for keyword in skill_keywords):
+        score += 25
+    else:
+        issues.append("No clear skills detected.")
+
+    if any(keyword in lowered_text for keyword in budget_keywords):
+        score += 15
+    else:
+        issues.append("No budget/payment indicators detected.")
+
+    if len(raw_text.split()) > 50:
+        score += 10
+    else:
+        issues.append("Job post may not contain enough detail.")
+
+    return score, issues
+
 
 @login_required
 def extract_job_features(request):
     if request.method == "POST":
-        raw_job_text = request.POST.get("raw_job_text")
+        raw_job_text = request.POST.get("raw_job_text", "").strip()
+
+        validation_score, validation_issues = validate_job_text(raw_job_text)
+
+        if validation_score < 50 and "continue_anyway" not in request.POST:
+            return render(request, "extract_job_features.html", {
+                "raw_job_text": raw_job_text,
+                "validation_score": validation_score,
+                "validation_issues": validation_issues,
+            })
 
         prompt = (
-                "Extract structured job information from this freelance job post. "
-                "Return ONLY valid JSON with these keys: "
-                "platform, job_title, job_description, budget_type, hourly_min, hourly_max, "
-                "experience_level, project_duration, hours_per_week, skills_required, "
-                "client_location, proposal_count, interviewing_count, invites_sent. "
-                "If unknown, use an empty string. "
-                "Job post text: " + raw_job_text
+            "Extract structured job information from this freelance job post. "
+            "Return ONLY valid JSON with these keys: "
+            "platform, job_title, job_description, budget_type, hourly_min, hourly_max, "
+            "experience_level, project_duration, hours_per_week, skills_required, "
+            "client_location, proposal_count, interviewing_count, invites_sent. "
+            "If unknown, use an empty string. "
+            "Job post text: " + raw_job_text
         )
 
         response = client.chat.completions.create(
@@ -269,7 +338,7 @@ def extract_job_features(request):
             ]
         )
 
-        extracted_text = response.choices[0].message.content
+        extracted_text = response.choices[0].message.content.strip()
 
         try:
             extracted_data = json.loads(extracted_text)
@@ -299,9 +368,132 @@ def extract_job_features(request):
         return redirect("confirm_job_features", job_post_id=job_post.id)
 
     return render(request, "extract_job_features.html")
+#
+# @login_required
+# def extract_job_features(request):
+#     if request.method == "POST":
+#         raw_job_text = request.POST.get("raw_job_text")
+#
+#         prompt = (
+#             "Extract structured job information from this freelance job post. "
+#             "Return ONLY valid JSON with these keys: "
+#             "platform, job_title, job_description, budget_type, hourly_min, hourly_max, "
+#             "experience_level, project_duration, hours_per_week, skills_required, "
+#             "client_location, proposal_count, interviewing_count, invites_sent. "
+#             "If unknown, use an empty string. "
+#             "Job post text: " + raw_job_text
+#         )
+#
+#         response = client.chat.completions.create(
+#             model="gpt-5",
+#             messages=[
+#                 {
+#                     "role": "user",
+#                     "content": prompt
+#                 }
+#             ]
+#         )
+#
+#         extracted_text = response.choices[0].message.content
+#
+#         try:
+#             extracted_data = json.loads(extracted_text)
+#         except json.JSONDecodeError:
+#             extracted_data = {}
+#
+#         job_post = JobPost.objects.create(
+#             user=request.user,
+#             raw_job_text=raw_job_text,
+#             platform=extracted_data.get("platform", ""),
+#             job_title=extracted_data.get("job_title", "Untitled Job") or "Untitled Job",
+#             job_description=extracted_data.get("job_description", raw_job_text),
+#             budget_type=extracted_data.get("budget_type", ""),
+#             hourly_min=extracted_data.get("hourly_min") or None,
+#             hourly_max=extracted_data.get("hourly_max") or None,
+#             experience_level=extracted_data.get("experience_level", ""),
+#             project_duration=extracted_data.get("project_duration", ""),
+#             hours_per_week=extracted_data.get("hours_per_week", ""),
+#             skills_required=extracted_data.get("skills_required", ""),
+#             client_location=extracted_data.get("client_location", ""),
+#             proposal_count=extracted_data.get("proposal_count", ""),
+#             interviewing_count=extracted_data.get("interviewing_count", ""),
+#             invites_sent=extracted_data.get("invites_sent", ""),
+#             confirmed_by_user=False,
+#         )
+#
+#         return redirect("confirm_job_features", job_post_id=job_post.id)
+#
+#     return render(request, "extract_job_features.html")
+#
+# @login_required
+# def extract_job_features(request):
+#     if request.method != "POST":
+#         return redirect("dashboard")
+#
+#     raw_job_text = request.POST.get("raw_job_text", "").strip()
+#
+#     validation_score, validation_issues = validate_job_text(raw_job_text)
+#
+#     continue_anyway = request.POST.get("continue_anyway")
+#
+#     if validation_score < 50 and not continue_anyway:
+#         return render(request, "extract_job_features.html", {
+#             "raw_job_text": raw_job_text,
+#             "validation_score": validation_score,
+#             "validation_issues": validation_issues,
+#         })
+#
+#     prompt = (
+#         "Extract structured job information from this freelance job post. "
+#         "Return ONLY valid JSON with these keys: "
+#         "platform, job_title, job_description, budget_type, hourly_min, hourly_max, "
+#         "experience_level, project_duration, hours_per_week, skills_required, "
+#         "client_location, proposal_count, interviewing_count, invites_sent. "
+#         "If unknown, use an empty string. "
+#         "Job post text: " + raw_job_text
+#     )
+#
+#     response = client.chat.completions.create(
+#         model="gpt-5",
+#         messages=[
+#             {
+#                 "role": "user",
+#                 "content": prompt
+#             }
+#         ]
+#     )
+#
+#     extracted_text = response.choices[0].message.content.strip()
+#
+#     try:
+#         extracted_data = json.loads(extracted_text)
+#     except json.JSONDecodeError:
+#         extracted_data = {}
+#
+#     job_post = JobPost.objects.create(
+#         user=request.user,
+#         raw_job_text=raw_job_text,
+#         platform=extracted_data.get("platform", ""),
+#         job_title=extracted_data.get("job_title", "Untitled Job") or "Untitled Job",
+#         job_description=extracted_data.get("job_description", raw_job_text),
+#         budget_type=extracted_data.get("budget_type", ""),
+#         hourly_min=extracted_data.get("hourly_min") or None,
+#         hourly_max=extracted_data.get("hourly_max") or None,
+#         experience_level=extracted_data.get("experience_level", ""),
+#         project_duration=extracted_data.get("project_duration", ""),
+#         hours_per_week=extracted_data.get("hours_per_week", ""),
+#         skills_required=extracted_data.get("skills_required", ""),
+#         client_location=extracted_data.get("client_location", ""),
+#         proposal_count=extracted_data.get("proposal_count", ""),
+#         interviewing_count=extracted_data.get("interviewing_count", ""),
+#         invites_sent=extracted_data.get("invites_sent", ""),
+#         confirmed_by_user=False,
+#     )
+#
+#     return redirect("confirm_job_features", job_post_id=job_post.id)
+# @login_required
 
 
-@login_required
 def confirm_job_features(request, job_post_id):
     job_post = get_object_or_404(
         JobPost,
@@ -384,6 +576,88 @@ def confirm_job_features(request, job_post_id):
         "job_post": job_post
     })
 
+#
+# def validate_job_text(raw_text):
+#     score = 0
+#     issues = []
+#
+#     if not raw_text or len(raw_text.strip()) < 100:
+#         issues.append("Job post is too short.")
+#     else:
+#         score += 20
+#
+#     job_keywords = [
+#         "developer", "assistant", "designer", "writer", "specialist",
+#         "looking for", "need", "hiring", "project", "freelancer"
+#     ]
+#
+#     skill_keywords = [
+#         "python", "django", "javascript", "excel", "data entry",
+#         "design", "api", "postgresql", "admin", "copywriting"
+#     ]
+#
+#     budget_keywords = [
+#         "$", "hourly", "fixed", "budget", "per hour", "hrs/week"
+#     ]
+#
+#     if any(word.lower() in raw_text.lower() for word in job_keywords):
+#         score += 30
+#     else:
+#         issues.append("No clear job/project wording detected.")
+#
+#     if any(word.lower() in raw_text.lower() for word in skill_keywords):
+#         score += 25
+#     else:
+#         issues.append("No clear skills detected.")
+#
+#     if any(word.lower() in raw_text.lower() for word in budget_keywords):
+#         score += 15
+#     else:
+#         issues.append("No budget/payment indicators detected.")
+#
+#     if len(raw_text.split()) > 50:
+#         score += 10
+#     else:
+#         issues.append("Job post may not contain enough detail.")
+#
+#     return score, issues
+
+def validate_job_text(raw_text):
+    score = 0
+    issues = []
+
+    if len(raw_text.strip()) < 100:
+        issues.append("The job description appears very short.")
+    else:
+        score += 20
+
+    job_keywords = [
+        "developer",
+        "designer",
+        "assistant",
+        "engineer",
+        "project",
+        "freelancer",
+        "hiring",
+        "looking for",
+    ]
+
+    if any(keyword in raw_text.lower() for keyword in job_keywords):
+        score += 30
+    else:
+        issues.append("No common job-related keywords detected.")
+
+    if "$" in raw_text or "hourly" in raw_text.lower() or "budget" in raw_text.lower():
+        score += 20
+    else:
+        issues.append("No pricing or budget information detected.")
+
+    if len(raw_text.split()) > 50:
+        score += 30
+    else:
+        issues.append("The description contains very little detail.")
+
+    return score, issues
 
 @login_required
 def update_outcome(request, proposal_id):
