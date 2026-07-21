@@ -4,84 +4,1268 @@
 {% load static %}
 
 <head>
-    <title>Confirm Job Features - ProposalIQ</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+    <title>
+        Confirm Opportunity Details - ProposalIQ
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{% static 'css/style.css' %}"
+    >
+
 </head>
 
-<body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
+
+<body style="
+    background-color:#0b1120;
+    color:white;
+    font-family:Arial;
+    margin:0;
+">
 
 {% include "partials/navbar.html" %}
 
-<div style="max-width:900px; margin:70px auto; background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
 
-    <h1>Confirm Extracted Job Features</h1>
+<div style="
+    max-width:900px;
+    margin:70px auto;
+    padding:0 20px;
+">
 
-    <p style="color:#cbd5e1;">
-        Review and edit the extracted details before generating the proposal.
-    </p>
+    <div style="
+        background-color:#111827;
+        padding:40px;
+        border-radius:16px;
+        border:1px solid #1e293b;
+    ">
 
-    <form method="POST">
-        {% csrf_token %}
 
-        <label>Platform</label><br>
-        <input type="text" name="platform" value="{{ job_post.platform|default:'' }}" style="width:100%; padding:12px;"><br><br>
+        <!-- ===================================================== -->
+        <!-- PAGE HEADER -->
+        <!-- ===================================================== -->
 
-        <label>Job Title</label><br>
-        <input type="text" name="job_title" value="{{ job_post.job_title|default:'' }}" style="width:100%; padding:12px;"><br><br>
+        <h1 style="
+            margin-top:0;
+            font-size:38px;
+            margin-bottom:10px;
+        ">
+            Confirm Opportunity Details
+        </h1>
 
-        <label>Job Description</label><br>
-        <textarea name="job_description" style="width:100%; height:180px; padding:12px;">{{ job_post.job_description|default:'' }}</textarea><br><br>
 
-        <label>Budget Type</label><br>
-        <input type="text" name="budget_type" value="{{ job_post.budget_type|default:'' }}" style="width:100%; padding:12px;"><br><br>
+        <p style="
+            color:#cbd5e1;
+            line-height:1.6;
+            margin-bottom:30px;
+        ">
+            ProposalIQ extracted these details from the opportunity.
+            Review and correct anything that looks inaccurate before
+            generating your application content.
+        </p>
 
-        <label>Hourly Min</label><br>
-        <input type="number" step="0.01" name="hourly_min" value="{{ job_post.hourly_min|default:'' }}" style="width:100%; padding:12px;"><br><br>
 
-        <label>Hourly Max</label><br>
-        <input type="number" step="0.01" name="hourly_max" value="{{ job_post.hourly_max|default:'' }}" style="width:100%; padding:12px;"><br><br>
 
-        <label>Experience Level</label><br>
-        <input type="text" name="experience_level" value="{{ job_post.experience_level|default:'' }}" style="width:100%; padding:12px;"><br><br>
+        <!-- ===================================================== -->
+        <!-- PLATFORM / CONTENT EXPLANATION -->
+        <!-- ===================================================== -->
 
-        <label>Project Duration</label><br>
-        <input type="text" name="project_duration" value="{{ job_post.project_duration|default:'' }}" style="width:100%; padding:12px;"><br><br>
+        <div
+            id="platform-summary-card"
+            style="
+                background-color:#0f172a;
+                border:1px solid #263449;
+                padding:22px;
+                border-radius:12px;
+                margin-bottom:30px;
+            "
+        >
 
-        <label>Hours Per Week</label><br>
-        <input type="text" name="hours_per_week" value="{{ job_post.hours_per_week|default:'' }}" style="width:100%; padding:12px;"><br><br>
+            <p style="
+                color:#94a3b8;
+                font-size:13px;
+                font-weight:bold;
+                text-transform:uppercase;
+                margin-top:0;
+                margin-bottom:12px;
+            ">
+                Application Format
+            </p>
 
-        <label>Skills Required</label><br>
-        <textarea name="skills_required" style="width:100%; height:100px; padding:12px;">{{ job_post.skills_required|default:'' }}</textarea><br><br>
 
-        <label>Client Location</label><br>
-        <input type="text" name="client_location" value="{{ job_post.client_location|default:'' }}" style="width:100%; padding:12px;"><br><br>
+            <div style="
+                display:flex;
+                gap:35px;
+                flex-wrap:wrap;
+            ">
 
-        <label>Proposal Count</label><br>
-        <input type="text" name="proposal_count" value="{{ job_post.proposal_count|default:'' }}" style="width:100%; padding:12px;"><br><br>
+                <div>
 
-        <label>Interviewing Count</label><br>
-        <input type="text" name="interviewing_count" value="{{ job_post.interviewing_count|default:'' }}" style="width:100%; padding:12px;"><br><br>
+                    <span style="
+                        display:block;
+                        color:#94a3b8;
+                        font-size:13px;
+                        margin-bottom:5px;
+                    ">
+                        Overall application
+                    </span>
 
-        <label>Invites Sent</label><br>
-        <input type="text" name="invites_sent" value="{{ job_post.invites_sent|default:'' }}" style="width:100%; padding:12px;"><br><br>
+                    <strong
+                        id="application-label-display"
+                        style="font-size:18px;"
+                    >
+                        {{ application_label|default:"Application" }}
+                    </strong>
 
-        <div style="display:flex; gap:15px; flex-wrap:wrap;">
+                </div>
 
-            <a href="/dashboard/"
-               style="background-color:#334155; color:white; padding:16px 28px; border-radius:10px; text-decoration:none; font-weight:bold;">
-                ← Cancel
-            </a>
 
-            <button type="submit"
-                    style="background-color:#22c55e; color:white; padding:16px 28px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;">
-                Confirm & Generate Proposal
-            </button>
+                <div>
+
+                    <span style="
+                        display:block;
+                        color:#94a3b8;
+                        font-size:13px;
+                        margin-bottom:5px;
+                    ">
+                        ProposalIQ will generate
+                    </span>
+
+                    <strong
+                        id="content-label-display"
+                        style="
+                            font-size:18px;
+                            color:#60a5fa;
+                        "
+                    >
+                        {{ content_label|default:"Application Message" }}
+                    </strong>
+
+                </div>
+
+            </div>
+
+
+            <p
+                id="platform-help-text"
+                style="
+                    color:#cbd5e1;
+                    line-height:1.6;
+                    margin-bottom:0;
+                    margin-top:18px;
+                    font-size:14px;
+                "
+            >
+                ProposalIQ adapts what it generates according to the
+                platform. The overall application and its written content
+                may use different names.
+            </p>
 
         </div>
 
-    </form>
+
+
+        <!-- ===================================================== -->
+        <!-- CONFIRMATION FORM -->
+        <!-- ===================================================== -->
+
+        <form method="POST" id="confirm-job-form">
+
+            {% csrf_token %}
+
+
+            <!-- PLATFORM -->
+
+            <label
+                for="platform"
+                style="font-weight:bold;"
+            >
+                Platform
+            </label>
+
+            <input
+                type="text"
+                id="platform"
+                name="platform"
+                value="{{ job_post.platform|default:'' }}"
+                placeholder="e.g. Upwork, Freelancer, PeoplePerHour"
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:12px;
+                    margin-top:8px;
+                    margin-bottom:8px;
+                    border-radius:8px;
+                    border:none;
+                    font-size:15px;
+                "
+            >
+
+            <p style="
+                color:#94a3b8;
+                font-size:13px;
+                margin-top:0;
+                margin-bottom:25px;
+            ">
+                Correct this if ProposalIQ identified the wrong platform.
+                The platform affects the type of content generated.
+            </p>
+
+
+
+            <!-- JOB TITLE -->
+
+            <label
+                for="job_title"
+                style="font-weight:bold;"
+            >
+                Job / Opportunity Title
+            </label>
+
+            <input
+                type="text"
+                id="job_title"
+                name="job_title"
+                value="{{ job_post.job_title|default:'' }}"
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:12px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                    font-size:15px;
+                "
+            >
+
+
+
+            <!-- JOB DESCRIPTION -->
+
+            <label
+                for="job_description"
+                style="font-weight:bold;"
+            >
+                Job / Opportunity Description
+            </label>
+
+            <textarea
+                id="job_description"
+                name="job_description"
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    height:180px;
+                    padding:12px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                    resize:vertical;
+                    font-size:15px;
+                    line-height:1.5;
+                "
+            >{{ job_post.job_description|default:'' }}</textarea>
+
+
+
+            <!-- ================================================= -->
+            <!-- BUDGET INFORMATION -->
+            <!-- ================================================= -->
+
+            <div style="
+                background-color:#0f172a;
+                padding:22px;
+                border-radius:12px;
+                border:1px solid #1e293b;
+                margin-bottom:30px;
+            ">
+
+                <h3 style="
+                    margin-top:0;
+                    margin-bottom:8px;
+                    font-size:19px;
+                ">
+                    Budget Information
+                </h3>
+
+
+                <p style="
+                    color:#94a3b8;
+                    font-size:13px;
+                    line-height:1.5;
+                    margin-top:0;
+                    margin-bottom:22px;
+                ">
+                    These values represent the client's stated budget,
+                    not necessarily the amount you will choose to bid.
+                </p>
+
+
+
+                <!-- BUDGET TYPE -->
+
+                <label
+                    for="budget_type"
+                    style="font-weight:bold;"
+                >
+                    Budget Type
+                </label>
+
+                <input
+                    type="text"
+                    id="budget_type"
+                    name="budget_type"
+                    value="{{ job_post.budget_type|default:'' }}"
+                    placeholder="e.g. Hourly or Fixed Price"
+                    style="
+                        box-sizing:border-box;
+                        width:100%;
+                        padding:12px;
+                        margin-top:8px;
+                        margin-bottom:8px;
+                        border-radius:8px;
+                        border:none;
+                        font-size:15px;
+                    "
+                >
+
+                <p style="
+                    color:#94a3b8;
+                    font-size:13px;
+                    margin-top:0;
+                    margin-bottom:22px;
+                ">
+                    Correct this if ProposalIQ identified the budget type
+                    incorrectly.
+                </p>
+
+
+
+                <!-- FIXED PRICE BUDGET -->
+
+                <div
+                    id="fixed-budget-section"
+                    style="margin-bottom:22px;"
+                >
+
+                    <label
+                        for="fixed_budget"
+                        style="font-weight:bold;"
+                    >
+                        Fixed Price Budget
+                    </label>
+
+                    <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        id="fixed_budget"
+                        name="fixed_budget"
+                        value="{{ job_post.fixed_budget|default:'' }}"
+                        placeholder="e.g. 500.00"
+                        style="
+                            box-sizing:border-box;
+                            width:100%;
+                            padding:12px;
+                            margin-top:8px;
+                            border-radius:8px;
+                            border:none;
+                            font-size:15px;
+                        "
+                    >
+
+                    <p style="
+                        color:#94a3b8;
+                        font-size:13px;
+                        margin-top:8px;
+                        margin-bottom:0;
+                    ">
+                        Enter the client's stated fixed-price budget.
+                        Leave blank if no exact amount was provided.
+                    </p>
+
+                </div>
+
+
+
+                <!-- HOURLY RANGE -->
+
+                <div
+                    id="hourly-budget-section"
+                    style="
+                        display:grid;
+                        grid-template-columns:repeat(
+                            auto-fit,
+                            minmax(220px, 1fr)
+                        );
+                        gap:20px;
+                    "
+                >
+
+                    <div>
+
+                        <label
+                            for="hourly_min"
+                            style="font-weight:bold;"
+                        >
+                            Hourly Minimum
+                        </label>
+
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            id="hourly_min"
+                            name="hourly_min"
+                            value="{{ job_post.hourly_min|default:'' }}"
+                            placeholder="e.g. 25.00"
+                            style="
+                                box-sizing:border-box;
+                                width:100%;
+                                padding:12px;
+                                margin-top:8px;
+                                border-radius:8px;
+                                border:none;
+                                font-size:15px;
+                            "
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label
+                            for="hourly_max"
+                            style="font-weight:bold;"
+                        >
+                            Hourly Maximum
+                        </label>
+
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            id="hourly_max"
+                            name="hourly_max"
+                            value="{{ job_post.hourly_max|default:'' }}"
+                            placeholder="e.g. 50.00"
+                            style="
+                                box-sizing:border-box;
+                                width:100%;
+                                padding:12px;
+                                margin-top:8px;
+                                border-radius:8px;
+                                border:none;
+                                font-size:15px;
+                            "
+                        >
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+
+            <!-- EXPERIENCE LEVEL -->
+
+            <label
+                for="experience_level"
+                style="font-weight:bold;"
+            >
+                Experience Level
+            </label>
+
+            <input
+                type="text"
+                id="experience_level"
+                name="experience_level"
+                value="{{ job_post.experience_level|default:'' }}"
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:12px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                    font-size:15px;
+                "
+            >
+
+
+
+            <!-- PROJECT DURATION -->
+
+            <label
+                for="project_duration"
+                style="font-weight:bold;"
+            >
+                Project Duration
+            </label>
+
+            <input
+                type="text"
+                id="project_duration"
+                name="project_duration"
+                value="{{ job_post.project_duration|default:'' }}"
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:12px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                    font-size:15px;
+                "
+            >
+
+
+
+            <!-- HOURS PER WEEK -->
+
+            <label
+                for="hours_per_week"
+                style="font-weight:bold;"
+            >
+                Hours Per Week
+            </label>
+
+            <input
+                type="text"
+                id="hours_per_week"
+                name="hours_per_week"
+                value="{{ job_post.hours_per_week|default:'' }}"
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:12px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                    font-size:15px;
+                "
+            >
+
+
+
+            <!-- SKILLS REQUIRED -->
+
+            <label
+                for="skills_required"
+                style="font-weight:bold;"
+            >
+                Skills Required
+            </label>
+
+            <textarea
+                id="skills_required"
+                name="skills_required"
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    height:100px;
+                    padding:12px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                    resize:vertical;
+                    font-size:15px;
+                    line-height:1.5;
+                "
+            >{{ job_post.skills_required|default:'' }}</textarea>
+
+
+
+            <!-- CLIENT LOCATION -->
+
+            <label
+                for="client_location"
+                style="font-weight:bold;"
+            >
+                Client Location
+            </label>
+
+            <input
+                type="text"
+                id="client_location"
+                name="client_location"
+                value="{{ job_post.client_location|default:'' }}"
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:12px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                    font-size:15px;
+                "
+            >
+
+
+
+            <!-- MARKETPLACE ACTIVITY -->
+
+            <div style="
+                background-color:#0f172a;
+                padding:22px;
+                border-radius:12px;
+                border:1px solid #1e293b;
+                margin-bottom:30px;
+            ">
+
+                <h3 style="
+                    margin-top:0;
+                    margin-bottom:20px;
+                    font-size:19px;
+                ">
+                    Marketplace Activity
+                </h3>
+
+
+                <div style="
+                    display:grid;
+                    grid-template-columns:repeat(
+                        auto-fit,
+                        minmax(190px, 1fr)
+                    );
+                    gap:20px;
+                ">
+
+                    <div>
+
+                        <label
+                            for="proposal_count"
+                            style="font-weight:bold;"
+                        >
+                            Proposal / Application Count
+                        </label>
+
+                        <input
+                            type="text"
+                            id="proposal_count"
+                            name="proposal_count"
+                            value="{{ job_post.proposal_count|default:'' }}"
+                            style="
+                                box-sizing:border-box;
+                                width:100%;
+                                padding:12px;
+                                margin-top:8px;
+                                border-radius:8px;
+                                border:none;
+                                font-size:15px;
+                            "
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label
+                            for="interviewing_count"
+                            style="font-weight:bold;"
+                        >
+                            Interviewing Count
+                        </label>
+
+                        <input
+                            type="text"
+                            id="interviewing_count"
+                            name="interviewing_count"
+                            value="{{ job_post.interviewing_count|default:'' }}"
+                            style="
+                                box-sizing:border-box;
+                                width:100%;
+                                padding:12px;
+                                margin-top:8px;
+                                border-radius:8px;
+                                border:none;
+                                font-size:15px;
+                            "
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label
+                            for="invites_sent"
+                            style="font-weight:bold;"
+                        >
+                            Invites Sent
+                        </label>
+
+                        <input
+                            type="text"
+                            id="invites_sent"
+                            name="invites_sent"
+                            value="{{ job_post.invites_sent|default:'' }}"
+                            style="
+                                box-sizing:border-box;
+                                width:100%;
+                                padding:12px;
+                                margin-top:8px;
+                                border-radius:8px;
+                                border:none;
+                                font-size:15px;
+                            "
+                        >
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+
+            <!-- ================================================= -->
+            <!-- ACTIONS -->
+            <!-- ================================================= -->
+
+            <div style="
+                display:flex;
+                gap:15px;
+                flex-wrap:wrap;
+                align-items:center;
+            ">
+
+                <a
+                    id="cancel-link"
+                    href="{% url 'dashboard' %}"
+                    style="
+                        background-color:#334155;
+                        color:white;
+                        padding:16px 28px;
+                        border-radius:10px;
+                        text-decoration:none;
+                        font-weight:bold;
+                    "
+                >
+                    ← Cancel
+                </a>
+
+
+                <button
+                    type="submit"
+                    id="generate-content-button"
+                    style="
+                        background-color:#22c55e;
+                        color:white;
+                        padding:16px 28px;
+                        border:none;
+                        border-radius:10px;
+                        font-weight:bold;
+                        font-size:16px;
+                        cursor:pointer;
+                    "
+                >
+                    Confirm & Generate
+                    {{ content_label|default:"Application Message" }}
+                </button>
+
+            </div>
+
+
+            <!-- ================================================= -->
+            <!-- GENERATION STATUS -->
+            <!-- ================================================= -->
+
+            <div
+                id="generation-status"
+                role="status"
+                aria-live="polite"
+                style="
+                    display:none;
+                    margin-top:20px;
+                    padding:16px 18px;
+                    background-color:#172033;
+                    border:1px solid #334155;
+                    border-radius:10px;
+                    color:#cbd5e1;
+                    line-height:1.5;
+                "
+            >
+                <strong style="color:white;">
+                    ProposalIQ is generating your application content...
+                </strong>
+
+                <div style="margin-top:6px;">
+                    This can take a little while. Please keep this page open
+                    and do not click the generate button again or refresh
+                    the page.
+                </div>
+            </div>
+
+        </form>
+
+    </div>
 
 </div>
 
+
+
+<!-- ============================================================= -->
+<!-- LIVE PLATFORM + BUDGET BEHAVIOUR -->
+<!-- ============================================================= -->
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        /*
+        ============================================================
+        PLATFORM-AWARE TERMINOLOGY
+        ============================================================
+        */
+
+        const platformInput =
+            document.getElementById(
+                "platform"
+            );
+
+        const applicationDisplay =
+            document.getElementById(
+                "application-label-display"
+            );
+
+        const contentDisplay =
+            document.getElementById(
+                "content-label-display"
+            );
+
+        const generateButton =
+            document.getElementById(
+                "generate-content-button"
+            );
+
+
+        const confirmationForm =
+            document.getElementById(
+                "confirm-job-form"
+            );
+
+        const generationStatus =
+            document.getElementById(
+                "generation-status"
+            );
+
+        const cancelLink =
+            document.getElementById(
+                "cancel-link"
+            );
+
+        let submissionInProgress = false;
+
+
+        const platformLabels = {
+
+            "upwork": {
+                application: "Proposal",
+                content: "Cover Letter"
+            },
+
+            "upwork.com": {
+                application: "Proposal",
+                content: "Cover Letter"
+            },
+
+            "freelancer": {
+                application: "Bid",
+                content: "Proposal"
+            },
+
+            "freelancer.com": {
+                application: "Bid",
+                content: "Proposal"
+            },
+
+            "peopleperhour": {
+                application: "Proposal",
+                content: "Proposal Message"
+            },
+
+            "people per hour": {
+                application: "Proposal",
+                content: "Proposal Message"
+            },
+
+            "peopleperhour.com": {
+                application: "Proposal",
+                content: "Proposal Message"
+            },
+
+            "fiverr": {
+                application: "Offer",
+                content: "Client Message"
+            },
+
+            "fiverr.com": {
+                application: "Offer",
+                content: "Client Message"
+            },
+
+            "direct": {
+                application: "Pitch",
+                content: "Pitch Message"
+            },
+
+            "direct client": {
+                application: "Pitch",
+                content: "Pitch Message"
+            },
+
+            "direct outreach": {
+                application: "Pitch",
+                content: "Pitch Message"
+            },
+
+            "linkedin": {
+                application: "Pitch",
+                content: "Pitch Message"
+            },
+
+            "email": {
+                application: "Pitch",
+                content: "Pitch Message"
+            }
+
+        };
+
+
+        function normalizePlatform(value) {
+
+            let normalized =
+                value.trim().toLowerCase();
+
+
+            normalized =
+                normalized.replace(
+                    /^https?:\/\/(www\.)?/,
+                    ""
+                );
+
+
+            normalized =
+                normalized.replace(
+                    /^www\./,
+                    ""
+                );
+
+
+            normalized =
+                normalized.split("/")[0];
+
+
+            return normalized;
+
+        }
+
+
+        function updatePlatformTerminology() {
+
+            const platform =
+                normalizePlatform(
+                    platformInput.value
+                );
+
+
+            const config =
+                platformLabels[platform]
+                || {
+                    application: "Application",
+                    content: "Application Message"
+                };
+
+
+            applicationDisplay.textContent =
+                config.application;
+
+
+            contentDisplay.textContent =
+                config.content;
+
+
+            if (!submissionInProgress) {
+
+                generateButton.textContent =
+                    "Confirm & Generate "
+                    + config.content;
+
+            }
+
+        }
+
+
+
+        /*
+        ============================================================
+        BUDGET TYPE BEHAVIOUR
+        ============================================================
+        */
+
+        const budgetTypeInput =
+            document.getElementById(
+                "budget_type"
+            );
+
+        const fixedBudgetSection =
+            document.getElementById(
+                "fixed-budget-section"
+            );
+
+        const hourlyBudgetSection =
+            document.getElementById(
+                "hourly-budget-section"
+            );
+
+
+        function updateBudgetFields() {
+
+            const budgetType =
+                budgetTypeInput.value
+                    .trim()
+                    .toLowerCase();
+
+
+            const isFixed =
+                budgetType.includes(
+                    "fixed"
+                );
+
+
+            const isHourly =
+                budgetType.includes(
+                    "hour"
+                );
+
+
+            if (
+                isFixed
+                && !isHourly
+            ) {
+
+                /*
+                Fixed-price opportunity:
+                show fixed budget only.
+                */
+
+                fixedBudgetSection.style.display =
+                    "block";
+
+                hourlyBudgetSection.style.display =
+                    "none";
+
+
+            } else if (
+                isHourly
+                && !isFixed
+            ) {
+
+                /*
+                Hourly opportunity:
+                show hourly range only.
+                */
+
+                fixedBudgetSection.style.display =
+                    "none";
+
+                hourlyBudgetSection.style.display =
+                    "grid";
+
+
+            } else {
+
+                /*
+                Budget type is unknown, blank or ambiguous.
+
+                Show both so the user can correct the extraction
+                rather than hiding potentially useful fields.
+                */
+
+                fixedBudgetSection.style.display =
+                    "block";
+
+                hourlyBudgetSection.style.display =
+                    "grid";
+
+            }
+
+        }
+
+
+
+        /*
+        ============================================================
+        GENERATION / DOUBLE-SUBMIT PROTECTION
+        ============================================================
+        */
+
+        function resetGenerationState() {
+
+            submissionInProgress = false;
+
+            confirmationForm.setAttribute(
+                "aria-busy",
+                "false"
+            );
+
+            generateButton.disabled = false;
+
+            generateButton.style.opacity =
+                "1";
+
+            generateButton.style.cursor =
+                "pointer";
+
+            generationStatus.style.display =
+                "none";
+
+            cancelLink.style.pointerEvents =
+                "auto";
+
+            cancelLink.style.opacity =
+                "1";
+
+            updatePlatformTerminology();
+
+        }
+
+
+        confirmationForm.addEventListener(
+            "submit",
+            function (event) {
+
+                /*
+                The first valid submission is allowed through normally.
+
+                Any second submit event while the first request is still
+                processing is blocked. This prevents accidental duplicate
+                OpenAI requests and duplicate Proposal records.
+                */
+
+                if (submissionInProgress) {
+
+                    event.preventDefault();
+
+                    return;
+
+                }
+
+
+                submissionInProgress = true;
+
+                confirmationForm.setAttribute(
+                    "aria-busy",
+                    "true"
+                );
+
+
+                const currentContentLabel =
+                    contentDisplay.textContent
+                        .trim()
+                    || "Application Content";
+
+
+                generateButton.disabled = true;
+
+                generateButton.textContent =
+                    "Generating "
+                    + currentContentLabel
+                    + "... Please wait";
+
+                generateButton.style.opacity =
+                    "0.65";
+
+                generateButton.style.cursor =
+                    "progress";
+
+
+                generationStatus.style.display =
+                    "block";
+
+
+                /*
+                Discourage navigation away while the synchronous AI request
+                is running. We do not disable the form fields themselves,
+                because disabled form controls may be omitted from the POST.
+                */
+
+                cancelLink.style.pointerEvents =
+                    "none";
+
+                cancelLink.style.opacity =
+                    "0.5";
+
+            }
+        );
+
+
+        /*
+        Some browsers can restore a previously disabled button when the user
+        navigates back using the browser's back-forward cache. Reset the UI
+        whenever this page is shown again.
+        */
+
+        window.addEventListener(
+            "pageshow",
+            function () {
+
+                resetGenerationState();
+
+            }
+        );
+
+
+
+        /*
+        ============================================================
+        EVENT LISTENERS
+        ============================================================
+        */
+
+        platformInput.addEventListener(
+            "input",
+            updatePlatformTerminology
+        );
+
+
+        budgetTypeInput.addEventListener(
+            "input",
+            updateBudgetFields
+        );
+
+
+        /*
+        Run immediately when the page loads.
+
+        This ensures extracted data is displayed correctly without
+        requiring the user to edit either field first.
+        */
+
+        updatePlatformTerminology();
+
+        updateBudgetFields();
+
+    }
+
+);
+
+</script>
+
+
 </body>
+
 </html>

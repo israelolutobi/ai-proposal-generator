@@ -11,11 +11,19 @@
 
 </head>
 
-<body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
+<body style="
+    background-color:#0b1120;
+    color:white;
+    font-family:Arial;
+    margin:0;
+">
 
 {% include "partials/navbar.html" %}
 
-<div style="max-width:850px; margin:60px auto;">
+<div style="
+    max-width:850px;
+    margin:60px auto;
+">
 
     <div style="
         background-color:#111827;
@@ -39,83 +47,320 @@
             {{ page_description }}
         </p>
 
+
         <form method="POST">
 
             {% csrf_token %}
 
-            <input type="hidden"
-                   name="next"
-                   value="{{ next_page|default:'' }}">
+            <input
+                type="hidden"
+                name="next"
+                value="{{ next_page|default:'' }}"
+            >
 
-            <label>Professional Title</label><br>
+
+            <!-- PROFESSIONAL TITLE -->
+
+            <label
+                for="professional_title"
+                style="
+                    font-weight:bold;
+                    display:block;
+                "
+            >
+                Professional Title
+            </label>
 
             <input
                 type="text"
+                id="professional_title"
                 name="professional_title"
                 value="{{ profile.professional_title|default:'' }}"
                 placeholder="e.g. Python Backend Developer"
                 required
                 style="
+                    box-sizing:border-box;
                     width:100%;
                     padding:14px;
                     margin-top:8px;
-                    margin-bottom:25px;
+                    margin-bottom:30px;
                     border-radius:8px;
                     border:none;
+                    font-size:15px;
                 "
-            ><br>
+            >
 
-            <label>Profile Summary</label><br>
 
-            <textarea
-                name="profile_summary"
-                required
-                placeholder="Describe your experience, strengths and what makes you a good freelancer..."
+            <!-- PROFILE SUMMARY -->
+
+            <div style="
+                background-color:#0f172a;
+                padding:25px;
+                border-radius:12px;
+                border:1px solid #263449;
+                margin-bottom:30px;
+            ">
+
+                <div style="
+                    display:flex;
+                    align-items:center;
+                    gap:10px;
+                    flex-wrap:wrap;
+                    margin-bottom:8px;
+                ">
+
+                    <label
+                        for="profile_summary"
+                        style="
+                            font-size:18px;
+                            font-weight:bold;
+                        "
+                    >
+                        Profile Summary
+                    </label>
+
+                    <span style="
+                        background-color:#1e293b;
+                        color:#94a3b8;
+                        padding:5px 9px;
+                        border-radius:6px;
+                        font-size:12px;
+                        font-weight:bold;
+                    ">
+                        OPTIONAL
+                    </span>
+
+                </div>
+
+
+                <p style="
+                    color:#cbd5e1;
+                    line-height:1.6;
+                    margin-top:0;
+                    margin-bottom:22px;
+                ">
+                    Don't feel like writing a professional bio?
+                    Just add a few of your main skills or services below
+                    and ProposalIQ can create one for you.
+                    You can edit the result afterwards or skip this completely.
+                </p>
+
+
+                <!-- SIMPLE INPUT FOR AI GENERATION -->
+
+                <label
+                    for="key_skills"
+                    style="
+                        font-weight:bold;
+                        display:block;
+                    "
+                >
+                    Key Skills or Services
+                </label>
+
+                <input
+                    type="text"
+                    id="key_skills"
+                    name="key_skills"
+                    placeholder="e.g. Python, Django, APIs, PostgreSQL"
+                    autocomplete="off"
+                    style="
+                        box-sizing:border-box;
+                        width:100%;
+                        padding:14px;
+                        margin-top:8px;
+                        border-radius:8px;
+                        border:none;
+                        font-size:15px;
+                    "
+                >
+
+                <p style="
+                    color:#94a3b8;
+                    font-size:13px;
+                    margin-top:8px;
+                    margin-bottom:18px;
+                ">
+                    A few keywords are enough. You don't need to write full sentences.
+                </p>
+
+
+                <!-- GENERATOR BUTTONS -->
+
+                <div style="
+                    display:flex;
+                    gap:12px;
+                    flex-wrap:wrap;
+                    margin-bottom:20px;
+                ">
+
+                    <button
+                        type="button"
+                        id="generate-summary-btn"
+                        style="
+                            background-color:#2563eb;
+                            color:white;
+                            padding:12px 18px;
+                            border:none;
+                            border-radius:8px;
+                            font-size:14px;
+                            font-weight:bold;
+                            cursor:pointer;
+                        "
+                    >
+                        Generate Summary for Me
+                    </button>
+
+
+                    <button
+                        type="button"
+                        id="skip-summary-btn"
+                        style="
+                            background-color:#334155;
+                            color:white;
+                            padding:12px 18px;
+                            border:none;
+                            border-radius:8px;
+                            font-size:14px;
+                            font-weight:bold;
+                            cursor:pointer;
+                        "
+                    >
+                        Skip for Now
+                    </button>
+
+                </div>
+
+
+                <!-- STATUS / ERROR MESSAGE -->
+
+                <div
+                    id="summary-status"
+                    role="status"
+                    aria-live="polite"
+                    style="
+                        display:none;
+                        padding:12px 14px;
+                        margin-bottom:18px;
+                        background-color:#172033;
+                        border-radius:8px;
+                        color:#cbd5e1;
+                        line-height:1.5;
+                    "
+                >
+                </div>
+
+
+                <!-- SUMMARY TEXT AREA -->
+
+                <label
+                    for="profile_summary"
+                    style="
+                        display:block;
+                        font-weight:bold;
+                        margin-bottom:8px;
+                    "
+                >
+                    Your Summary
+                </label>
+
+                <textarea
+                    id="profile_summary"
+                    name="profile_summary"
+                    placeholder="Write your own summary, generate one above, or leave this blank."
+                    style="
+                        box-sizing:border-box;
+                        width:100%;
+                        height:180px;
+                        padding:14px;
+                        border-radius:8px;
+                        border:none;
+                        resize:vertical;
+                        font-size:15px;
+                        line-height:1.5;
+                    "
+                >{{ profile.profile_summary|default:'' }}</textarea>
+
+                <p style="
+                    color:#94a3b8;
+                    font-size:13px;
+                    margin-top:8px;
+                    margin-bottom:0;
+                ">
+                    Review any AI-generated summary before saving your profile.
+                    You remain in control and can change any part of it.
+                </p>
+
+            </div>
+
+
+            <!-- PREFERRED PROPOSAL TONE -->
+
+            <label
+                for="preferred_tone"
                 style="
-                    width:100%;
-                    height:180px;
-                    padding:14px;
-                    margin-top:8px;
-                    margin-bottom:25px;
-                    border-radius:8px;
-                    border:none;
+                    font-weight:bold;
+                    display:block;
                 "
-            >{{ profile.profile_summary|default:'' }}</textarea><br>
-
-            <label>Preferred Proposal Tone</label><br>
+            >
+                Preferred Proposal Tone
+            </label>
 
             <select
+                id="preferred_tone"
                 name="preferred_tone"
                 style="
+                    box-sizing:border-box;
                     width:100%;
                     padding:14px;
                     margin-top:8px;
                     margin-bottom:35px;
                     border-radius:8px;
                     border:none;
-                ">
+                    font-size:15px;
+                "
+            >
 
-                <option value="professional"
-                    {% if profile.preferred_tone == "professional" %}selected{% endif %}>
+                <option
+                    value="professional"
+                    {% if profile.preferred_tone == "professional" %}
+                        selected
+                    {% endif %}
+                >
                     Professional
                 </option>
 
-                <option value="friendly"
-                    {% if profile.preferred_tone == "friendly" %}selected{% endif %}>
+                <option
+                    value="friendly"
+                    {% if profile.preferred_tone == "friendly" %}
+                        selected
+                    {% endif %}
+                >
                     Friendly
                 </option>
 
-                <option value="confident"
-                    {% if profile.preferred_tone == "confident" %}selected{% endif %}>
+                <option
+                    value="confident"
+                    {% if profile.preferred_tone == "confident" %}
+                        selected
+                    {% endif %}
+                >
                     Confident
                 </option>
 
-                <option value="technical"
-                    {% if profile.preferred_tone == "technical" %}selected{% endif %}>
+                <option
+                    value="technical"
+                    {% if profile.preferred_tone == "technical" %}
+                        selected
+                    {% endif %}
+                >
                     Technical
                 </option>
 
             </select>
+
+
+            <!-- NAVIGATION / SAVE BUTTONS -->
 
             <div style="
                 display:flex;
@@ -123,33 +368,35 @@
                 flex-wrap:wrap;
             ">
 
-                <a href="/dashboard/"
-                   style="
+                <a
+                    href="/dashboard/"
+                    style="
                         background-color:#334155;
                         color:white;
                         padding:16px 26px;
                         border-radius:10px;
                         text-decoration:none;
                         font-weight:bold;
-                   ">
-
+                    "
+                >
                     Dashboard
-
                 </a>
 
-                <a href="/my-experiences/"
-                   style="
+
+                <a
+                    href="/my-experiences/"
+                    style="
                         background-color:#1e293b;
                         color:white;
                         padding:16px 26px;
                         border-radius:10px;
                         text-decoration:none;
                         font-weight:bold;
-                   ">
-
+                    "
+                >
                     My Experiences
-
                 </a>
+
 
                 <button
                     type="submit"
@@ -162,10 +409,9 @@
                         font-size:16px;
                         font-weight:bold;
                         cursor:pointer;
-                    ">
-
+                    "
+                >
                     {{ button_text }}
-
                 </button>
 
             </div>
@@ -175,6 +421,271 @@
     </div>
 
 </div>
+
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        const generateButton =
+            document.getElementById("generate-summary-btn");
+
+        const skipButton =
+            document.getElementById("skip-summary-btn");
+
+        const titleInput =
+            document.getElementById("professional_title");
+
+        const skillsInput =
+            document.getElementById("key_skills");
+
+        const summaryInput =
+            document.getElementById("profile_summary");
+
+        const statusElement =
+            document.getElementById("summary-status");
+
+        const csrfInput =
+            document.querySelector(
+                'input[name="csrfmiddlewaretoken"]'
+            );
+
+
+        let summaryGenerationInProgress = false;
+
+
+        function showStatus(message, isError = false) {
+
+            statusElement.style.display = "block";
+
+            statusElement.textContent = message;
+
+            if (isError) {
+
+                statusElement.style.backgroundColor = "#3f1d25";
+                statusElement.style.color = "#fecaca";
+
+            } else {
+
+                statusElement.style.backgroundColor = "#172033";
+                statusElement.style.color = "#cbd5e1";
+
+            }
+
+        }
+
+
+        generateButton.addEventListener(
+            "click",
+            async function () {
+
+                if (summaryGenerationInProgress) {
+                    return;
+                }
+
+                const professionalTitle =
+                    titleInput.value.trim();
+
+                const keySkills =
+                    skillsInput.value.trim();
+
+
+                if (!professionalTitle) {
+
+                    showStatus(
+                        "Enter your professional title first.",
+                        true
+                    );
+
+                    titleInput.focus();
+
+                    return;
+
+                }
+
+
+                if (!keySkills) {
+
+                    showStatus(
+                        "Add a few key skills or services first.",
+                        true
+                    );
+
+                    skillsInput.focus();
+
+                    return;
+
+                }
+
+
+                const originalButtonText =
+                    generateButton.textContent;
+
+                summaryGenerationInProgress = true;
+
+                generateButton.disabled = true;
+                generateButton.style.opacity = "0.65";
+                generateButton.style.cursor = "progress";
+                generateButton.textContent =
+                    "Generating Summary... Please wait";
+
+                skipButton.disabled = true;
+                skipButton.style.opacity = "0.55";
+                skipButton.style.cursor = "not-allowed";
+
+                showStatus(
+                    "ProposalIQ is generating your profile summary. This can take a few moments. Please wait and avoid clicking Generate again."
+                );
+
+
+                const requestBody =
+                    new URLSearchParams();
+
+
+                requestBody.append(
+                    "professional_title",
+                    professionalTitle
+                );
+
+
+                requestBody.append(
+                    "key_skills",
+                    keySkills
+                );
+
+
+                try {
+
+                    const response = await fetch(
+
+                        "{% url 'generate_profile_summary' %}",
+
+                        {
+
+                            method: "POST",
+
+                            headers: {
+
+                                "Content-Type":
+                                    "application/x-www-form-urlencoded",
+
+                                "X-CSRFToken":
+                                    csrfInput.value,
+
+                                "X-Requested-With":
+                                    "XMLHttpRequest"
+
+                            },
+
+                            body:
+                                requestBody.toString()
+
+                        }
+
+                    );
+
+
+                    let data;
+
+                    try {
+
+                        data = await response.json();
+
+                    } catch {
+
+                        throw new Error(
+                            "ProposalIQ received an unexpected response. Please try again."
+                        );
+
+                    }
+
+
+                    if (!response.ok) {
+
+                        throw new Error(
+
+                            data.error ||
+
+                            "Unable to generate a summary right now."
+
+                        );
+
+                    }
+
+
+                    summaryInput.value =
+                        data.summary;
+
+
+                    showStatus(
+                        "Summary created. Review or edit it below before saving your profile."
+                    );
+
+
+                    summaryInput.focus();
+
+
+                } catch (error) {
+
+
+                    showStatus(
+
+                        error.message ||
+
+                        "Something went wrong. You can try again or skip this step.",
+
+                        true
+
+                    );
+
+
+                } finally {
+
+                    summaryGenerationInProgress = false;
+
+                    generateButton.disabled = false;
+                    generateButton.style.opacity = "1";
+                    generateButton.style.cursor = "pointer";
+                    generateButton.textContent =
+                        originalButtonText;
+
+                    skipButton.disabled = false;
+                    skipButton.style.opacity = "1";
+                    skipButton.style.cursor = "pointer";
+
+                }
+
+            }
+
+        );
+
+
+        skipButton.addEventListener(
+            "click",
+            function () {
+
+                if (summaryGenerationInProgress) {
+                    return;
+                }
+
+                summaryInput.value = "";
+
+                showStatus(
+                    "No problem. Your profile summary will be left blank. You can add one later."
+                );
+
+            }
+
+        );
+
+    }
+
+);
+
+</script>
+
 
 </body>
 

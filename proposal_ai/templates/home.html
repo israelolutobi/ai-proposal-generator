@@ -4,155 +4,162 @@
 {% load static %}
 
 <head>
+
     <title>Dashboard - ProposalIQ</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+    <link
+        rel="stylesheet"
+        href="{% static 'css/style.css' %}"
+    >
+
 </head>
 
-<body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
+
+<body style="
+    background-color:#0b1120;
+    color:white;
+    font-family:Arial;
+    margin:0;
+">
 
 {% include "partials/navbar.html" %}
 
-<div style="max-width:1000px; margin:60px auto; padding:0 20px;">
 
-    <h1 style="font-size:44px; margin-bottom:10px;">
+<div style="
+    max-width:1000px;
+    margin:60px auto;
+    padding:0 20px;
+">
+
+    <!-- ========================================================= -->
+    <!-- DASHBOARD HEADER -->
+    <!-- ========================================================= -->
+
+    <h1 style="
+        font-size:44px;
+        margin-bottom:10px;
+    ">
         ProposalIQ Dashboard
     </h1>
 
-    <p style="color:#cbd5e1; font-size:18px; margin-bottom:35px;">
-        Paste a full job post, extract key features, confirm them, then generate a tailored proposal.
+
+    <p style="
+        color:#cbd5e1;
+        font-size:18px;
+        line-height:1.6;
+        margin-bottom:35px;
+    ">
+        Paste a freelance opportunity, let ProposalIQ extract the key
+        details, confirm them, and generate the appropriate application
+        content for that platform.
     </p>
+
+
+
+    <!-- ========================================================= -->
+    <!-- PENDING OUTCOME UPDATES -->
+    <!-- ========================================================= -->
 
     {% if pending_outcomes %}
 
-        <div style="background-color:#1e293b; padding:30px; border-radius:16px; border:1px solid #334155; margin-bottom:35px;">
+        <div style="
+            background-color:#1e293b;
+            padding:30px;
+            border-radius:16px;
+            border:1px solid #334155;
+            margin-bottom:35px;
+        ">
 
             <h2 style="margin-top:0;">
                 Pending Outcome Updates
             </h2>
 
-            <p style="color:#cbd5e1;">
-                You have used proposals that still need outcome updates.
+
+            <p style="
+                color:#cbd5e1;
+                line-height:1.6;
+            ">
+                You have submitted applications that still need an
+                outcome update.
             </p>
+
 
             {% for proposal in pending_outcomes %}
 
-                <div style="background-color:#0f172a; padding:20px; border-radius:12px; margin-top:20px;">
+                <div style="
+                    background-color:#0f172a;
+                    padding:20px;
+                    border-radius:12px;
+                    margin-top:20px;
+                ">
 
-                    <h3 style="margin-top:0;">
-                        {{ proposal.job_post.job_title }}
-                    </h3>
+                    <div style="
+                        display:flex;
+                        justify-content:space-between;
+                        gap:20px;
+                        flex-wrap:wrap;
+                        align-items:flex-start;
+                    ">
 
-                    <p style="color:#94a3b8;">
-                        Used at: {{ proposal.used_at }}
-                    </p>
+                        <div>
 
-                    <a href="/update-outcome/{{ proposal.id }}/"
-                       style="background-color:#1e90ff; color:white; padding:12px 18px; border-radius:8px; text-decoration:none; font-weight:bold; display:inline-block;">
-                        Update Outcome
-                    </a>
+                            <h3 style="
+                                margin-top:0;
+                                margin-bottom:8px;
+                            ">
+                                {{ proposal.job_post.job_title }}
+                            </h3>
 
-                </div>
 
-            {% endfor %}
-
-        </div>
-
-    {% endif %}
-
-    <div style="background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
-
-        <h2 style="margin-top:0; font-size:36px;">
-            Extract Job Features
-        </h2>
-
-        <p style="color:#cbd5e1; line-height:1.6; margin-bottom:30px;">
-            Copy the full job posting text and paste it below. ProposalIQ will extract the job title, platform,
-            skills, budget, experience level and other useful proposal features before generating anything.
-        </p>
-
-        <form method="POST" action="/extract-job/">
-            {% csrf_token %}
-
-            <label>Full Job Post Text</label><br>
-
-            <textarea name="raw_job_text"
-                      required
-                      placeholder="Paste the full copied job post here..."
-                      style="width:100%; padding:14px; height:320px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"></textarea><br>
-
-            <button type="submit"
-                    style="background-color:#1e90ff; color:white; padding:16px 28px; border:none; border-radius:10px; font-size:16px; font-weight:bold;">
-                Extract Job Features
-            </button>
-
-        </form>
-
-    </div>
-
-    {% if generated_proposal %}
-
-        <div style="margin-top:35px; background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
-
-            <h2 style="margin-top:0;">
-                Generated Proposal
-            </h2>
-
-            <div style="background-color:#0f172a; padding:25px; border-radius:12px; line-height:1.7; white-space:pre-wrap;">{{ generated_proposal }}</div>
-
-        </div>
-
-    {% endif %}
-
-    <div style="margin-top:35px; background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
-
-        <h2 style="margin-top:0;">
-            Saved Proposals
-        </h2>
-
-        {% if proposals %}
-
-            {% for proposal in proposals %}
-
-                <div style="background-color:#0f172a; padding:25px; border-radius:12px; margin-bottom:25px; border:1px solid #1e293b;">
-
-                    <h3 style="margin-top:0;">
-                        {{ proposal.job_post.job_title }}
-                    </h3>
-
-                    <p style="color:#94a3b8;">
-                        {{ proposal.job_post.job_description }}
-                    </p>
-
-                    <p style="color:#94a3b8;">
-                        Status:
-                        <strong style="color:white;">
-                            {{ proposal.status }}
-                        </strong>
-                    </p>
-
-                    <p style="color:#94a3b8;">
-                        Created:
-                        {{ proposal.created_at }}
-                    </p>
-
-                    <div style="line-height:1.7; white-space:pre-wrap; margin-top:20px;">{{ proposal.final_text }}</div>
-
-                    <div style="margin-top:25px;">
-
-                        {% if proposal.used_by_user %}
-
-                            <p style="color:#22c55e; font-weight:bold;">
-                                Used by user
+                            <p style="
+                                color:#94a3b8;
+                                margin-top:0;
+                                margin-bottom:6px;
+                            ">
+                                Platform:
+                                <strong style="color:#cbd5e1;">
+                                    {{ proposal.job_post.platform|default:"Not specified" }}
+                                </strong>
                             </p>
 
-                        {% else %}
 
-                            <a href="/use-proposal/{{ proposal.id }}/"
-                               style="background-color:#22c55e; color:white; padding:12px 18px; border-radius:8px; font-weight:bold; text-decoration:none; display:inline-block;">
-                                Use This Proposal
-                            </a>
+                            <p style="
+                                color:#94a3b8;
+                                margin-top:0;
+                                margin-bottom:6px;
+                            ">
+                                Application type:
+                                <strong style="color:#cbd5e1;">
+                                    {{ proposal.application_label }}
+                                </strong>
+                            </p>
 
-                        {% endif %}
+
+                            <p style="
+                                color:#94a3b8;
+                                margin-top:0;
+                            ">
+                                Submitted:
+                                {{ proposal.used_at }}
+                            </p>
+
+                        </div>
+
+
+                        <a
+                            href="{% url 'update_outcome' proposal.id %}"
+                            style="
+                                background-color:#1e90ff;
+                                color:white;
+                                padding:12px 18px;
+                                border-radius:8px;
+                                text-decoration:none;
+                                font-weight:bold;
+                                display:inline-block;
+                            "
+                        >
+                            Update Outcome
+                        </a>
 
                     </div>
 
@@ -160,10 +167,422 @@
 
             {% endfor %}
 
+        </div>
+
+    {% endif %}
+
+
+
+    <!-- ========================================================= -->
+    <!-- EXTRACT JOB / OPPORTUNITY -->
+    <!-- ========================================================= -->
+
+    <div style="
+        background-color:#111827;
+        padding:40px;
+        border-radius:16px;
+        border:1px solid #1e293b;
+    ">
+
+        <h2 style="
+            margin-top:0;
+            font-size:36px;
+        ">
+            Add a Freelance Opportunity
+        </h2>
+
+
+        <p style="
+            color:#cbd5e1;
+            line-height:1.6;
+            margin-bottom:30px;
+        ">
+            Copy the full job or opportunity text and paste it below.
+            ProposalIQ will identify the platform, job requirements,
+            skills, budget and other useful details before generating
+            platform-appropriate application content.
+        </p>
+
+
+        <form
+            method="POST"
+            action="{% url 'extract_job_features' %}"
+            id="extract-opportunity-form"
+        >
+
+            {% csrf_token %}
+
+
+            <label
+                for="raw_job_text"
+                style="font-weight:bold;"
+            >
+                Full Job or Opportunity Text
+            </label>
+
+
+            <textarea
+                id="raw_job_text"
+                name="raw_job_text"
+                required
+                placeholder="Paste the full copied job post or freelance opportunity here..."
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:14px;
+                    height:320px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                    resize:vertical;
+                    font-size:15px;
+                    line-height:1.5;
+                "
+            ></textarea>
+
+
+            <button
+                type="submit"
+                id="extract-opportunity-button"
+                style="
+                    background-color:#1e90ff;
+                    color:white;
+                    padding:16px 28px;
+                    border:none;
+                    border-radius:10px;
+                    font-size:16px;
+                    font-weight:bold;
+                    cursor:pointer;
+                "
+            >
+                Extract Opportunity Details
+            </button>
+
+
+            <div
+                id="extraction-status"
+                role="status"
+                aria-live="polite"
+                style="
+                    display:none;
+                    margin-top:20px;
+                    padding:16px 18px;
+                    background-color:#172033;
+                    border:1px solid #334155;
+                    border-radius:10px;
+                    color:#cbd5e1;
+                    line-height:1.5;
+                "
+            >
+
+                <strong style="color:#4ade80;">
+                    Opportunity sent ✓
+                </strong>
+
+                <div style="margin-top:6px;">
+                    ProposalIQ is extracting the opportunity details.
+                    This can take a few moments. Please keep this page open
+                    and do not click the button again or refresh the page.
+                </div>
+
+            </div>
+
+        </form>
+
+    </div>
+
+
+
+    <!-- ========================================================= -->
+    <!-- SAVED APPLICATIONS -->
+    <!-- ========================================================= -->
+
+    <div style="
+        margin-top:35px;
+        background-color:#111827;
+        padding:40px;
+        border-radius:16px;
+        border:1px solid #1e293b;
+    ">
+
+        <h2 style="
+            margin-top:0;
+            font-size:32px;
+        ">
+            Saved Applications
+        </h2>
+
+
+        <p style="
+            color:#cbd5e1;
+            line-height:1.6;
+            margin-bottom:30px;
+        ">
+            ProposalIQ adapts the terminology and generated content
+            according to the platform used for each opportunity.
+        </p>
+
+
+        {% if proposals %}
+
+            {% for proposal in proposals %}
+
+                <div style="
+                    background-color:#0f172a;
+                    padding:25px;
+                    border-radius:12px;
+                    margin-bottom:25px;
+                    border:1px solid #1e293b;
+                ">
+
+
+                    <!-- APPLICATION HEADER -->
+
+                    <div style="
+                        display:flex;
+                        justify-content:space-between;
+                        gap:20px;
+                        flex-wrap:wrap;
+                        align-items:flex-start;
+                    ">
+
+                        <div>
+
+                            <h3 style="
+                                margin-top:0;
+                                margin-bottom:8px;
+                                font-size:24px;
+                            ">
+                                {{ proposal.job_post.job_title }}
+                            </h3>
+
+
+                            <p style="
+                                color:#94a3b8;
+                                margin-top:0;
+                                margin-bottom:6px;
+                            ">
+
+                                Platform:
+
+                                <strong style="color:#cbd5e1;">
+                                    {{ proposal.job_post.platform|default:"Not specified" }}
+                                </strong>
+
+                            </p>
+
+
+                            <p style="
+                                color:#94a3b8;
+                                margin-top:0;
+                                margin-bottom:6px;
+                            ">
+
+                                Application type:
+
+                                <strong style="color:#cbd5e1;">
+                                    {{ proposal.application_label }}
+                                </strong>
+
+                            </p>
+
+                        </div>
+
+
+                        <div style="
+                            background-color:#172033;
+                            padding:8px 12px;
+                            border-radius:8px;
+                            font-size:14px;
+                        ">
+
+                            Status:
+
+                            <strong>
+                                {{ proposal.get_status_display }}
+                            </strong>
+
+                        </div>
+
+                    </div>
+
+
+
+                    <!-- JOB DESCRIPTION -->
+
+                    <div style="
+                        margin-top:20px;
+                        padding:18px;
+                        background-color:#111827;
+                        border-radius:10px;
+                    ">
+
+                        <p style="
+                            margin-top:0;
+                            margin-bottom:8px;
+                            color:#94a3b8;
+                            font-size:13px;
+                            font-weight:bold;
+                            text-transform:uppercase;
+                        ">
+                            Opportunity Summary
+                        </p>
+
+
+                        <p style="
+                            color:#cbd5e1;
+                            line-height:1.6;
+                            margin:0;
+                        ">
+                            {{ proposal.job_post.job_description }}
+                        </p>
+
+                    </div>
+
+
+
+                    <!-- GENERATED CONTENT -->
+
+                    <div style="margin-top:25px;">
+
+                        <div style="
+                            display:flex;
+                            justify-content:space-between;
+                            gap:15px;
+                            align-items:center;
+                            flex-wrap:wrap;
+                            margin-bottom:12px;
+                        ">
+
+                            <h4 style="
+                                margin:0;
+                                font-size:20px;
+                            ">
+                                {{ proposal.generated_heading }}
+                            </h4>
+
+
+                            <span style="
+                                background-color:#1e293b;
+                                color:#cbd5e1;
+                                padding:6px 10px;
+                                border-radius:6px;
+                                font-size:12px;
+                                font-weight:bold;
+                            ">
+                                {{ proposal.content_label }}
+                            </span>
+
+                        </div>
+
+
+                        <div
+                            id="proposal-content-{{ proposal.id }}"
+                            style="
+                                background-color:#111827;
+                                padding:22px;
+                                border-radius:10px;
+                                line-height:1.7;
+                                white-space:pre-wrap;
+                                border:1px solid #1e293b;
+                            "
+                        >{{ proposal.final_text }}</div>
+
+
+                        <div style="
+                            display:flex;
+                            gap:12px;
+                            flex-wrap:wrap;
+                            margin-top:18px;
+                        ">
+
+                            <button
+                                type="button"
+                                class="copy-content-button"
+                                data-target="proposal-content-{{ proposal.id }}"
+                                data-original-label="{{ proposal.copy_button_label }}"
+                                style="
+                                    background-color:#334155;
+                                    color:white;
+                                    padding:12px 18px;
+                                    border:none;
+                                    border-radius:8px;
+                                    font-weight:bold;
+                                    cursor:pointer;
+                                "
+                            >
+                                {{ proposal.copy_button_label }}
+                            </button>
+
+
+                            {% if proposal.used_by_user %}
+
+                                <span style="
+                                    background-color:#163624;
+                                    color:#4ade80;
+                                    padding:12px 18px;
+                                    border-radius:8px;
+                                    font-weight:bold;
+                                    display:inline-block;
+                                ">
+                                    ✓ {{ proposal.submitted_label }}
+                                </span>
+
+                            {% else %}
+
+                                <a
+                                    href="{% url 'confirm_use_proposal' proposal.id %}"
+                                    style="
+                                        background-color:#22c55e;
+                                        color:white;
+                                        padding:12px 18px;
+                                        border-radius:8px;
+                                        font-weight:bold;
+                                        text-decoration:none;
+                                        display:inline-block;
+                                    "
+                                >
+                                    {{ proposal.submit_button_label }}
+                                </a>
+
+                            {% endif %}
+
+                        </div>
+
+                    </div>
+
+
+
+                    <!-- META INFORMATION -->
+
+                    <div style="
+                        margin-top:22px;
+                        padding-top:18px;
+                        border-top:1px solid #1e293b;
+                    ">
+
+                        <p style="
+                            color:#64748b;
+                            font-size:13px;
+                            margin:0;
+                        ">
+                            Created:
+                            {{ proposal.created_at }}
+                        </p>
+
+                    </div>
+
+                </div>
+
+            {% endfor %}
+
+
         {% else %}
 
             <p style="color:#cbd5e1;">
-                No saved proposals yet.
+                No saved applications yet. Add a freelance opportunity
+                above to create your first one.
             </p>
 
         {% endif %}
@@ -172,5 +591,275 @@
 
 </div>
 
+
+
+<!-- ============================================================= -->
+<!-- COPY GENERATED CONTENT -->
+<!-- ============================================================= -->
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        /*
+        ============================================================
+        OPPORTUNITY EXTRACTION / DOUBLE-SUBMIT PROTECTION
+        ============================================================
+        */
+
+        const extractionForm =
+            document.getElementById(
+                "extract-opportunity-form"
+            );
+
+        const extractionButton =
+            document.getElementById(
+                "extract-opportunity-button"
+            );
+
+        const extractionStatus =
+            document.getElementById(
+                "extraction-status"
+            );
+
+        let extractionInProgress = false;
+
+
+        function resetExtractionState() {
+
+            if (
+                !extractionForm
+                || !extractionButton
+                || !extractionStatus
+            ) {
+                return;
+            }
+
+            extractionInProgress = false;
+
+            extractionForm.setAttribute(
+                "aria-busy",
+                "false"
+            );
+
+            extractionButton.disabled = false;
+
+            extractionButton.textContent =
+                "Extract Opportunity Details";
+
+            extractionButton.style.opacity =
+                "1";
+
+            extractionButton.style.cursor =
+                "pointer";
+
+            extractionStatus.style.display =
+                "none";
+
+        }
+
+
+        if (
+            extractionForm
+            && extractionButton
+            && extractionStatus
+        ) {
+
+            extractionForm.addEventListener(
+                "submit",
+                function (event) {
+
+                    /*
+                    Allow the first valid form submission normally.
+
+                    Any later submit event while the first request is
+                    processing is blocked so repeated clicks cannot trigger
+                    duplicate AI extraction requests or duplicate JobPost
+                    records.
+                    */
+
+                    if (extractionInProgress) {
+
+                        event.preventDefault();
+
+                        return;
+
+                    }
+
+
+                    extractionInProgress = true;
+
+                    extractionForm.setAttribute(
+                        "aria-busy",
+                        "true"
+                    );
+
+
+                    extractionButton.disabled = true;
+
+                    extractionButton.textContent =
+                        "Extracting Details... Please wait";
+
+                    extractionButton.style.opacity =
+                        "0.65";
+
+                    extractionButton.style.cursor =
+                        "progress";
+
+
+                    extractionStatus.style.display =
+                        "block";
+
+                }
+            );
+
+
+            /*
+            Reset the UI if the browser restores this dashboard from its
+            back-forward cache after the user navigates back.
+            */
+
+            window.addEventListener(
+                "pageshow",
+                function () {
+
+                    resetExtractionState();
+
+                }
+            );
+
+        }
+
+
+        /*
+        ============================================================
+        COPY GENERATED CONTENT
+        ============================================================
+        */
+
+        const copyButtons =
+            document.querySelectorAll(
+                ".copy-content-button"
+            );
+
+
+        copyButtons.forEach(
+            function (button) {
+
+                button.addEventListener(
+                    "click",
+                    async function () {
+
+                        const targetId =
+                            button.dataset.target;
+
+                        const targetElement =
+                            document.getElementById(
+                                targetId
+                            );
+
+                        if (!targetElement) {
+                            return;
+                        }
+
+
+                        const textToCopy =
+                            targetElement.innerText.trim();
+
+                        const originalLabel =
+                            button.dataset.originalLabel;
+
+
+                        try {
+
+                            await navigator.clipboard.writeText(
+                                textToCopy
+                            );
+
+                            button.textContent =
+                                "Copied ✓";
+
+
+                            setTimeout(
+                                function () {
+
+                                    button.textContent =
+                                        originalLabel;
+
+                                },
+                                1800
+                            );
+
+
+                        } catch (error) {
+
+                            /*
+                            Fallback for browsers/environments where the
+                            Clipboard API is unavailable.
+                            */
+
+                            const temporaryTextarea =
+                                document.createElement(
+                                    "textarea"
+                                );
+
+                            temporaryTextarea.value =
+                                textToCopy;
+
+                            temporaryTextarea.style.position =
+                                "fixed";
+
+                            temporaryTextarea.style.opacity =
+                                "0";
+
+                            document.body.appendChild(
+                                temporaryTextarea
+                            );
+
+                            temporaryTextarea.select();
+
+                            document.execCommand(
+                                "copy"
+                            );
+
+                            document.body.removeChild(
+                                temporaryTextarea
+                            );
+
+
+                            button.textContent =
+                                "Copied ✓";
+
+
+                            setTimeout(
+                                function () {
+
+                                    button.textContent =
+                                        originalLabel;
+
+                                },
+                                1800
+                            );
+
+                        }
+
+                    }
+
+                );
+
+            }
+
+        );
+
+    }
+
+);
+
+</script>
+
+
 </body>
+
 </html>

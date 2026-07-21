@@ -4,95 +4,465 @@
 {% load static %}
 
 <head>
-    <title>Update Outcome - ProposalIQ</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+    <title>
+        Update Application Outcome - ProposalIQ
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{% static 'css/style.css' %}"
+    >
+
 </head>
 
-<body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
+
+<body style="
+    background-color:#0b1120;
+    color:white;
+    font-family:Arial;
+    margin:0;
+">
 
 {% include "partials/navbar.html" %}
 
-<div style="max-width:950px; margin:60px auto; padding:0 20px;">
 
-    <div style="background-color:#111827; padding:40px; border-radius:16px; border:1px solid #1e293b;">
+<div style="
+    max-width:950px;
+    margin:60px auto;
+    padding:0 20px;
+">
 
-        <h2 style="margin-top:0; font-size:36px;">
-            Update Proposal Outcome
+    <div style="
+        background-color:#111827;
+        padding:40px;
+        border-radius:16px;
+        border:1px solid #1e293b;
+    ">
+
+
+        <!-- ===================================================== -->
+        <!-- PAGE HEADER -->
+        <!-- ===================================================== -->
+
+        <h2 style="
+            margin-top:0;
+            font-size:36px;
+            margin-bottom:10px;
+        ">
+            Update Application Outcome
         </h2>
 
-        <p style="color:#cbd5e1; line-height:1.6; margin-bottom:35px;">
-            Review the job and submitted proposal, then record what happened after you used it.
+
+        <p style="
+            color:#cbd5e1;
+            line-height:1.6;
+            margin-bottom:35px;
+        ">
+            Review the opportunity and the content you submitted,
+            then record what happened afterwards.
         </p>
 
-        <div style="background-color:#0f172a; padding:25px; border-radius:12px; margin-bottom:30px;">
 
-            <h3 style="margin-top:0;">Job Details</h3>
 
-            <p><strong>Job Title:</strong> {{ proposal.job_post.job_title }}</p>
+        <!-- ===================================================== -->
+        <!-- APPLICATION FORMAT -->
+        <!-- ===================================================== -->
 
-            <p><strong>Platform:</strong> {{ proposal.job_post.platform }}</p>
+        <div style="
+            background-color:#0f172a;
+            padding:22px;
+            border-radius:12px;
+            border:1px solid #263449;
+            margin-bottom:30px;
+        ">
+
+            <p style="
+                color:#94a3b8;
+                font-size:13px;
+                font-weight:bold;
+                text-transform:uppercase;
+                margin-top:0;
+                margin-bottom:14px;
+            ">
+                Application Format
+            </p>
+
+
+            <div style="
+                display:flex;
+                gap:40px;
+                flex-wrap:wrap;
+            ">
+
+                <div>
+
+                    <span style="
+                        display:block;
+                        color:#94a3b8;
+                        font-size:13px;
+                        margin-bottom:5px;
+                    ">
+                        Overall application
+                    </span>
+
+                    <strong style="font-size:18px;">
+                        {{ application_label|default:"Application" }}
+                    </strong>
+
+                </div>
+
+
+                <div>
+
+                    <span style="
+                        display:block;
+                        color:#94a3b8;
+                        font-size:13px;
+                        margin-bottom:5px;
+                    ">
+                        Written content
+                    </span>
+
+                    <strong style="
+                        font-size:18px;
+                        color:#60a5fa;
+                    ">
+                        {{ content_label|default:"Application Message" }}
+                    </strong>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- ===================================================== -->
+        <!-- OPPORTUNITY DETAILS -->
+        <!-- ===================================================== -->
+
+        <div style="
+            background-color:#0f172a;
+            padding:25px;
+            border-radius:12px;
+            margin-bottom:30px;
+            border:1px solid #1e293b;
+        ">
+
+            <p style="
+                color:#94a3b8;
+                font-size:13px;
+                font-weight:bold;
+                text-transform:uppercase;
+                margin-top:0;
+                margin-bottom:8px;
+            ">
+                Opportunity
+            </p>
+
+
+            <h3 style="
+                margin-top:0;
+                font-size:24px;
+                margin-bottom:18px;
+            ">
+                {{ proposal.job_post.job_title }}
+            </h3>
+
+
+            <p>
+                <strong>Platform:</strong>
+
+                {{ proposal.job_post.platform|default:"Not specified" }}
+            </p>
+
+
+            <p>
+                <strong>Application Type:</strong>
+
+                {{ application_label|default:"Application" }}
+            </p>
+
 
             {% if use_confirmation %}
 
-                <p><strong>Client / Author:</strong> {{ use_confirmation.client_name }}</p>
+                {% if use_confirmation.client_name %}
 
-                <p><strong>Job URL:</strong> {{ use_confirmation.job_url }}</p>
+                    <p>
+                        <strong>Client / Author:</strong>
+
+                        {{ use_confirmation.client_name }}
+                    </p>
+
+                {% endif %}
+
+
+                {% if use_confirmation.job_url %}
+
+                    <p>
+                        <strong>Opportunity URL:</strong>
+
+                        <a
+                            href="{{ use_confirmation.job_url }}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style="color:#60a5fa;"
+                        >
+                            Open opportunity
+                        </a>
+                    </p>
+
+                {% endif %}
 
             {% endif %}
 
-            <p style="color:#cbd5e1; white-space:pre-wrap;">{{ proposal.job_post.job_description }}</p>
+
+            <div style="
+                margin-top:20px;
+                padding-top:18px;
+                border-top:1px solid #1e293b;
+            ">
+
+                <p style="
+                    color:#cbd5e1;
+                    white-space:pre-wrap;
+                    line-height:1.6;
+                    margin-bottom:0;
+                ">
+                    {{ proposal.job_post.job_description }}
+                </p>
+
+            </div>
 
         </div>
 
-        <div style="background-color:#0f172a; padding:25px; border-radius:12px; margin-bottom:30px;">
 
-            <h3 style="margin-top:0;">Proposal Used</h3>
+
+        <!-- ===================================================== -->
+        <!-- FINAL SUBMITTED CONTENT -->
+        <!-- ===================================================== -->
+
+        <div style="
+            background-color:#0f172a;
+            padding:25px;
+            border-radius:12px;
+            margin-bottom:30px;
+            border:1px solid #1e293b;
+        ">
+
+            <p style="
+                color:#94a3b8;
+                font-size:13px;
+                font-weight:bold;
+                text-transform:uppercase;
+                margin-top:0;
+                margin-bottom:8px;
+            ">
+                Submitted Content
+            </p>
+
+
+            <h3 style="
+                margin-top:0;
+                margin-bottom:18px;
+                font-size:22px;
+            ">
+                Final {{ content_label|default:"Application Message" }}
+            </h3>
+
 
             {% if use_confirmation and use_confirmation.submitted_proposal_text %}
 
-                <div style="line-height:1.7; white-space:pre-wrap;">{{ use_confirmation.submitted_proposal_text }}</div>
+                <div style="
+                    line-height:1.7;
+                    white-space:pre-wrap;
+                    background-color:#111827;
+                    padding:22px;
+                    border-radius:10px;
+                    border:1px solid #1e293b;
+                ">{{ use_confirmation.submitted_proposal_text }}</div>
 
             {% else %}
 
-                <div style="line-height:1.7; white-space:pre-wrap;">{{ proposal.final_text }}</div>
+                <div style="
+                    line-height:1.7;
+                    white-space:pre-wrap;
+                    background-color:#111827;
+                    padding:22px;
+                    border-radius:10px;
+                    border:1px solid #1e293b;
+                ">{{ proposal.final_text }}</div>
+
+            {% endif %}
+
+
+            {% if use_confirmation and use_confirmation.notes %}
+
+                <div style="
+                    margin-top:20px;
+                    padding:18px;
+                    background-color:#172033;
+                    border-radius:10px;
+                ">
+
+                    <strong>
+                        Submission Notes
+                    </strong>
+
+                    <p style="
+                        color:#cbd5e1;
+                        line-height:1.6;
+                        margin-bottom:0;
+                        white-space:pre-wrap;
+                    ">
+                        {{ use_confirmation.notes }}
+                    </p>
+
+                </div>
 
             {% endif %}
 
         </div>
 
+
+
+        <!-- ===================================================== -->
+        <!-- OUTCOME FORM -->
+        <!-- ===================================================== -->
+
         <form method="POST">
+
             {% csrf_token %}
 
-            <label>Outcome</label><br>
 
-            <select name="outcome_status"
-                    required
-                    style="width:100%; padding:14px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;">
+            <label
+                for="outcome_status"
+                style="
+                    font-weight:bold;
+                    display:block;
+                "
+            >
+                What happened after submission?
+            </label>
 
-                <option value="">Select outcome</option>
-                <option value="no_response">No Response</option>
-                <option value="reply">Reply Received</option>
-                <option value="interview">Interview</option>
-                <option value="hired">Hired</option>
-                <option value="rejected">Rejected</option>
 
-            </select><br>
+            <select
+                id="outcome_status"
+                name="outcome_status"
+                required
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:14px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                    font-size:15px;
+                "
+            >
 
-            <label>Outcome Notes</label><br>
+                <option value="">
+                    Select outcome
+                </option>
 
-            <textarea name="notes"
-                      placeholder="Optional: add anything useful, e.g. client replied after 2 days, asked for portfolio, rejected due to budget..."
-                      style="width:100%; padding:14px; height:140px; margin-top:8px; margin-bottom:35px; border-radius:8px; border:none;"></textarea><br>
+                <option value="no_response">
+                    No Response
+                </option>
 
-            <div style="display:flex; gap:15px; flex-wrap:wrap;">
+                <option value="reply">
+                    Reply Received
+                </option>
 
-                <a href="/dashboard/"
-                   style="background-color:#334155; color:white; padding:16px 28px; border-radius:10px; text-decoration:none; font-weight:bold; display:inline-block;">
-                    Back To Dashboard
+                <option value="interview">
+                    Interview
+                </option>
+
+                <option value="hired">
+                    Hired
+                </option>
+
+                <option value="rejected">
+                    Rejected
+                </option>
+
+            </select>
+
+
+
+            <label
+                for="notes"
+                style="
+                    font-weight:bold;
+                    display:block;
+                "
+            >
+                Outcome Notes
+            </label>
+
+
+            <textarea
+                id="notes"
+                name="notes"
+                placeholder="Optional: add useful details, e.g. client replied after 2 days, requested a portfolio, invited you to interview, or rejected because of budget..."
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:14px;
+                    height:140px;
+                    margin-top:8px;
+                    margin-bottom:35px;
+                    border-radius:8px;
+                    border:none;
+                    resize:vertical;
+                    font-size:15px;
+                    line-height:1.5;
+                "
+            ></textarea>
+
+
+
+            <!-- ================================================= -->
+            <!-- ACTIONS -->
+            <!-- ================================================= -->
+
+            <div style="
+                display:flex;
+                gap:15px;
+                flex-wrap:wrap;
+            ">
+
+                <a
+                    href="{% url 'dashboard' %}"
+                    style="
+                        background-color:#334155;
+                        color:white;
+                        padding:16px 28px;
+                        border-radius:10px;
+                        text-decoration:none;
+                        font-weight:bold;
+                        display:inline-block;
+                    "
+                >
+                    ← Back to Dashboard
                 </a>
 
-                <button type="submit"
-                        style="background-color:#22c55e; color:white; padding:16px 28px; border:none; border-radius:10px; font-size:16px; font-weight:bold;">
+
+                <button
+                    type="submit"
+                    style="
+                        background-color:#22c55e;
+                        color:white;
+                        padding:16px 28px;
+                        border:none;
+                        border-radius:10px;
+                        font-size:16px;
+                        font-weight:bold;
+                        cursor:pointer;
+                    "
+                >
                     Save Outcome
                 </button>
 
@@ -104,5 +474,7 @@
 
 </div>
 
+
 </body>
+
 </html>

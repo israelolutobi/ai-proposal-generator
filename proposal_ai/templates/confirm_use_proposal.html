@@ -4,15 +4,34 @@
 {% load static %}
 
 <head>
-    <title>Confirm Proposal Usage - ProposalIQ</title>
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+
+    <title>
+        Confirm Submission - ProposalIQ
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{% static 'css/style.css' %}"
+    >
+
 </head>
 
-<body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
+
+<body style="
+    background-color:#0b1120;
+    color:white;
+    font-family:Arial;
+    margin:0;
+">
 
 {% include "partials/navbar.html" %}
 
-<div style="max-width:900px; margin:60px auto; padding:0 20px;">
+
+<div style="
+    max-width:900px;
+    margin:60px auto;
+    padding:0 20px;
+">
 
     <div style="
         background-color:#111827;
@@ -21,111 +40,407 @@
         border:1px solid #1e293b;
     ">
 
-        <h2 style="margin-top:0; font-size:36px;">
-            Confirm Proposal Usage
+
+        <!-- ===================================================== -->
+        <!-- PAGE HEADER -->
+        <!-- ===================================================== -->
+
+        <h2
+            id="page-heading"
+            style="
+                margin-top:0;
+                font-size:36px;
+                margin-bottom:10px;
+            "
+        >
+            Confirm {{ application_label|default:"Application" }} Submission
         </h2>
 
-        <p style="color:#cbd5e1; line-height:1.6; margin-bottom:35px;">
-            Confirm where and how this proposal was used. This helps ProposalIQ learn
-            which proposal strategies perform best over time.
+
+        <p style="
+            color:#cbd5e1;
+            line-height:1.6;
+            margin-bottom:30px;
+        ">
+            Confirm what you actually submitted or sent to the client.
+            ProposalIQ will use this information to track the application
+            and connect it with later outcomes such as replies, interviews
+            and hires.
         </p>
+
+
+
+        <!-- ===================================================== -->
+        <!-- APPLICATION FORMAT -->
+        <!-- ===================================================== -->
+
+        <div style="
+            background-color:#0f172a;
+            padding:22px;
+            border-radius:12px;
+            border:1px solid #263449;
+            margin-bottom:30px;
+        ">
+
+            <p style="
+                color:#94a3b8;
+                font-size:13px;
+                font-weight:bold;
+                text-transform:uppercase;
+                margin-top:0;
+                margin-bottom:14px;
+            ">
+                Application Format
+            </p>
+
+
+            <div style="
+                display:flex;
+                gap:40px;
+                flex-wrap:wrap;
+            ">
+
+                <div>
+
+                    <span style="
+                        display:block;
+                        color:#94a3b8;
+                        font-size:13px;
+                        margin-bottom:5px;
+                    ">
+                        Overall application
+                    </span>
+
+                    <strong
+                        id="application-label-display"
+                        style="
+                            font-size:18px;
+                        "
+                    >
+                        {{ application_label|default:"Application" }}
+                    </strong>
+
+                </div>
+
+
+                <div>
+
+                    <span style="
+                        display:block;
+                        color:#94a3b8;
+                        font-size:13px;
+                        margin-bottom:5px;
+                    ">
+                        Written content
+                    </span>
+
+                    <strong
+                        id="content-label-display"
+                        style="
+                            font-size:18px;
+                            color:#60a5fa;
+                        "
+                    >
+                        {{ content_label|default:"Application Message" }}
+                    </strong>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- ===================================================== -->
+        <!-- OPPORTUNITY SUMMARY -->
+        <!-- ===================================================== -->
 
         <div style="
             background-color:#0f172a;
             padding:25px;
             border-radius:12px;
             margin-bottom:35px;
+            border:1px solid #1e293b;
         ">
 
-            <h3 style="margin-top:0;">
+            <p style="
+                color:#94a3b8;
+                font-size:13px;
+                font-weight:bold;
+                text-transform:uppercase;
+                margin-top:0;
+                margin-bottom:8px;
+            ">
+                Opportunity
+            </p>
+
+
+            <h3 style="
+                margin-top:0;
+                margin-bottom:12px;
+                font-size:24px;
+            ">
                 {{ proposal.job_post.job_title }}
             </h3>
 
-            <p style="color:#94a3b8; white-space:pre-wrap;">
+
+            <p style="
+                color:#94a3b8;
+                margin-top:0;
+                margin-bottom:15px;
+            ">
+
+                Platform:
+
+                <strong style="color:#cbd5e1;">
+                    {{ proposal.job_post.platform|default:"Not specified" }}
+                </strong>
+
+            </p>
+
+
+            <p style="
+                color:#cbd5e1;
+                white-space:pre-wrap;
+                line-height:1.6;
+                margin-bottom:0;
+            ">
                 {{ proposal.job_post.job_description }}
             </p>
 
         </div>
 
+
+
+        <!-- ===================================================== -->
+        <!-- SUBMISSION FORM -->
+        <!-- ===================================================== -->
+
         <form method="POST">
 
             {% csrf_token %}
 
-            <label>Freelance Platform</label><br>
 
-            <input type="text"
-                   name="platform"
-                   required
-                   placeholder="e.g. Upwork, Freelancer, Fiverr"
-                   style="
+
+            <!-- PLATFORM -->
+
+            <label
+                for="platform"
+                style="
+                    font-weight:bold;
+                    display:block;
+                "
+            >
+                Freelance Platform
+            </label>
+
+
+            <input
+                type="text"
+                id="platform"
+                name="platform"
+                required
+                value="{{ proposal.job_post.platform|default:'' }}"
+                placeholder="e.g. Upwork, Freelancer, Fiverr"
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:14px;
+                    margin-top:8px;
+                    margin-bottom:8px;
+                    border-radius:8px;
+                    border:none;
+                    font-size:15px;
+                "
+            >
+
+
+            <p style="
+                color:#94a3b8;
+                font-size:13px;
+                margin-top:0;
+                margin-bottom:25px;
+            ">
+                Correct this if the application was actually submitted
+                through a different platform. ProposalIQ will update the
+                application terminology accordingly.
+            </p>
+
+
+
+            <!-- CLIENT -->
+
+            <label
+                for="client_name"
+                style="
+                    font-weight:bold;
+                    display:block;
+                "
+            >
+                Client Name / Author
+            </label>
+
+
+            <input
+                type="text"
+                id="client_name"
+                name="client_name"
+                placeholder="Optional"
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:14px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                    font-size:15px;
+                "
+            >
+
+
+
+            <!-- JOB URL -->
+
+            <label
+                for="job_url"
+                style="
+                    font-weight:bold;
+                    display:block;
+                "
+            >
+                Opportunity URL
+            </label>
+
+
+            <input
+                type="url"
+                id="job_url"
+                name="job_url"
+                placeholder="Optional link to the job or opportunity"
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:14px;
+                    margin-top:8px;
+                    margin-bottom:25px;
+                    border-radius:8px;
+                    border:none;
+                    font-size:15px;
+                "
+            >
+
+
+
+            <!-- ================================================= -->
+            <!-- FINAL SUBMITTED WRITTEN CONTENT -->
+            <!-- ================================================= -->
+
+            <div style="
+                background-color:#0f172a;
+                padding:24px;
+                border-radius:12px;
+                border:1px solid #263449;
+                margin-bottom:25px;
+            ">
+
+                <label
+                    for="submitted_proposal_text"
+                    id="submitted-content-label"
+                    style="
+                        font-weight:bold;
+                        display:block;
+                        font-size:18px;
+                    "
+                >
+                    Final Submitted {{ content_label|default:"Application Message" }}
+                </label>
+
+
+                <p style="
+                    color:#94a3b8;
+                    font-size:13px;
+                    line-height:1.5;
+                    margin-top:8px;
+                    margin-bottom:12px;
+                ">
+                    This is pre-filled with ProposalIQ's generated version.
+                    If you edited it before submitting, replace it with the
+                    final version you actually sent.
+                </p>
+
+
+                <textarea
+                    id="submitted_proposal_text"
+                    name="submitted_proposal_text"
+                    placeholder="Paste the final version you actually submitted if you changed the generated version..."
+                    style="
+                        box-sizing:border-box;
                         width:100%;
                         padding:14px;
-                        margin-top:8px;
-                        margin-bottom:25px;
+                        height:260px;
                         border-radius:8px;
                         border:none;
-                   "><br>
+                        resize:vertical;
+                        font-size:15px;
+                        line-height:1.6;
+                    "
+                >{{ proposal.final_text }}</textarea>
 
-            <label>Client Name / Author</label><br>
+            </div>
 
-            <input type="text"
-                   name="client_name"
-                   placeholder="Optional"
-                   style="
-                        width:100%;
-                        padding:14px;
-                        margin-top:8px;
-                        margin-bottom:25px;
-                        border-radius:8px;
-                        border:none;
-                   "><br>
 
-            <label>Job URL</label><br>
 
-            <input type="url"
-                   name="job_url"
-                   placeholder="Optional link to the job post"
-                   style="
-                        width:100%;
-                        padding:14px;
-                        margin-top:8px;
-                        margin-bottom:25px;
-                        border-radius:8px;
-                        border:none;
-                   "><br>
+            <!-- NOTES -->
 
-            <label>Final Submitted Proposal</label><br>
+            <label
+                for="notes"
+                style="
+                    font-weight:bold;
+                    display:block;
+                "
+            >
+                Notes
+            </label>
 
-            <textarea name="submitted_proposal_text"
-                      placeholder="Paste the final version you actually submitted if modified..."
-                      style="
-                            width:100%;
-                            padding:14px;
-                            height:220px;
-                            margin-top:8px;
-                            margin-bottom:25px;
-                            border-radius:8px;
-                            border:none;
-                      ">{{ proposal.final_text }}</textarea><br>
 
-            <label>Extra Notes</label><br>
+            <textarea
+                id="notes"
+                name="notes"
+                placeholder="Optional: note any edits you made, pricing decisions, client details or anything else useful about this application..."
+                style="
+                    box-sizing:border-box;
+                    width:100%;
+                    padding:14px;
+                    height:120px;
+                    margin-top:8px;
+                    margin-bottom:35px;
+                    border-radius:8px;
+                    border:none;
+                    resize:vertical;
+                    font-size:15px;
+                    line-height:1.5;
+                "
+            ></textarea>
 
-            <textarea name="notes"
-                      placeholder="Optional observations or comments..."
-                      style="
-                            width:100%;
-                            padding:14px;
-                            height:120px;
-                            margin-top:8px;
-                            margin-bottom:35px;
-                            border-radius:8px;
-                            border:none;
-                      "></textarea><br>
 
-            <div style="display:flex; gap:15px; margin-top:35px; flex-wrap:wrap;">
 
-                <a href="/dashboard/"
-                   style="
+            <!-- ================================================= -->
+            <!-- ACTIONS -->
+            <!-- ================================================= -->
+
+            <div style="
+                display:flex;
+                gap:15px;
+                margin-top:35px;
+                flex-wrap:wrap;
+                align-items:center;
+            ">
+
+                <a
+                    href="{% url 'dashboard' %}"
+                    style="
                         background-color:#334155;
                         color:white;
                         padding:16px 28px;
@@ -133,22 +448,27 @@
                         text-decoration:none;
                         font-weight:bold;
                         display:inline-block;
-                   ">
-                    Back to Dashboard
+                    "
+                >
+                    ← Back to Dashboard
                 </a>
 
-                <button type="submit"
-                        style="
-                            background-color:#22c55e;
-                            color:white;
-                            padding:16px 28px;
-                            border:none;
-                            border-radius:10px;
-                            font-size:16px;
-                            font-weight:bold;
-                            cursor:pointer;
-                        ">
-                    Confirm & Save Usage
+
+                <button
+                    type="submit"
+                    id="confirm-submission-button"
+                    style="
+                        background-color:#22c55e;
+                        color:white;
+                        padding:16px 28px;
+                        border:none;
+                        border-radius:10px;
+                        font-size:16px;
+                        font-weight:bold;
+                        cursor:pointer;
+                    "
+                >
+                    Confirm {{ application_label|default:"Application" }} Submitted
                 </button>
 
             </div>
@@ -159,5 +479,243 @@
 
 </div>
 
+
+
+<!-- ============================================================= -->
+<!-- LIVE PLATFORM-AWARE TERMINOLOGY -->
+<!-- ============================================================= -->
+
+<script>
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        const platformInput =
+            document.getElementById("platform");
+
+        const applicationDisplay =
+            document.getElementById(
+                "application-label-display"
+            );
+
+        const contentDisplay =
+            document.getElementById(
+                "content-label-display"
+            );
+
+        const pageHeading =
+            document.getElementById(
+                "page-heading"
+            );
+
+        const submittedContentLabel =
+            document.getElementById(
+                "submitted-content-label"
+            );
+
+        const confirmButton =
+            document.getElementById(
+                "confirm-submission-button"
+            );
+
+
+        const platformLabels = {
+
+            "upwork": {
+                application: "Proposal",
+                content: "Cover Letter",
+                action: "submitted"
+            },
+
+            "upwork.com": {
+                application: "Proposal",
+                content: "Cover Letter",
+                action: "submitted"
+            },
+
+            "freelancer": {
+                application: "Bid",
+                content: "Proposal",
+                action: "submitted"
+            },
+
+            "freelancer.com": {
+                application: "Bid",
+                content: "Proposal",
+                action: "submitted"
+            },
+
+            "peopleperhour": {
+                application: "Proposal",
+                content: "Proposal Message",
+                action: "submitted"
+            },
+
+            "people per hour": {
+                application: "Proposal",
+                content: "Proposal Message",
+                action: "submitted"
+            },
+
+            "peopleperhour.com": {
+                application: "Proposal",
+                content: "Proposal Message",
+                action: "submitted"
+            },
+
+            "fiverr": {
+                application: "Offer",
+                content: "Client Message",
+                action: "sent"
+            },
+
+            "fiverr.com": {
+                application: "Offer",
+                content: "Client Message",
+                action: "sent"
+            },
+
+            "direct": {
+                application: "Pitch",
+                content: "Pitch Message",
+                action: "sent"
+            },
+
+            "direct client": {
+                application: "Pitch",
+                content: "Pitch Message",
+                action: "sent"
+            },
+
+            "direct outreach": {
+                application: "Pitch",
+                content: "Pitch Message",
+                action: "sent"
+            },
+
+            "linkedin": {
+                application: "Pitch",
+                content: "Pitch Message",
+                action: "sent"
+            },
+
+            "email": {
+                application: "Pitch",
+                content: "Pitch Message",
+                action: "sent"
+            }
+
+        };
+
+
+        function normalizePlatform(value) {
+
+            let normalized =
+                value.trim().toLowerCase();
+
+
+            normalized =
+                normalized.replace(
+                    /^https?:\/\/(www\.)?/,
+                    ""
+                );
+
+
+            normalized =
+                normalized.replace(
+                    /^www\./,
+                    ""
+                );
+
+
+            normalized =
+                normalized.split("/")[0];
+
+
+            return normalized;
+
+        }
+
+
+        function updatePlatformTerminology() {
+
+            const platform =
+                normalizePlatform(
+                    platformInput.value
+                );
+
+
+            const config =
+                platformLabels[platform] || {
+                    application: "Application",
+                    content: "Application Message",
+                    action: "submitted"
+                };
+
+
+            applicationDisplay.textContent =
+                config.application;
+
+
+            contentDisplay.textContent =
+                config.content;
+
+
+            if (config.action === "sent") {
+
+                pageHeading.textContent =
+                    "Confirm "
+                    + config.application
+                    + " Sent";
+
+
+                submittedContentLabel.textContent =
+                    "Final Sent "
+                    + config.content;
+
+
+                confirmButton.textContent =
+                    "Confirm as Sent";
+
+            } else {
+
+                pageHeading.textContent =
+                    "Confirm "
+                    + config.application
+                    + " Submission";
+
+
+                submittedContentLabel.textContent =
+                    "Final Submitted "
+                    + config.content;
+
+
+                confirmButton.textContent =
+                    "Confirm "
+                    + config.application
+                    + " Submitted";
+
+            }
+
+        }
+
+
+        platformInput.addEventListener(
+            "input",
+            updatePlatformTerminology
+        );
+
+
+        updatePlatformTerminology();
+
+    }
+
+);
+
+</script>
+
+
 </body>
+
 </html>
