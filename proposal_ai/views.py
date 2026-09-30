@@ -3,15 +3,16 @@ import logging
 import os
 
 from django.conf import settings
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.http import require_POST
+from django.views.decorators.debug import sensitive_post_parameters
+from django.views.decorators.http import require_http_methods, require_POST
 from openai import OpenAI
 
+from .forms import LoginForm, RegistrationForm
 from .models import (
     FreelancerProfile,
     JobPost,
@@ -77,70 +78,27 @@ def add_platform_display_metadata(proposal):
     return proposal
 
 
+@sensitive_post_parameters("password1", "password2")
+@require_http_methods(["GET", "HEAD", "POST"])
 def register_user(request):
-    error_message = None
+    form = RegistrationForm(request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        user = form.save()
+        login(request, user)
+        return redirect("create_freelancer_profile")
 
-    if request.method == "POST":
-        username = request.POST.get("username")
-        email = request.POST.get("email")
-        password = request.POST.get("password")
-        confirm_password = request.POST.get("confirm_password")
-
-        if password != confirm_password:
-            error_message = "Passwords do not match."
-
-        elif User.objects.filter(username=username).exists():
-            error_message = "Username already exists."
-
-        elif User.objects.filter(email=email).exists():
-            error_message = "Email already exists."
-
-        else:
-            user = User.objects.create_user(
-                username=username,
-                email=email,
-                password=password,
-            )
-
-            login(request, user)
-
-            return redirect("create_freelancer_profile")
-
-    return render(
-        request,
-        "register.html",
-        {
-            "error_message": error_message,
-        },
-    )
+    return render(request, "register.html", {"form": form})
 
 
+@sensitive_post_parameters("password")
+@require_http_methods(["GET", "HEAD", "POST"])
 def login_user(request):
-    error_message = None
+    form = LoginForm(request, data=request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        login(request, form.get_user())
+        return redirect("dashboard")
 
-    if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
-
-        user = authenticate(
-            request,
-            username=username,
-            password=password,
-        )
-
-        if user is not None:
-            login(request, user)
-            return redirect("dashboard")
-
-        error_message = "Invalid username or password."
-
-    return render(
-        request,
-        "login.html",
-        {
-            "error_message": error_message,
-        },
-    )
+    return render(request, "login.html", {"form": form})
 
 
 def logout_user(request):

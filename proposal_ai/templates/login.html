@@ -33,23 +33,32 @@
         Login
     </h2>
 
-    {% if error_message %}
-
-        <p style="color:#ef4444;">
-            {{ error_message }}
-        </p>
-
+    {% if form.errors %}
+        <div role="alert" style="color:#ef4444;">
+            {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+            {% endfor %}
+            {% for field in form %}
+                {% for error in field.errors %}
+                    <p>{{ field.label }}: {{ error }}</p>
+                {% endfor %}
+            {% endfor %}
+        </div>
     {% endif %}
 
     <form method="POST">
 
         {% csrf_token %}
 
-        <label>Username</label><br>
+        <label for="id_username">Username</label><br>
 
         <input
             type="text"
             name="username"
+            id="id_username"
+            value="{{ form.username.value|default_if_none:'' }}"
+            maxlength="{{ form.username.field.max_length }}"
+            autocomplete="username"
             required
             style="
                 width:100%;
@@ -60,11 +69,13 @@
             "
         ><br>
 
-        <label>Password</label><br>
+        <label for="id_password">Password</label><br>
 
         <input
             type="password"
             name="password"
+            id="id_password"
+            autocomplete="current-password"
             required
             style="
                 width:100%;
