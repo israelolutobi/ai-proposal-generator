@@ -12,7 +12,7 @@ from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods, require_POST
 from openai import OpenAI
 
-from .forms import LoginForm, RegistrationForm
+from .forms import FreelancerProfileForm, LoginForm, RegistrationForm, WorkExperienceForm
 from .models import (
     FreelancerProfile,
     JobPost,
@@ -114,23 +114,20 @@ def public_home(request):
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def add_work_experience(request):
-    if request.method == "POST":
-        WorkExperience.objects.create(
-            user=request.user,
-            job_title=request.POST.get("job_title"),
-            company_or_project=request.POST.get("company_or_project"),
-            tasks=request.POST.get("tasks"),
-            skills_used=request.POST.get("skills_used"),
-            experience_depth=request.POST.get("experience_depth"),
-        )
+    form = WorkExperienceForm(request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        experience = form.save(commit=False)
+        experience.user = request.user
+        experience.save()
 
         if "add_another" in request.POST:
             return redirect("add_work_experience")
 
         return redirect("my_experiences")
 
-    return render(request, "add_experience.html")
+    return render(request, "add_experience.html", {"form": form})
 
 
 @login_required
@@ -149,6 +146,7 @@ def my_experiences(request):
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def edit_work_experience(request, experience_id):
     experience = get_object_or_404(
         WorkExperience,
@@ -156,18 +154,11 @@ def edit_work_experience(request, experience_id):
         user=request.user,
     )
 
-    if request.method == "POST":
-        experience.job_title = request.POST.get("job_title")
-        experience.company_or_project = request.POST.get(
-            "company_or_project"
-        )
-        experience.tasks = request.POST.get("tasks")
-        experience.skills_used = request.POST.get("skills_used")
-        experience.experience_depth = request.POST.get(
-            "experience_depth"
-        )
-
-        experience.save()
+    form = WorkExperienceForm(
+        request.POST if request.method == "POST" else None, instance=experience
+    )
+    if request.method == "POST" and form.is_valid():
+        form.save()
 
         return redirect("my_experiences")
 
@@ -176,11 +167,13 @@ def edit_work_experience(request, experience_id):
         "edit_experience.html",
         {
             "experience": experience,
+            "form": form,
         },
     )
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def create_freelancer_profile(request):
     """
     Create or update the freelancer profile.
@@ -213,28 +206,13 @@ def create_freelancer_profile(request):
         )
         button_text = "Create Profile"
 
-    if request.method == "POST":
-        professional_title = request.POST.get(
-            "professional_title", ""
-        ).strip()
-
-        profile_summary = request.POST.get(
-            "profile_summary", ""
-        ).strip()
-
-        preferred_tone = (
-            request.POST.get("preferred_tone", "").strip()
-            or "professional"
-        )
-
-        FreelancerProfile.objects.update_or_create(
-            user=request.user,
-            defaults={
-                "professional_title": professional_title,
-                "profile_summary": profile_summary,
-                "preferred_tone": preferred_tone,
-            },
-        )
+    form = FreelancerProfileForm(
+        request.POST if request.method == "POST" else None, instance=profile
+    )
+    if request.method == "POST" and form.is_valid():
+        profile = form.save(commit=False)
+        profile.user = request.user
+        profile.save()
 
         if next_page == "my_experiences":
             return redirect("my_experiences")
@@ -246,6 +224,8 @@ def create_freelancer_profile(request):
         "create_profile.html",
         {
             "profile": profile,
+            "form": form,
+            "key_skills": request.POST.get("key_skills", "") if request.method == "POST" else "",
             "next_page": next_page,
             "page_title": page_title,
             "page_description": page_description,

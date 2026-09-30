@@ -48,6 +48,15 @@
         </p>
 
 
+        {% if form.errors %}
+            <div role="alert" style="color:#ef4444;">
+                {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+                {% for field in form %}
+                    {% for error in field.errors %}<p>{{ field.label }}: {{ error }}</p>{% endfor %}
+                {% endfor %}
+            </div>
+        {% endif %}
+
         <form method="POST">
 
             {% csrf_token %}
@@ -75,7 +84,8 @@
                 type="text"
                 id="professional_title"
                 name="professional_title"
-                value="{{ profile.professional_title|default:'' }}"
+                value="{{ form.professional_title.value|default_if_none:'' }}"
+                maxlength="{{ form.professional_title.field.max_length }}"
                 placeholder="e.g. Python Backend Developer"
                 required
                 style="
@@ -162,6 +172,7 @@
                     type="text"
                     id="key_skills"
                     name="key_skills"
+                    value="{{ key_skills }}"
                     placeholder="e.g. Python, Django, APIs, PostgreSQL"
                     autocomplete="off"
                     style="
@@ -279,7 +290,7 @@
                         font-size:15px;
                         line-height:1.5;
                     "
-                >{{ profile.profile_summary|default:'' }}</textarea>
+                >{{ form.profile_summary.value|default_if_none:'' }}</textarea>
 
                 <p style="
                     color:#94a3b8;
@@ -321,41 +332,9 @@
                 "
             >
 
-                <option
-                    value="professional"
-                    {% if profile.preferred_tone == "professional" %}
-                        selected
-                    {% endif %}
-                >
-                    Professional
-                </option>
-
-                <option
-                    value="friendly"
-                    {% if profile.preferred_tone == "friendly" %}
-                        selected
-                    {% endif %}
-                >
-                    Friendly
-                </option>
-
-                <option
-                    value="confident"
-                    {% if profile.preferred_tone == "confident" %}
-                        selected
-                    {% endif %}
-                >
-                    Confident
-                </option>
-
-                <option
-                    value="technical"
-                    {% if profile.preferred_tone == "technical" %}
-                        selected
-                    {% endif %}
-                >
-                    Technical
-                </option>
+                {% for value, label in form.preferred_tone.field.choices %}
+                    <option value="{{ value }}" {% if form.preferred_tone.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
 
             </select>
 

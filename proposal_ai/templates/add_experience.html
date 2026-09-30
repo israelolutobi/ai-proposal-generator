@@ -20,12 +20,23 @@
         Add one role or project experience at a time. This helps ProposalIQ match your experience more accurately to future job descriptions.
     </p>
 
+    {% if form.errors %}
+        <div role="alert" style="color:#ef4444;">
+            {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            {% for field in form %}
+                {% for error in field.errors %}<p>{{ field.label }}: {{ error }}</p>{% endfor %}
+            {% endfor %}
+        </div>
+    {% endif %}
+
     <form method="POST">
         {% csrf_token %}
 
         <label>Role / Project Title</label><br>
         <input type="text"
                name="job_title"
+               value="{{ form.job_title.value|default_if_none:'' }}"
+               maxlength="{{ form.job_title.field.max_length }}"
                required
                placeholder="e.g. Python Backend Developer"
                style="width:100%; padding:14px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"><br>
@@ -33,6 +44,8 @@
         <label>Company or Project Name</label><br>
         <input type="text"
                name="company_or_project"
+               value="{{ form.company_or_project.value|default_if_none:'' }}"
+               maxlength="{{ form.company_or_project.field.max_length }}"
                placeholder="e.g. Personal AI Proposal System"
                style="width:100%; padding:14px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"><br>
 
@@ -40,17 +53,17 @@
         <textarea name="tasks"
                   required
                   placeholder="e.g. Built Django views, connected PostgreSQL database, integrated OpenAI API..."
-                  style="width:100%; padding:14px; height:130px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"></textarea><br>
+                  style="width:100%; padding:14px; height:130px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;">{{ form.tasks.value|default_if_none:'' }}</textarea><br>
 
         <label>Skills Used</label><br>
         <textarea name="skills_used"
                   placeholder="e.g. Python, Django, PostgreSQL, OpenAI API, HTML, CSS"
-                  style="width:100%; padding:14px; height:90px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;"></textarea><br>
+                  style="width:100%; padding:14px; height:90px; margin-top:8px; margin-bottom:25px; border-radius:8px; border:none;">{{ form.skills_used.value|default_if_none:'' }}</textarea><br>
 
         <label>Experience Depth</label><br>
         <textarea name="experience_depth"
                   placeholder="e.g. Python - 2 years&#10;Django - 1 year&#10;PostgreSQL - 6 months&#10;OpenAI API - current project"
-                  style="width:100%; padding:14px; height:120px; margin-top:8px; margin-bottom:35px; border-radius:8px; border:none;"></textarea><br>
+                  style="width:100%; padding:14px; height:120px; margin-top:8px; margin-bottom:35px; border-radius:8px; border:none;">{{ form.experience_depth.value|default_if_none:'' }}</textarea><br>
 
         <div style="display:flex; gap:15px; flex-wrap:wrap;">
 
