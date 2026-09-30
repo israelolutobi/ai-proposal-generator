@@ -29,6 +29,15 @@
             extracting its features.
         </p>
 
+        {% if form.errors %}
+            <div role="alert" style="color:#ef4444;">
+                {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+                {% for field in form %}
+                    {% for error in field.errors %}<p>{{ field.label }}: {{ error }}</p>{% endfor %}
+                {% endfor %}
+            </div>
+        {% endif %}
+
         {% if validation_score is not None %}
 
             <div style="margin-top:30px;
@@ -84,7 +93,7 @@
                         margin-top:10px;
                         border-radius:10px;
                         border:none;
-                    ">{{ raw_job_text|default:'' }}</textarea>
+                    ">{{ form.raw_job_text.value|default_if_none:'' }}</textarea>
 
             <div style="margin-top:30px; display:flex; gap:15px; flex-wrap:wrap;">
 

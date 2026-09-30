@@ -5,14 +5,19 @@ import os
 from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods, require_POST
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
-from .forms import FreelancerProfileForm, LoginForm, RegistrationForm, WorkExperienceForm
+from .forms import (
+    FreelancerProfileForm, JobConfirmationForm, JobExtractionForm, JobPasteForm,
+    LoginForm, RegistrationForm, WorkExperienceForm,
+)
 from .models import (
     FreelancerProfile,
     JobPost,
@@ -548,11 +553,11 @@ def validate_job_text(raw_text):
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def extract_job_features(request):
-    if request.method == "POST":
-        raw_job_text = request.POST.get(
-            "raw_job_text", ""
-        ).strip()
+    form = JobPasteForm(request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        raw_job_text = form.cleaned_data["raw_job_text"]
 
         validation_score, validation_issues = validate_job_text(
             raw_job_text
@@ -566,7 +571,7 @@ def extract_job_features(request):
                 request,
                 "extract_job_features.html",
                 {
-                    "raw_job_text": raw_job_text,
+                    "form": form,
                     "validation_score": validation_score,
                     "validation_issues": validation_issues,
                 },
@@ -635,130 +640,27 @@ def extract_job_features(request):
             + raw_job_text
         )
 
-        client = get_openai_client()
-
-        response = client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-        )
-
-        extracted_text = (
-            response.choices[0].message.content
-            or ""
-        ).strip()
-
-        # ---------------------------------------------------------
-        # PARSE AI RESPONSE
-        # ---------------------------------------------------------
-
         try:
-            extracted_data = json.loads(
-                extracted_text
+            client = get_openai_client()
+            response = client.chat.completions.create(
+                model="gpt-5",
+                messages=[{"role": "user", "content": prompt}],
             )
+            extraction_form = JobExtractionForm.from_json(response.choices[0].message.content)
+        except (OpenAIError, TimeoutError, RuntimeError, ValidationError, AttributeError, IndexError, TypeError):
+            # Never show/log raw provider output, exception text or credentials.
+            form.add_error(None, "We couldn't extract valid job details. Please try again.")
+            return render(request, "extract_job_features.html", {
+                "form": form,
+                "validation_score": validation_score if validation_score < 50 else None,
+                "validation_issues": validation_issues,
+            })
 
-        except json.JSONDecodeError:
-            extracted_data = {}
-
-        # ---------------------------------------------------------
-        # CREATE JOB / OPPORTUNITY RECORD
-        # ---------------------------------------------------------
-
-        job_post = JobPost.objects.create(
-            user=request.user,
-
-            raw_job_text=raw_job_text,
-
-            platform=extracted_data.get(
-                "platform",
-                "",
-            ),
-
-            job_title=(
-                extracted_data.get(
-                    "job_title",
-                    "Untitled Job",
-                )
-                or "Untitled Job"
-            ),
-
-            job_description=extracted_data.get(
-                "job_description",
-                raw_job_text,
-            ),
-
-            budget_type=extracted_data.get(
-                "budget_type",
-                "",
-            ),
-
-            hourly_min=(
-                extracted_data.get(
-                    "hourly_min"
-                )
-                or None
-            ),
-
-            hourly_max=(
-                extracted_data.get(
-                    "hourly_max"
-                )
-                or None
-            ),
-
-            fixed_budget=(
-                extracted_data.get(
-                    "fixed_budget"
-                )
-                or None
-            ),
-
-            experience_level=extracted_data.get(
-                "experience_level",
-                "",
-            ),
-
-            project_duration=extracted_data.get(
-                "project_duration",
-                "",
-            ),
-
-            hours_per_week=extracted_data.get(
-                "hours_per_week",
-                "",
-            ),
-
-            skills_required=extracted_data.get(
-                "skills_required",
-                "",
-            ),
-
-            client_location=extracted_data.get(
-                "client_location",
-                "",
-            ),
-
-            proposal_count=extracted_data.get(
-                "proposal_count",
-                "",
-            ),
-
-            interviewing_count=extracted_data.get(
-                "interviewing_count",
-                "",
-            ),
-
-            invites_sent=extracted_data.get(
-                "invites_sent",
-                "",
-            ),
-
-            confirmed_by_user=False,
-        )
+        job_post = extraction_form.save(commit=False)
+        job_post.user = request.user
+        job_post.raw_job_text = raw_job_text
+        job_post.confirmed_by_user = False
+        job_post.save()
 
         return redirect(
             "confirm_job_features",
@@ -768,9 +670,11 @@ def extract_job_features(request):
     return render(
         request,
         "extract_job_features.html",
+        {"form": form, "validation_score": None},
     )
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def confirm_job_features(request, job_post_id):
     """
     Confirm extracted job information and generate the appropriate written
@@ -795,84 +699,11 @@ def confirm_job_features(request, job_post_id):
     if not profile:
         return redirect("create_freelancer_profile")
 
-    if request.method == "POST":
-
-        # ---------------------------------------------------------
-        # SAVE USER-CONFIRMED JOB DETAILS
-        # ---------------------------------------------------------
-
-        job_post.platform = request.POST.get(
-            "platform"
-        )
-
-        job_post.job_title = (
-            request.POST.get("job_title")
-            or "Untitled Job"
-        )
-
-        job_post.job_description = request.POST.get(
-            "job_description"
-        )
-
-        job_post.budget_type = request.POST.get(
-            "budget_type"
-        )
-
-        job_post.hourly_min = (
-            request.POST.get("hourly_min")
-            or None
-        )
-
-        job_post.hourly_max = (
-            request.POST.get("hourly_max")
-            or None
-        )
-
-        # Fixed-price budget stated by the client/job post.
-        #
-        # This is deliberately separate from hourly_min/hourly_max
-        # and does NOT represent the freelancer's own bid.
-        job_post.fixed_budget = (
-            request.POST.get("fixed_budget")
-            or None
-        )
-
-        job_post.experience_level = request.POST.get(
-            "experience_level"
-        )
-
-        job_post.project_duration = request.POST.get(
-            "project_duration"
-        )
-
-        job_post.hours_per_week = request.POST.get(
-            "hours_per_week"
-        )
-
-        job_post.skills_required = request.POST.get(
-            "skills_required"
-        )
-
-        job_post.client_location = request.POST.get(
-            "client_location"
-        )
-
-        job_post.proposal_count = request.POST.get(
-            "proposal_count"
-        )
-
-        job_post.interviewing_count = request.POST.get(
-            "interviewing_count"
-        )
-
-        job_post.invites_sent = request.POST.get(
-            "invites_sent"
-        )
-
-        job_post.confirmed_by_user = True
-
-        job_post.save()
-
+    form = JobConfirmationForm(
+        request.POST if request.method == "POST" else None, instance=job_post
+    )
+    if request.method == "POST" and form.is_valid():
+        job_post = form.save(commit=False)
 
         # ---------------------------------------------------------
         # DETERMINE PLATFORM-SPECIFIC APPLICATION TERMINOLOGY
@@ -1249,13 +1080,18 @@ CONFIRMED JOB DETAILS
         # content_type tells ProposalIQ what that text represents.
         # ---------------------------------------------------------
 
-        Proposal.objects.create(
-            user=request.user,
-            job_post=job_post,
-            final_text=generated_content,
-            content_type=content_type,
-            status="generated",
-        )
+        # Keep the external request outside the transaction. Only validated
+        # details are used; the confirmed job and Proposal persist together.
+        with transaction.atomic():
+            job_post.confirmed_by_user = True
+            job_post.save()
+            Proposal.objects.create(
+                user=request.user,
+                job_post=job_post,
+                final_text=generated_content,
+                content_type=content_type,
+                status="generated",
+            )
 
         return redirect("dashboard")
 
@@ -1277,6 +1113,7 @@ CONFIRMED JOB DETAILS
         "confirm_job_features.html",
         {
             "job_post": job_post,
+            "form": form,
 
             "platform_config": platform_config,
 
