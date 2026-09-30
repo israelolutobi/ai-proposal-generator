@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 
@@ -17,9 +18,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY SETTINGS
 
-SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-local-development-key-only")
+SECRET_KEY = os.getenv("SECRET_KEY")
 
-DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+if not SECRET_KEY or not SECRET_KEY.strip():
+    raise ImproperlyConfigured(
+        "SECRET_KEY must be set in the environment or local .env file."
+    )
+
+DEBUG = os.getenv("DEBUG", "False").strip().lower() == "true"
 
 ALLOWED_HOSTS = [
     host.strip()
@@ -112,6 +118,8 @@ else:
 
 
 # PASSWORD VALIDATION
+
+LOGIN_URL = "login"
 
 AUTH_PASSWORD_VALIDATORS = [
     {

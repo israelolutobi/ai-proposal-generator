@@ -56,16 +56,43 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
+### Local configuration
+
+For first-time setup, copy `.env.example` to the ignored root `.env` file.
+Preserve any existing `.env` and add missing settings rather than overwriting it:
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+```
+
+Set your own private `SECRET_KEY` in the environment or `.env`.
+The application will not start if it is missing or blank.
+
+`DEBUG` defaults to `False`. For development over local HTTP, explicitly set
+the following environment variable or add it to `.env`:
+
+```dotenv
+DEBUG=True
+```
+
+With debug enabled, session and CSRF cookies can be used over local HTTP.
+Leave debug disabled in production, where these cookies require HTTPS.
+Only `true` enables debug (case-insensitive, with surrounding whitespace ignored).
+`False`, missing values, and invalid values leave debug disabled.
+Process environment variables take precedence over values in `.env`.
+Never commit `.env` or secret values. `OPENAI_API_KEY` is needed only for AI
+features; it can remain blank for non-AI development and tests.
+
 Run migrations:
 
 ```bash
-python manage.py migrate
+.\.venv\Scripts\python.exe manage.py migrate
 ```
 
 Start the development server:
 
 ```bash
-python manage.py runserver
+.\.venv\Scripts\python.exe manage.py runserver
 ```
 
 ---
