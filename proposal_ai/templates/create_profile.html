@@ -60,6 +60,7 @@
         <form method="POST">
 
             {% csrf_token %}
+            {% include "ai_request_identity.html" with ai_nonce=summary_nonce %}
 
             <input
                 type="hidden"
@@ -434,6 +435,21 @@ document.addEventListener(
 
 
         let summaryGenerationInProgress = false;
+        const summaryNonce = document.querySelector('input[name="ai_nonce"]');
+        const initialSummaryButtonText = generateButton.textContent;
+        window.addEventListener("pageshow", () => {
+            summaryGenerationInProgress = false;
+            generateButton.disabled = false;
+            skipButton.disabled = false;
+            generateButton.setAttribute("aria-busy", "false");
+            generateButton.style.opacity = "1";
+            generateButton.style.cursor = "pointer";
+            skipButton.style.opacity = "1";
+            skipButton.style.cursor = "pointer";
+            generateButton.textContent = generateButton.dataset.regenerate === "true"
+                ? "Generate Summary Again" : initialSummaryButtonText;
+            // Keep the same nonce: navigation must not bypass server replay checks.
+        });
 
 
         function showStatus(message, isError = false) {
@@ -504,6 +520,9 @@ document.addEventListener(
                     generateButton.textContent;
 
                 summaryGenerationInProgress = true;
+                generateButton.setAttribute("aria-busy", "true");
+                statusElement.setAttribute("role", "status");
+                statusElement.setAttribute("aria-live", "polite");
 
                 generateButton.disabled = true;
                 generateButton.style.opacity = "0.65";
@@ -522,6 +541,7 @@ document.addEventListener(
 
                 const requestBody =
                     new URLSearchParams();
+                requestBody.append("ai_nonce", summaryNonce.value);
 
 
                 requestBody.append(
@@ -568,6 +588,11 @@ document.addEventListener(
 
 
                     let data;
+                    const nextNonce = response.headers.get("X-ProposalQ-Next-Nonce");
+                    if (nextNonce) {
+                        summaryNonce.value = nextNonce;
+                        generateButton.dataset.regenerate = "true";
+                    }
 
                     try {
 
@@ -624,12 +649,13 @@ document.addEventListener(
                 } finally {
 
                     summaryGenerationInProgress = false;
+                    generateButton.setAttribute("aria-busy", "false");
 
                     generateButton.disabled = false;
                     generateButton.style.opacity = "1";
                     generateButton.style.cursor = "pointer";
                     generateButton.textContent =
-                        originalButtonText;
+                        generateButton.dataset.regenerate === "true" ? "Generate Summary Again" : originalButtonText;
 
                     skipButton.disabled = false;
                     skipButton.style.opacity = "1";

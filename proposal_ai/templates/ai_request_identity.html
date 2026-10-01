@@ -1,0 +1,8 @@
+<input type="hidden" name="ai_nonce" value="{{ ai_nonce }}">
+{% if ai_regeneration %}
+    <p>Submitting again starts a new generation and uses your ProposalQ allowance.</p>
+{% endif %}
+{% if ai_allowance %}
+    <p role="status">Credits remaining: {{ ai_allowance.daily_remaining }} today,
+        {{ ai_allowance.weekly_remaining }} this week. Allowances reset in UTC.</p>
+{% endif %}

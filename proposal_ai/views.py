@@ -23,7 +23,20 @@ from .models import (
     WorkExperience,
 )
 from .platform_config import get_platform_config
-from . import ai_limits, services
+from . import ai_control, ai_limits, services
+
+
+def ai_form_nonce(request, operation, resource_id=None, *, fresh=False):
+    if not fresh and request.method == "POST" and request.POST.get("ai_nonce"):
+        return request.POST["ai_nonce"]
+    intent = ai_control.Intent.REGENERATE if fresh or request.GET.get("regenerate") == "1" else ai_control.Intent.GENERATE
+    return ai_control.issue_nonce(request.user, operation, resource_id, intent)
+
+
+def ai_control_response(response, error):
+    if error.retry_after is not None:
+        response["Retry-After"] = str(error.retry_after)
+    return response
 
 
 def has_submission(proposal, confirmation=None):
@@ -235,6 +248,7 @@ def create_freelancer_profile(request):
             "form": form,
             "key_skills": request.POST.get("key_skills", "") if request.method == "POST" else "",
             "summary_skills_maximum": ai_limits.SUMMARY_SKILLS_CHARACTERS,
+            "summary_nonce": ai_form_nonce(request, ai_control.Operation.PROFILE_SUMMARY),
             "next_page": next_page,
             "page_title": page_title,
             "page_description": page_description,
@@ -254,6 +268,12 @@ def generate_profile_summary(request):
     """
     form = ProfileSummaryGenerationForm(request.POST)
     if not form.is_valid():
+        try:
+            ai_control.reject_invalid_replay(request.user, ai_control.Operation.PROFILE_SUMMARY, request.POST.get("ai_nonce", ""))
+        except ai_control.ControlError as error:
+            response = ai_control_response(JsonResponse({"error": error.user_message}, status=error.status), error)
+            response["X-ProposalQ-Next-Nonce"] = ai_form_nonce(request, ai_control.Operation.PROFILE_SUMMARY, fresh=True)
+            return response
         return JsonResponse({"error": " ".join(
             f"{form.fields[name].label}: {' '.join(errors)}" for name, errors in form.errors.items()
         )}, status=400)
@@ -285,19 +305,36 @@ Rules:
 - Return ONLY the profile summary with no heading or commentary.
 """.strip()
 
+    admitted = None
     try:
-        summary = services.generate_profile_summary(prompt)
+        ai_limits.check_request([{"role": "user", "content": prompt}], "summary")
+        admitted = ai_control.admit(request.user, ai_control.Operation.PROFILE_SUMMARY,
+                                    request.POST.get("ai_nonce", ""), form.cleaned_data, prompt)
+        if admitted.replay:
+            raise ai_control.ControlError("The summary request completed, but its text is not stored. Generate a new summary explicitly.")
+        summary = ai_control.call_provider(admitted.request, lambda: services.generate_profile_summary(prompt))
 
         summary = summary.replace("—", "-")
 
-        return JsonResponse(
+        ai_control.succeed(admitted.request)
+        response = JsonResponse(
             {
                 "summary": summary,
             }
         )
+        response["X-ProposalQ-Next-Nonce"] = ai_form_nonce(request, ai_control.Operation.PROFILE_SUMMARY, fresh=True)
+        return response
+
+    except ai_control.ControlError as error:
+        response = ai_control_response(JsonResponse({"error": error.user_message, **error.metadata}, status=error.status), error)
+        # The next click is an explicit fresh generation, never an automatic retry.
+        response["X-ProposalQ-Next-Nonce"] = ai_form_nonce(request, ai_control.Operation.PROFILE_SUMMARY, fresh=True)
+        return response
+    except ValidationError:
+        return JsonResponse({"error": services.AIInputError.user_message}, status=400)
 
     except services.AIError as error:
-        return JsonResponse(
+        response = JsonResponse(
             {
                 "error": (
                     error.user_message
@@ -305,6 +342,8 @@ Rules:
             },
             status=500,
         )
+        response["X-ProposalQ-Next-Nonce"] = ai_form_nonce(request, ai_control.Operation.PROFILE_SUMMARY, fresh=True)
+        return response
 
 
 @login_required
@@ -324,6 +363,7 @@ def generate_proposal(request):
     return render(request, "home.html", {
         "generated_proposal": None, "proposals": proposals,
         "pending_outcomes": pending_outcomes,
+        "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION),
     })
 
 
@@ -458,6 +498,7 @@ def extract_job_features(request):
                     "form": form,
                     "validation_score": validation_score,
                     "validation_issues": validation_issues,
+                    "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION),
                 },
             )
 
@@ -524,34 +565,84 @@ def extract_job_features(request):
             + raw_job_text
         )
 
+        admitted = None
         try:
-            extracted_text = services.extract_job_details(prompt)
+            ai_limits.check_request([{"role": "user", "content": prompt}], "extraction")
+            admitted = ai_control.admit(request.user, ai_control.Operation.JOB_EXTRACTION,
+                                        request.POST.get("ai_nonce", ""), form.cleaned_data, prompt)
+            if admitted.replay:
+                if admitted.request.job_post_id and JobPost.objects.filter(pk=admitted.request.job_post_id, user=request.user).exists():
+                    return redirect("confirm_job_features", job_post_id=admitted.request.job_post_id)
+                raise ai_control.ControlError("The previous job result is no longer available. Start a new extraction.")
+            extracted_text = ai_control.call_provider(admitted.request, lambda: services.extract_job_details(prompt))
             extraction_form = JobExtractionForm.from_json(extracted_text)
-        except (services.AIError, ValidationError):
+        except ai_control.ControlError as error:
+            form.add_error(None, error.user_message)
+            return ai_control_response(render(request, "extract_job_features.html", {
+                "form": form, "validation_score": None, "ai_allowance": error.metadata,
+                "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION, fresh=True),
+                "ai_regeneration": True,
+            }, status=error.status), error)
+        except (services.AIError, ValidationError) as error:
+            if isinstance(error, ValidationError) and admitted and not admitted.replay:
+                # Service failures are already finalized. Invalid extracted JSON
+                # is a paid response failure and must also consume its allowance.
+                try:
+                    ai_control.fail(admitted.request, ai_control.Failure.INVALID_RESPONSE)
+                except ai_control.ControlError as coordination_error:
+                    form.add_error(None, coordination_error.user_message)
+                    return render(request, "extract_job_features.html", {
+                        "form": form, "validation_score": None,
+                        "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION, fresh=True),
+                        "ai_regeneration": True,
+                    }, status=coordination_error.status)
             # Never show/log raw provider output, exception text or credentials.
             form.add_error(None, "We couldn't extract valid job details. Please try again.")
             return render(request, "extract_job_features.html", {
                 "form": form,
                 "validation_score": validation_score if validation_score < 50 else None,
                 "validation_issues": validation_issues,
+                "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION, fresh=admitted is not None),
+                "ai_regeneration": admitted is not None,
             })
 
         job_post = extraction_form.save(commit=False)
         job_post.user = request.user
         job_post.raw_job_text = raw_job_text
         job_post.confirmed_by_user = False
-        job_post.save()
+        def persist_job():
+            job_post.save()
+            return job_post
+
+        try:
+            ai_control.succeed(admitted.request, persist_job)
+        except ai_control.ControlError as error:
+            form.add_error(None, error.user_message)
+            return ai_control_response(render(request, "extract_job_features.html", {
+                "form": form, "validation_score": None,
+                "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION, fresh=True),
+                "ai_regeneration": True,
+            }, status=error.status), error)
 
         return redirect(
             "confirm_job_features",
             job_post_id=job_post.id,
         )
 
-    return render(
-        request,
-        "extract_job_features.html",
-        {"form": form, "validation_score": None},
-    )
+    if request.method == "POST" and not form.is_valid():
+        try:
+            ai_control.reject_invalid_replay(request.user, ai_control.Operation.JOB_EXTRACTION, request.POST.get("ai_nonce", ""))
+        except ai_control.ControlError as error:
+            form.add_error(None, error.user_message)
+            return ai_control_response(render(request, "extract_job_features.html", {
+                "form": form, "validation_score": None,
+                "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION, fresh=True),
+                "ai_regeneration": True,
+            }, status=error.status), error)
+    return render(request, "extract_job_features.html", {
+        "form": form, "validation_score": None,
+        "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION),
+    })
 
 @login_required
 @require_http_methods(["GET", "HEAD", "POST"])
@@ -579,10 +670,21 @@ def confirm_job_features(request, job_post_id):
     if not profile:
         return redirect("create_freelancer_profile")
 
+    response_status = 200
+    control_error = None
+    admitted = None
     form = ProposalGenerationForm(
         request.POST if request.method == "POST" else None, instance=job_post,
         user=request.user, profile=profile,
     )
+    if request.method == "POST" and not form.is_valid():
+        try:
+            ai_control.reject_invalid_replay(request.user, ai_control.Operation.PROPOSAL_GENERATION,
+                                             request.POST.get("ai_nonce", ""), job_post.pk)
+        except ai_control.ControlError as error:
+            form.add_error(None, error.user_message)
+            response_status = error.status
+            control_error = error
     if request.method == "POST" and form.is_valid():
         job_post = form.save(commit=False)
 
@@ -881,9 +983,20 @@ CONFIRMED JOB DETAILS
         try:
             ai_limits.check_characters(profile_context, ai_limits.PROFILE_CONTEXT_CHARACTERS, "Formatted profile context", stored=True, normalize=False)
             ai_limits.check_characters(job_context, ai_limits.JOB_CONTEXT_CHARACTERS, "Formatted job context", normalize=False)
-            generated_content = services.generate_proposal(
+            messages = [{"role": "system", "content": proposal_writing_instructions},
+                        {"role": "user", "content": application_context}]
+            ai_limits.check_request(messages, "proposal")
+            admitted = ai_control.admit(request.user, ai_control.Operation.PROPOSAL_GENERATION,
+                                        request.POST.get("ai_nonce", ""), form.cleaned_data, messages, job_post.pk)
+            if admitted.replay:
+                return redirect("dashboard")
+            generated_content = ai_control.call_provider(admitted.request, lambda: services.generate_proposal(
                 proposal_writing_instructions, application_context,
-            )
+            ))
+        except ai_control.ControlError as error:
+            form.add_error(None, error.user_message)
+            response_status = error.status
+            control_error = error
         except ValidationError as error:
             form.add_error(None, error)
         except services.AIError as error:
@@ -912,10 +1025,10 @@ CONFIRMED JOB DETAILS
 
             # Keep the external request outside the transaction. Only validated
             # details are used; the confirmed job and Proposal persist together.
-            with transaction.atomic():
+            def persist_proposal():
                 job_post.confirmed_by_user = True
                 job_post.save()
-                Proposal.objects.create(
+                return Proposal.objects.create(
                     user=request.user,
                     job_post=job_post,
                     final_text=generated_content,
@@ -923,7 +1036,14 @@ CONFIRMED JOB DETAILS
                     status="generated",
                 )
 
-            return redirect("dashboard")
+            try:
+                ai_control.succeed(admitted.request, persist_proposal)
+            except ai_control.ControlError as error:
+                form.add_error(None, error.user_message)
+                response_status = error.status
+                control_error = error
+            else:
+                return redirect("dashboard")
 
 
     # -------------------------------------------------------------
@@ -938,12 +1058,15 @@ CONFIRMED JOB DETAILS
         job_post.platform
     )
 
-    return render(
+    response = render(
         request,
         "confirm_job_features.html",
         {
             "job_post": job_post,
             "form": form,
+            "ai_nonce": ai_form_nonce(request, ai_control.Operation.PROPOSAL_GENERATION, job_post.pk, fresh=admitted is not None or control_error is not None),
+            "ai_regeneration": admitted is not None or request.GET.get("regenerate") == "1" or control_error is not None,
+            "ai_allowance": control_error.metadata if control_error else {},
 
             "platform_config": platform_config,
 
@@ -958,8 +1081,9 @@ CONFIRMED JOB DETAILS
             "generated_heading": platform_config[
                 "generated_heading"
             ],
-        },
+        }, status=response_status,
     )
+    return ai_control_response(response, control_error) if control_error else response
 
 
 @login_required

@@ -181,6 +181,7 @@
         <form method="POST" id="confirm-job-form">
 
             {% csrf_token %}
+            {% include "ai_request_identity.html" %}
 
 
             <!-- PLATFORM -->

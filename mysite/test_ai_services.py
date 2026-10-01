@@ -304,6 +304,8 @@ class SDKPolicyTests(SimpleTestCase):
     },
 )
 class AICallerTests(TestCase):
+    from .ai_test_helpers import SignedAIClient
+    client_class = SignedAIClient
     @classmethod
     def setUpTestData(cls):
         cls.owner = get_user_model().objects.create_user(username="ai-owner")

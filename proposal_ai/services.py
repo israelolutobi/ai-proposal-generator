@@ -79,10 +79,20 @@ for _name in ("openai._base_client", "openai._response"):
     logging.getLogger(_name).addFilter(_DropProviderLogs())
 
 
-def _create_client():
+def _api_key():
     key = getattr(settings, "OPENAI_API_KEY", None) or os.getenv("OPENAI_API_KEY")
     if not isinstance(key, str) or not key.strip():
         raise AIConfigurationError()
+    return key
+
+
+def check_configuration():
+    """Local preflight only; never constructs a client or performs network I/O."""
+    _api_key()
+
+
+def _create_client():
+    key = _api_key()
     try:
         return OpenAI(api_key=key, timeout=REQUEST_TIMEOUT, max_retries=MAX_RETRIES)
     except (TypeError, ValueError):

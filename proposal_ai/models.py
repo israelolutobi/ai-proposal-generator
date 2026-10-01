@@ -1,5 +1,83 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
+
+
+class AIRequest(models.Model):
+    """Payload-free request ledger; allowances are not provider cost estimates."""
+
+    class Operation(models.TextChoices):
+        PROFILE_SUMMARY = "profile_summary", "Profile summary"
+        JOB_EXTRACTION = "job_extraction", "Job extraction"
+        PROPOSAL_GENERATION = "proposal_generation", "Proposal generation"
+
+    class Intent(models.TextChoices):
+        GENERATE = "generate", "Generate"
+        REGENERATE = "regenerate", "Regenerate"
+
+    class Lifecycle(models.TextChoices):
+        RESERVED = "reserved", "Reserved"
+        IN_FLIGHT = "in_flight", "In flight"
+        SUCCEEDED = "succeeded", "Succeeded"
+        FAILED = "failed", "Failed"
+        UNCERTAIN = "uncertain", "Uncertain"
+
+    class Quota(models.TextChoices):
+        RESERVED = "reserved", "Reserved"
+        CONSUMED = "consumed", "Consumed"
+        RELEASED = "released", "Released"
+
+    class Failure(models.TextChoices):
+        LOCAL_CONFIGURATION = "local_configuration", "Local configuration"
+        CONFIGURATION = "configuration", "Provider configuration rejection"
+        CAPACITY = "capacity", "Provider capacity rejection"
+        INVALID_REQUEST = "invalid_request", "Provider request rejection"
+        INPUT_LIMIT = "input_limit", "Input validation"
+        TIMEOUT = "timeout", "Timeout"
+        CONNECTION = "connection", "Connection"
+        TEMPORARY = "temporary", "Temporary failure"
+        INVALID_RESPONSE = "invalid_response", "Invalid response"
+        PERSISTENCE = "persistence", "Persistence failure"
+        COORDINATION = "coordination", "Coordination failure"
+        STALE = "stale", "Expired request"
+        UNEXPECTED = "unexpected", "Unexpected failure"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    operation = models.CharField(max_length=24, choices=Operation.choices)
+    nonce = models.UUIDField()
+    intent = models.CharField(max_length=12, choices=Intent.choices)
+    submitted_fingerprint = models.CharField(max_length=64)
+    effective_fingerprint = models.CharField(max_length=64)
+    lifecycle = models.CharField(max_length=12, choices=Lifecycle.choices, default=Lifecycle.RESERVED)
+    quota_state = models.CharField(max_length=8, choices=Quota.choices, default=Quota.RESERVED)
+    quota_units = models.PositiveSmallIntegerField(editable=False)
+    admitted_at = models.DateTimeField(default=timezone.now, editable=False)
+    dispatch_started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    lease_expires_at = models.DateTimeField()
+    failure_category = models.CharField(max_length=24, choices=Failure.choices, blank=True)
+    job_post = models.ForeignKey("JobPost", null=True, blank=True, on_delete=models.SET_NULL)
+    proposal = models.ForeignKey("Proposal", null=True, blank=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("user", "nonce"), name="ai_request_user_nonce_unique"),
+            models.UniqueConstraint(
+                fields=("user",), condition=models.Q(lifecycle__in=("reserved", "in_flight")),
+                name="ai_request_one_active_user",
+            ),
+            models.CheckConstraint(
+                condition=(models.Q(operation="profile_summary", quota_units=1)
+                           | models.Q(operation="job_extraction", quota_units=2)
+                           | models.Q(operation="proposal_generation", quota_units=3)),
+                name="ai_request_operation_units",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("user", "admitted_at"), name="ai_request_user_admitted"),
+            models.Index(fields=("user", "operation", "dispatch_started_at"), name="ai_request_user_burst"),
+            models.Index(fields=("lifecycle", "lease_expires_at"), name="ai_request_stale"),
+        ]
 
 
 class FreelancerProfile(models.Model):

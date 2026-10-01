@@ -13,6 +13,7 @@ from proposal_ai.services import AIConfigurationError, AITemporaryError, AITimeo
 
 from proposal_ai.forms import JobConfirmationForm, JobExtractionForm, JobPasteForm
 from proposal_ai.models import FreelancerProfile, JobPost, Proposal, WorkExperience
+from .ai_test_helpers import SignedAIClient
 
 
 User = get_user_model()
@@ -32,6 +33,7 @@ EDITABLE_FIELDS = (
     },
 )
 class JobValidationTestCase(TestCase):
+    client_class = SignedAIClient
     @classmethod
     def setUpTestData(cls):
         cls.owner = User.objects.create_user(username="job-owner")
@@ -427,8 +429,8 @@ class JobConfirmationTests(JobValidationTestCase):
     def test_proposal_save_failure_rolls_back_the_confirmed_job_write(self):
         before = self.stored_data()
         with patch("proposal_ai.views.Proposal.objects.create", side_effect=IntegrityError("Mock database failure")):
-            with self.assertRaises(IntegrityError):
-                self.client.post(self.confirm_url(), self.job_data())
+            response = self.client.post(self.confirm_url(), self.job_data())
+        self.assertEqual(response.status_code, 503)
         self.assertEqual(self.stored_data(), before)
 
     def test_external_generation_occurs_before_any_confirmation_write(self):
@@ -470,20 +472,21 @@ class JobWorkflowSecurityTests(JobValidationTestCase):
         self.assertEqual(self.stored_data(), before)
         self.get_client.assert_not_called()
 
+    @override_settings(OPENAI_API_KEY="test-only-not-a-credential")
     def test_valid_csrf_posts_complete_the_existing_extraction_confirmation_flow(self):
         client = Client(enforce_csrf_checks=True)
         client.force_login(self.owner)
         url = reverse("extract_job_features")
-        client.get(url, secure=True)
+        page = client.get(url, secure=True)
         self.output(json.dumps(self.job_data()))
-        response = client.post(url, {"raw_job_text": self.raw_text(), "csrfmiddlewaretoken": client.cookies["csrftoken"].value},
+        response = client.post(url, {"raw_job_text": self.raw_text(), "ai_nonce": page.context["ai_nonce"], "csrfmiddlewaretoken": client.cookies["csrftoken"].value},
                                secure=True, HTTP_REFERER="https://testserver" + url)
         self.assertEqual(response.status_code, 302)
         job = JobPost.objects.get()
         url = reverse("confirm_job_features", args=[job.pk])
-        client.get(url, secure=True)
+        page = client.get(url, secure=True)
         self.output("Mock application")
-        response = client.post(url, {**self.job_data(), "csrfmiddlewaretoken": client.cookies["csrftoken"].value},
+        response = client.post(url, {**self.job_data(), "ai_nonce": page.context["ai_nonce"], "csrfmiddlewaretoken": client.cookies["csrftoken"].value},
                                secure=True, HTTP_REFERER="https://testserver" + url)
         self.assertRedirects(response, reverse("dashboard"), fetch_redirect_response=False)
         self.assertEqual(Proposal.objects.count(), 1)

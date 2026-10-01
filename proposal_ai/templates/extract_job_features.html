@@ -75,9 +75,10 @@
 
         {% endif %}
 
-        <form method="POST">
+        <form method="POST" id="standalone-extraction-form">
 
             {% csrf_token %}
+            {% include "ai_request_identity.html" %}
 
             <label>
                 Full Job Description
@@ -145,12 +146,51 @@
             </div>
 
         </form>
+        <p id="standalone-extraction-status" role="status" aria-live="polite"></p>
 
     </div>
 
 </div>
 
 {% include "ai_character_counts.html" %}
+<script>
+(() => {
+    const form = document.getElementById("standalone-extraction-form");
+    const status = document.getElementById("standalone-extraction-status");
+    const buttons = form.querySelectorAll('button[type="submit"]');
+    let pending = false;
+    form.addEventListener("submit", event => {
+        if (pending || !form.checkValidity()) {
+            event.preventDefault();
+            return;
+        }
+        // Preserve Continue Anyway's successful control before disabling it.
+        const submitter = event.submitter;
+        if (submitter && submitter.name) {
+            let value = form.querySelector('input[data-submitter-value]');
+            if (!value) {
+                value = document.createElement("input");
+                value.type = "hidden";
+                value.dataset.submitterValue = "true";
+                form.appendChild(value);
+            }
+            value.name = submitter.name;
+            value.value = submitter.value;
+        }
+        pending = true;
+        form.setAttribute("aria-busy", "true");
+        buttons.forEach(button => { button.disabled = true; });
+        status.textContent = "Extracting job details. Please wait.";
+    });
+    window.addEventListener("pageshow", () => {
+        pending = false;
+        form.setAttribute("aria-busy", "false");
+        buttons.forEach(button => { button.disabled = false; });
+        form.querySelectorAll('input[data-submitter-value]').forEach(input => input.remove());
+        status.textContent = "";
+    });
+})();
+</script>
 </body>
 
 </html>

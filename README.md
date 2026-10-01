@@ -127,8 +127,47 @@ string characters may each take 12 characters as escaped non-BMP JSON, plus keys
 budgets and normal formatting. Arbitrarily padded/extra JSON is bounded too.
 Over-limit input or incomplete/oversized output fails without partial persistence,
 silent truncation or automatic retries. These provisional caps are not exact input
-token budgets or measured latency guarantees. Per-user quotas and evidence ranking
-remain separate work. The unused legacy Responses helper is not an active workflow.
+token budgets or measured latency guarantees. Evidence ranking remains separate
+work. The unused legacy Responses helper is not an active workflow.
+
+Beta request controls are in `proposal_ai/ai_control.py`, using one durable
+`AIRequest` ledger. Summary/extraction/proposal attempts reserve 1/2/3 credits;
+both 25 credits per UTC calendar day and 100 per Monday-based UTC week apply.
+Burst limits count dispatched attempts: 3 summaries per 10 minutes, 3 extractions
+per 5 minutes, 2 proposals per 5 minutes. Only one active operation per account
+is permitted. These are Beta allowances, not provider cost estimates.
+
+Forms use signed, server-issued UUID nonces valid for 24 hours. Replaying an
+admitted nonce cannot dispatch again; changed submitted/effective input conflicts.
+Successful extraction/proposal replays reopen existing records. Summary text is
+not stored in the ledger, so a lost summary needs an explicit new generation.
+Fresh nonces can regenerate identical content; there is no content-deduplication
+window. Errors preserve forms, with 429 for allowance/burst rejection, 409 for
+active/replayed/conflicting requests, and 503 for coordination failure.
+
+Credits are released for known local pre-dispatch failures and definitive provider
+authentication, capacity or invalid-request rejections. Dispatched rejections still
+count toward burst limits. Timeouts, ambiguous connection/server failures, invalid
+outputs and failed local persistence consume credits. No automatic retry occurs.
+Active leases last 10 minutes; undispatched stale reservations release credits,
+dispatched stale requests become uncertain/consumed. Late workers cannot persist
+after losing their request state. The ledger stores hashes and references, never
+prompts, private inputs or generated text. Automatic deletion is deferred to the
+Task 3D retention decision.
+
+Migration `0014_ai_request` must be reviewed and applied explicitly before using
+AI features. Development SQLite uses write-first transactions and fails closed
+on lock/busy errors. Production requires one shared database with partial unique
+constraints; PostgreSQL admission requires READ COMMITTED isolation. Run the
+concurrency tests against the intended production database before release; local
+SQLite tests do not prove PostgreSQL behavior.
+
+**PRE-BETA deployment review:** the Procfile does not set a Gunicorn timeout.
+The installed default is 30 seconds, while the AI client read timeout is 45 seconds
+and is not an overall deadline. Align worker/provider deadlines deliberately before
+release. This task does not change deployment timeout behavior. Open registration
+also permits multiple-account allowance abuse; account controls are not a global
+spending ceiling.
 
 ---
 

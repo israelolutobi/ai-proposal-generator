@@ -259,6 +259,8 @@ class ServiceBudgetTests(SimpleTestCase):
     "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
 })
 class AIBudgetWorkflowTests(TestCase):
+    from .ai_test_helpers import SignedAIClient
+    client_class = SignedAIClient
     @classmethod
     def setUpTestData(cls):
         cls.owner = get_user_model().objects.create_user(username="budget-owner")

@@ -22,6 +22,8 @@ User = get_user_model()
     },
 )
 class ProfileExperienceTestCase(TestCase):
+    from .ai_test_helpers import SignedAIClient
+    client_class = SignedAIClient
     @classmethod
     def setUpTestData(cls):
         # Unusable passwords; no real credentials or password login needed.
