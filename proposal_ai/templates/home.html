@@ -118,7 +118,7 @@
                             ">
                                 Platform:
                                 <strong style="color:#cbd5e1;">
-                                    {{ proposal.job_post.platform|default:"Not specified" }}
+                                    {{ proposal.display_platform|default:"Not specified" }}
                                 </strong>
                             </p>
 
@@ -140,7 +140,7 @@
                                 margin-top:0;
                             ">
                                 Submitted:
-                                {{ proposal.used_at }}
+                                {{ proposal.submitted_at|default:"Not recorded" }}
                             </p>
 
                         </div>
@@ -367,7 +367,7 @@
                                 Platform:
 
                                 <strong style="color:#cbd5e1;">
-                                    {{ proposal.job_post.platform|default:"Not specified" }}
+                                    {{ proposal.display_platform|default:"Not specified" }}
                                 </strong>
 
                             </p>
@@ -516,7 +516,7 @@
                             </button>
 
 
-                            {% if proposal.used_by_user %}
+                            {% if proposal.is_submitted %}
 
                                 <span style="
                                     background-color:#163624;
@@ -528,6 +528,9 @@
                                 ">
                                     ✓ {{ proposal.submitted_label }}
                                 </span>
+
+                                <a href="{% url 'confirm_use_proposal' proposal.id %}" style="color:#60a5fa;padding:12px 18px;">Edit Submission</a>
+                                <a href="{% url 'update_outcome' proposal.id %}" style="color:#60a5fa;padding:12px 18px;">{% if proposal.has_outcome %}Edit Outcome{% else %}Update Outcome{% endif %}</a>
 
                             {% else %}
 

@@ -175,7 +175,7 @@
             <p>
                 <strong>Platform:</strong>
 
-                {{ proposal.job_post.platform|default:"Not specified" }}
+                {{ proposal.display_platform|default:"Not specified" }}
             </p>
 
 
@@ -199,13 +199,13 @@
                 {% endif %}
 
 
-                {% if use_confirmation.job_url %}
+                {% if safe_job_url %}
 
                     <p>
                         <strong>Opportunity URL:</strong>
 
                         <a
-                            href="{{ use_confirmation.job_url }}"
+                            href="{{ safe_job_url }}"
                             target="_blank"
                             rel="noopener noreferrer"
                             style="color:#60a5fa;"
@@ -260,7 +260,7 @@
                 margin-top:0;
                 margin-bottom:8px;
             ">
-                Submitted Content
+                {% if use_confirmation %}Submitted Content{% else %}Generated Content{% endif %}
             </p>
 
 
@@ -269,11 +269,11 @@
                 margin-bottom:18px;
                 font-size:22px;
             ">
-                Final {{ content_label|default:"Application Message" }}
+                {% if use_confirmation %}Final {{ content_label|default:"Application Message" }}{% else %}Generated {{ proposal.content_label }} (submitted text unavailable){% endif %}
             </h3>
 
 
-            {% if use_confirmation and use_confirmation.submitted_proposal_text %}
+            {% if use_confirmation %}
 
                 <div style="
                     line-height:1.7;
@@ -282,7 +282,7 @@
                     padding:22px;
                     border-radius:10px;
                     border:1px solid #1e293b;
-                ">{{ use_confirmation.submitted_proposal_text }}</div>
+                ">{{ use_confirmation.submitted_proposal_text|default:"No submitted text recorded." }}</div>
 
             {% else %}
 
@@ -336,6 +336,18 @@
 
             {% csrf_token %}
 
+            {% if form.errors %}
+                <div role="alert" style="background-color:#451a1a;color:#fecaca;padding:16px;border-radius:8px;margin-bottom:25px;">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                            <p><strong>{{ field.label }}:</strong> {{ error }}</p>
+                        {% endfor %}
+                    {% endfor %}
+                    {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+                </div>
+            {% endif %}
+
+
 
             <label
                 for="outcome_status"
@@ -364,29 +376,12 @@
                 "
             >
 
-                <option value="">
-                    Select outcome
-                </option>
-
-                <option value="no_response">
-                    No Response
-                </option>
-
-                <option value="reply">
-                    Reply Received
-                </option>
-
-                <option value="interview">
-                    Interview
-                </option>
-
-                <option value="hired">
-                    Hired
-                </option>
-
-                <option value="rejected">
-                    Rejected
-                </option>
+                {% if form.unsupported_status %}
+                    <option value="{{ form.unsupported_status }}" selected disabled>Unsupported outcome: {{ form.unsupported_status }}</option>
+                {% endif %}
+                {% for value, label in form.outcome_status.field.choices %}
+                    <option value="{{ value }}"{% if form.outcome_status.value == value %} selected{% endif %}>{{ label }}</option>
+                {% endfor %}
 
             </select>
 
@@ -420,7 +415,7 @@
                     font-size:15px;
                     line-height:1.5;
                 "
-            ></textarea>
+            >{{ form.notes.value|default_if_none:'' }}</textarea>
 
 
 

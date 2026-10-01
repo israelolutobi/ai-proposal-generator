@@ -1,11 +1,23 @@
 from decimal import Decimal, InvalidOperation
 import json
+import re
 
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, URLValidator
 
-from .models import FreelancerProfile, JobPost, WorkExperience
+from .models import (
+    FreelancerProfile, JobPost, Proposal, ProposalOutcome,
+    ProposalUseConfirmation, WorkExperience,
+)
+from .platform_config import PLATFORM_CONFIGS, normalize_platform_name
+
+
+# The existing outcome UI is a subset of Proposal's declared status choices.
+OUTCOME_STATUS_CHOICES = tuple(
+    (value, "Reply Received" if value == "reply" else dict(Proposal.STATUS_CHOICES)[value])
+    for value in ("no_response", "reply", "interview", "hired", "rejected")
+)
 
 
 class RegistrationForm(UserCreationForm):
@@ -156,3 +168,74 @@ class JobExtractionForm(JobConfirmationForm):
             if not valid_type:
                 self.add_error(name, "The extracted field has an invalid type.")
         return cleaned
+
+
+class SubmissionConfirmationForm(forms.ModelForm):
+    job_url = forms.URLField(
+        label="Opportunity URL", required=False,
+        max_length=ProposalUseConfirmation._meta.get_field("job_url").max_length,
+        validators=[URLValidator(schemes=["http", "https"])],
+    )
+
+    class Meta:
+        model = ProposalUseConfirmation
+        fields = ("platform", "client_name", "job_url", "submitted_proposal_text", "notes")
+        labels = {
+            "platform": "Freelance Platform", "client_name": "Client Name / Author",
+            "submitted_proposal_text": "Final Submitted Content",
+        }
+
+    def __init__(self, data=None, *args, **kwargs):
+        instance = kwargs.get("instance")
+        if data is not None and instance and instance.pk:
+            data = data.copy()
+            for name in ("client_name", "job_url", "submitted_proposal_text", "notes"):
+                if name not in data:
+                    data[name] = getattr(instance, name) or ""
+        super().__init__(data, *args, **kwargs)
+
+    def clean_platform(self):
+        platform = self.cleaned_data["platform"]
+        # Known aliases and normal HTTP(S) platform URLs keep their current
+        # terminology. Unrecognised names retain the configured generic fallback.
+        if platform.lower().startswith(("http://", "https://")):
+            URLValidator(schemes=["http", "https"])(platform)
+        elif not re.fullmatch(r"[\w .&'()+-]+", platform) or not any(c.isalnum() for c in platform):
+            raise forms.ValidationError("Enter a platform name or an HTTP/HTTPS platform URL.")
+        key = normalize_platform_name(platform)
+        if key not in PLATFORM_CONFIGS and not any(c.isalnum() for c in key):
+            raise forms.ValidationError("Enter a platform name.")
+        return platform
+
+
+class ProposalOutcomeForm(forms.ModelForm):
+    # Retain the existing POST field name while mapping it explicitly to status.
+    outcome_status = forms.ChoiceField(
+        label="What happened after submission?",
+        choices=(("", "Select outcome"),) + OUTCOME_STATUS_CHOICES,
+    )
+
+    class Meta:
+        model = ProposalOutcome
+        fields = ("notes",)
+        labels = {"notes": "Outcome Notes"}
+
+    def __init__(self, data=None, *args, **kwargs):
+        instance = kwargs.get("instance")
+        if data is not None and instance and instance.pk and "notes" not in data:
+            data = data.copy()
+            data["notes"] = instance.notes or ""
+        super().__init__(data, *args, **kwargs)
+        if self.instance.pk:
+            self.initial["outcome_status"] = self.instance.status
+
+    def clean(self):
+        cleaned = super().clean()
+        if "outcome_status" in cleaned:
+            self.instance.status = cleaned["outcome_status"]
+        return cleaned
+
+    @property
+    def unsupported_status(self):
+        value = self["outcome_status"].value()
+        return value if value and value not in dict(OUTCOME_STATUS_CHOICES) else ""

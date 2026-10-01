@@ -221,6 +221,18 @@
 
             {% csrf_token %}
 
+            {% if form.errors %}
+                <div role="alert" style="background-color:#451a1a;color:#fecaca;padding:16px;border-radius:8px;margin-bottom:25px;">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                            <p><strong>{{ field.label }}:</strong> {{ error }}</p>
+                        {% endfor %}
+                    {% endfor %}
+                    {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+                </div>
+            {% endif %}
+
+
 
 
             <!-- PLATFORM -->
@@ -241,7 +253,8 @@
                 id="platform"
                 name="platform"
                 required
-                value="{{ proposal.job_post.platform|default:'' }}"
+                value="{{ form.platform.value|default_if_none:'' }}"
+                maxlength="{{ form.platform.field.max_length }}"
                 placeholder="e.g. Upwork, Freelancer, Fiverr"
                 style="
                     box-sizing:border-box;
@@ -286,6 +299,8 @@
                 type="text"
                 id="client_name"
                 name="client_name"
+                value="{{ form.client_name.value|default_if_none:'' }}"
+                maxlength="{{ form.client_name.field.max_length }}"
                 placeholder="Optional"
                 style="
                     box-sizing:border-box;
@@ -318,6 +333,8 @@
                 type="url"
                 id="job_url"
                 name="job_url"
+                value="{{ form.job_url.value|default_if_none:'' }}"
+                maxlength="{{ form.job_url.field.max_length }}"
                 placeholder="Optional link to the job or opportunity"
                 style="
                     box-sizing:border-box;
@@ -365,7 +382,7 @@
                     margin-top:8px;
                     margin-bottom:12px;
                 ">
-                    This is pre-filled with ProposalIQ's generated version.
+                    This shows your saved submitted version when editing, or ProposalIQ's generated version for a new submission.
                     If you edited it before submitting, replace it with the
                     final version you actually sent.
                 </p>
@@ -386,7 +403,7 @@
                         font-size:15px;
                         line-height:1.6;
                     "
-                >{{ proposal.final_text }}</textarea>
+                >{{ form.submitted_proposal_text.value|default_if_none:'' }}</textarea>
 
             </div>
 
@@ -422,7 +439,7 @@
                     font-size:15px;
                     line-height:1.5;
                 "
-            ></textarea>
+            >{{ form.notes.value|default_if_none:'' }}</textarea>
 
 
 

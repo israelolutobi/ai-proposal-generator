@@ -6,17 +6,18 @@ from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
 from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods, require_POST
 from openai import OpenAI, OpenAIError
 
 from .forms import (
     FreelancerProfileForm, JobConfirmationForm, JobExtractionForm, JobPasteForm,
-    LoginForm, RegistrationForm, WorkExperienceForm,
+    LoginForm, OUTCOME_STATUS_CHOICES, ProposalOutcomeForm, RegistrationForm,
+    SubmissionConfirmationForm, WorkExperienceForm,
 )
 from .models import (
     FreelancerProfile,
@@ -52,6 +53,27 @@ def get_openai_client():
     return OpenAI(api_key=api_key)
 
 
+def has_submission(proposal, confirmation=None):
+    """Accept existing submission evidence without rewriting legacy records."""
+    if confirmation is None:
+        confirmation = getattr(proposal, "proposaluseconfirmation", None)
+    return bool(
+        confirmation or proposal.used_by_user or proposal.used_at
+        or proposal.status in {"submitted", "used"}
+    )
+
+
+def safe_submission_url(confirmation):
+    """Do not render unsafe URLs saved by the old unvalidated submission view."""
+    url = confirmation.job_url if confirmation else ""
+    if url:
+        try:
+            URLValidator(schemes=["http", "https"])(url)
+        except ValidationError:
+            return ""
+    return url or ""
+
+
 def add_platform_display_metadata(proposal):
     """
     Attach platform-aware display labels to a Proposal instance.
@@ -68,17 +90,25 @@ def add_platform_display_metadata(proposal):
         Unknown platform:
             Application / Application Message
     """
-    config = get_platform_config(
-        proposal.job_post.platform if proposal.job_post else ""
+    confirmation = getattr(proposal, "proposaluseconfirmation", None)
+    original_platform = proposal.job_post.platform if proposal.job_post else ""
+    proposal.display_platform = (
+        confirmation.platform if confirmation and confirmation.platform else original_platform
     )
+    config = get_platform_config(proposal.display_platform)
+    # The generated text still belongs to its original opportunity/platform.
+    generated_config = get_platform_config(original_platform)
 
     proposal.platform_key = config["key"]
     proposal.application_label = config["application_label"]
-    proposal.content_label = config["content_label"]
-    proposal.generated_heading = config["generated_heading"]
-    proposal.copy_button_label = config["copy_button_label"]
+    proposal.content_label = generated_config["content_label"]
+    proposal.generated_heading = generated_config["generated_heading"]
+    proposal.copy_button_label = generated_config["copy_button_label"]
     proposal.submit_button_label = config["submit_button_label"]
     proposal.submitted_label = config["submitted_label"]
+    proposal.is_submitted = has_submission(proposal, confirmation)
+    proposal.submitted_at = proposal.used_at or (confirmation.confirmed_at if confirmation else None)
+    proposal.has_outcome = getattr(proposal, "proposaloutcome", None) is not None
 
     return proposal
 
@@ -350,146 +380,72 @@ Rules:
 
 
 @login_required
+@require_http_methods(["GET", "HEAD"])
 def generate_proposal(request):
-    """
-    Dashboard view.
-
-    Proposal remains the legacy Django model name, but ProposalIQ now treats
-    it as the broader application record. Each record is enriched with
-    platform-aware labels for use in the templates.
-    """
-    generated_proposal = None
-
+    """Display generated content and actual submission details separately."""
+    if not FreelancerProfile.objects.filter(user=request.user).exists():
+        return redirect("create_freelancer_profile")
     proposals = list(
-        Proposal.objects.filter(
-            user=request.user
-        )
-        .select_related("job_post")
+        Proposal.objects.filter(user=request.user)
+        .select_related("job_post", "proposaluseconfirmation", "proposaloutcome")
         .order_by("-created_at")
     )
-
     for proposal in proposals:
         add_platform_display_metadata(proposal)
-
-    profile = FreelancerProfile.objects.filter(
-        user=request.user
-    ).first()
-
-    if not profile:
-        return redirect("create_freelancer_profile")
-
-    pending_outcomes = []
-
-    submitted_proposals = (
-        Proposal.objects.filter(
-            user=request.user,
-            used_by_user=True,
-        )
-        .select_related("job_post")
-        .order_by("-created_at")
-    )
-
-    for proposal in submitted_proposals:
-        outcome_exists = ProposalOutcome.objects.filter(
-            proposal=proposal
-        ).exists()
-
-        if not outcome_exists:
-            add_platform_display_metadata(proposal)
-            pending_outcomes.append(proposal)
-
-    return render(
-        request,
-        "home.html",
-        {
-            "generated_proposal": generated_proposal,
-            "proposals": proposals,
-            "pending_outcomes": pending_outcomes,
-        },
-    )
+    pending_outcomes = [p for p in proposals if p.is_submitted and not p.has_outcome]
+    return render(request, "home.html", {
+        "generated_proposal": None, "proposals": proposals,
+        "pending_outcomes": pending_outcomes,
+    })
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def confirm_use_proposal(request, proposal_id):
-    """
-    Confirm that an application was submitted/sent.
-
-    The legacy function and model names are retained for compatibility, but
-    new records now use the platform-neutral status "submitted" rather than
-    "used".
-    """
     proposal = get_object_or_404(
-        Proposal.objects.select_related("job_post"),
-        id=proposal_id,
-        user=request.user,
+        Proposal.objects.select_related("job_post"), id=proposal_id, user=request.user,
     )
-
-    platform_value = (
-        proposal.job_post.platform
-        if proposal.job_post
-        else ""
-    )
-    platform_config = get_platform_config(platform_value)
-
+    confirmation = getattr(proposal, "proposaluseconfirmation", None)
+    initial = {} if confirmation else {
+        "platform": proposal.job_post.platform,
+        "submitted_proposal_text": proposal.final_text,
+    }
+    form = SubmissionConfirmationForm(instance=confirmation, initial=initial)
     if request.method == "POST":
-        submitted_platform = (
-            request.POST.get("platform", "").strip()
-            or platform_value
-            or ""
-        )
+        # Serialise updates to the same Proposal before loading its one-to-one
+        # records. Only local validation and database writes occur here.
+        with transaction.atomic():
+            proposal = get_object_or_404(
+                Proposal.objects.select_for_update().select_related("job_post"),
+                id=proposal_id, user=request.user,
+            )
+            confirmation = ProposalUseConfirmation.objects.filter(proposal=proposal).first()
+            form = SubmissionConfirmationForm(request.POST, instance=confirmation)
+            if form.is_valid():
+                confirmation = form.save(commit=False)
+                confirmation.proposal = proposal
+                confirmation.save()
+                outcome = ProposalOutcome.objects.filter(proposal=proposal).first()
+                valid_outcomes = dict(OUTCOME_STATUS_CHOICES)
+                proposal.used_by_user = True
+                proposal.used_at = proposal.used_at or confirmation.confirmed_at
+                # The model explicitly retains outcome statuses. Preserve its
+                # dashboard mirror when editing a submission with an outcome.
+                proposal.status = (
+                    outcome.status if outcome and outcome.status in valid_outcomes
+                    else proposal.status if proposal.status in valid_outcomes else "submitted"
+                )
+                proposal.save(update_fields=["used_by_user", "used_at", "status"])
+                return redirect("dashboard")
+    platform_config = get_platform_config(form["platform"].value())
+    return render(request, "confirm_use_proposal.html", {
+        "proposal": proposal, "form": form, "use_confirmation": confirmation,
+        "platform_config": platform_config,
+        "application_label": platform_config["application_label"],
+        "content_label": platform_config["content_label"],
+        "submit_button_label": platform_config["submit_button_label"],
+    })
 
-        platform_config = get_platform_config(
-            submitted_platform
-        )
-
-        ProposalUseConfirmation.objects.update_or_create(
-            proposal=proposal,
-            defaults={
-                "platform": submitted_platform,
-                "client_name": request.POST.get("client_name"),
-                "job_url": request.POST.get("job_url"),
-                "submitted_proposal_text": request.POST.get(
-                    "submitted_proposal_text"
-                ),
-                "notes": request.POST.get("notes"),
-            },
-        )
-
-        # Legacy Boolean/timestamp retained for backwards compatibility.
-        proposal.used_by_user = True
-        proposal.status = "submitted"
-        proposal.used_at = timezone.now()
-
-        # Keep the stored content type aligned with the actual platform
-        # confirmed by the user at submission time.
-        proposal.content_type = platform_config["content_type"]
-
-        proposal.save(
-            update_fields=[
-                "used_by_user",
-                "status",
-                "used_at",
-                "content_type",
-            ]
-        )
-
-        return redirect("dashboard")
-
-    return render(
-        request,
-        "confirm_use_proposal.html",
-        {
-            "proposal": proposal,
-            "platform_config": platform_config,
-            "application_label": platform_config[
-                "application_label"
-            ],
-            "content_label": platform_config["content_label"],
-            "submit_button_label": platform_config[
-                "submit_button_label"
-            ],
-        },
-    )
 
 
 def validate_job_text(raw_text):
@@ -1133,60 +1089,48 @@ CONFIRMED JOB DETAILS
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def update_outcome(request, proposal_id):
     proposal = get_object_or_404(
-        Proposal.objects.select_related("job_post"),
-        id=proposal_id,
-        user=request.user,
+        Proposal.objects.select_related("job_post"), id=proposal_id, user=request.user,
     )
-
-    platform_config = get_platform_config(
-        proposal.job_post.platform
-        if proposal.job_post
-        else ""
+    confirmation = getattr(proposal, "proposaluseconfirmation", None)
+    if not has_submission(proposal, confirmation):
+        return redirect("confirm_use_proposal", proposal_id=proposal.pk)
+    outcome = getattr(proposal, "proposaloutcome", None)
+    initial = (
+        {"outcome_status": proposal.status}
+        if not outcome and proposal.status in dict(OUTCOME_STATUS_CHOICES) else {}
     )
-
-    use_confirmation = (
-        ProposalUseConfirmation.objects.filter(
-            proposal=proposal
-        ).first()
-    )
-
+    form = ProposalOutcomeForm(instance=outcome, initial=initial)
     if request.method == "POST":
-        outcome_status = request.POST.get(
-            "outcome_status"
-        )
-        notes = request.POST.get("notes")
-
-        ProposalOutcome.objects.update_or_create(
-            proposal=proposal,
-            defaults={
-                "status": outcome_status,
-                "notes": notes,
-            },
-        )
-
-        proposal.status = outcome_status
-        proposal.save(
-            update_fields=[
-                "status",
-            ]
-        )
-
-        return redirect("dashboard")
-
-    return render(
-        request,
-        "update_outcome.html",
-        {
-            "proposal": proposal,
-            "use_confirmation": use_confirmation,
-            "platform_config": platform_config,
-            "application_label": platform_config[
-                "application_label"
-            ],
-            "content_label": platform_config[
-                "content_label"
-            ],
-        },
-    )
+        with transaction.atomic():
+            proposal = get_object_or_404(
+                Proposal.objects.select_for_update().select_related("job_post"),
+                id=proposal_id, user=request.user,
+            )
+            confirmation = ProposalUseConfirmation.objects.filter(proposal=proposal).first()
+            if not has_submission(proposal, confirmation):
+                return redirect("confirm_use_proposal", proposal_id=proposal.pk)
+            outcome = ProposalOutcome.objects.filter(proposal=proposal).first()
+            form = ProposalOutcomeForm(request.POST, instance=outcome)
+            if form.is_valid():
+                outcome = form.save(commit=False)
+                outcome.proposal = proposal
+                outcome.save()
+                # Preserve the existing declared status mirror for compatibility;
+                # the validated Outcome record remains the source of this value.
+                proposal.status = outcome.status
+                proposal.used_by_user = True
+                proposal.used_at = proposal.used_at or (confirmation.confirmed_at if confirmation else None)
+                proposal.save(update_fields=["status", "used_by_user", "used_at"])
+                return redirect("dashboard")
+    add_platform_display_metadata(proposal)
+    platform_config = get_platform_config(proposal.display_platform)
+    return render(request, "update_outcome.html", {
+        "proposal": proposal, "form": form, "use_confirmation": confirmation,
+        "safe_job_url": safe_submission_url(confirmation),
+        "platform_config": platform_config,
+        "application_label": platform_config["application_label"],
+        "content_label": platform_config["content_label"],
+    })
