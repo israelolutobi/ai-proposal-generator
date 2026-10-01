@@ -136,10 +136,11 @@ class JobPasteExtractionTests(JobValidationTestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(JobPost.objects.get().raw_job_text, raw)
 
-    def test_paste_form_has_no_invented_length_limit(self):
+    def test_paste_form_enforces_reviewed_ai_length_limit(self):
         form = JobPasteForm({"raw_job_text": "Developer project\n" + "legitimate detail " * 5000})
-        self.assertTrue(form.is_valid())
-        self.assertIsNone(form.fields["raw_job_text"].max_length)
+        self.assertFalse(form.is_valid())
+        self.assertEqual(form.fields["raw_job_text"].max_length, 20000)
+        self.assertEqual(form.errors.as_data()["raw_job_text"][0].code, "max_length")
         self.get_client.assert_not_called()
 
     def test_missing_optional_extracted_fields_are_safely_optional(self):
@@ -167,7 +168,8 @@ class JobPasteExtractionTests(JobValidationTestCase):
         marker = 'PRIVATE_PROVIDER_DETAIL </textarea><script>alert("test")</script>'
         response = self.assert_extraction_failure(marker)
         self.assertNotContains(response, "PRIVATE_PROVIDER_DETAIL")
-        self.assertNotContains(response, "<script>")
+        self.assertNotContains(response, marker)
+        self.assertNotContains(response, '<script>alert("test")</script>')
 
     def test_all_non_object_json_roots_are_rejected(self):
         for value in ([], "text", 12, 1.25, True, False, None):

@@ -197,7 +197,7 @@
                 id="platform"
                 name="platform"
                 value="{{ form.platform.value|default_if_none:'' }}"
-                maxlength="{{ form.platform.field.max_length }}"
+                data-ai-max="{{ form.platform.field.max_length }}"
                 placeholder="e.g. Upwork, Freelancer, PeoplePerHour"
                 style="
                     box-sizing:border-box;
@@ -237,7 +237,7 @@
                 id="job_title"
                 name="job_title"
                 value="{{ form.job_title.value|default_if_none:'' }}"
-                maxlength="{{ form.job_title.field.max_length }}"
+                data-ai-max="{{ form.job_title.field.max_length }}"
                 required
                 style="
                     box-sizing:border-box;
@@ -265,6 +265,7 @@
             <textarea
                 id="job_description"
                 name="job_description"
+                data-ai-max="{{ form.job_description.field.max_length }}"
                 required
                 style="
                     box-sizing:border-box;
@@ -331,7 +332,7 @@
                     id="budget_type"
                     name="budget_type"
                     value="{{ form.budget_type.value|default_if_none:'' }}"
-                    maxlength="{{ form.budget_type.field.max_length }}"
+                    data-ai-max="{{ form.budget_type.field.max_length }}"
                     placeholder="e.g. Hourly or Fixed Price"
                     style="
                         box-sizing:border-box;
@@ -499,7 +500,7 @@
                 id="experience_level"
                 name="experience_level"
                 value="{{ form.experience_level.value|default_if_none:'' }}"
-                maxlength="{{ form.experience_level.field.max_length }}"
+                data-ai-max="{{ form.experience_level.field.max_length }}"
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -528,7 +529,7 @@
                 id="project_duration"
                 name="project_duration"
                 value="{{ form.project_duration.value|default_if_none:'' }}"
-                maxlength="{{ form.project_duration.field.max_length }}"
+                data-ai-max="{{ form.project_duration.field.max_length }}"
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -557,7 +558,7 @@
                 id="hours_per_week"
                 name="hours_per_week"
                 value="{{ form.hours_per_week.value|default_if_none:'' }}"
-                maxlength="{{ form.hours_per_week.field.max_length }}"
+                data-ai-max="{{ form.hours_per_week.field.max_length }}"
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -584,6 +585,7 @@
             <textarea
                 id="skills_required"
                 name="skills_required"
+                data-ai-max="{{ form.skills_required.field.max_length }}"
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -615,7 +617,7 @@
                 id="client_location"
                 name="client_location"
                 value="{{ form.client_location.value|default_if_none:'' }}"
-                maxlength="{{ form.client_location.field.max_length }}"
+                data-ai-max="{{ form.client_location.field.max_length }}"
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -672,7 +674,7 @@
                             id="proposal_count"
                             name="proposal_count"
                             value="{{ form.proposal_count.value|default_if_none:'' }}"
-                            maxlength="{{ form.proposal_count.field.max_length }}"
+                            data-ai-max="{{ form.proposal_count.field.max_length }}"
                             style="
                                 box-sizing:border-box;
                                 width:100%;
@@ -701,7 +703,7 @@
                             id="interviewing_count"
                             name="interviewing_count"
                             value="{{ form.interviewing_count.value|default_if_none:'' }}"
-                            maxlength="{{ form.interviewing_count.field.max_length }}"
+                            data-ai-max="{{ form.interviewing_count.field.max_length }}"
                             style="
                                 box-sizing:border-box;
                                 width:100%;
@@ -730,7 +732,7 @@
                             id="invites_sent"
                             name="invites_sent"
                             value="{{ form.invites_sent.value|default_if_none:'' }}"
-                            maxlength="{{ form.invites_sent.field.max_length }}"
+                            data-ai-max="{{ form.invites_sent.field.max_length }}"
                             style="
                                 box-sizing:border-box;
                                 width:100%;
@@ -753,6 +755,17 @@
             <!-- ================================================= -->
             <!-- ACTIONS -->
             <!-- ================================================= -->
+
+            <fieldset style="border:1px solid #334155; border-radius:12px; padding:20px; margin-bottom:25px; color:#cbd5e1;">
+                <legend style="font-weight:bold;">{{ form.selected_experiences.label }}</legend>
+                <p>{{ form.selected_experiences.help_text }}</p>
+                <input type="hidden" name="experience_selection_submitted" value="1">
+                {{ form.selected_experiences }}
+                {% if not form.selected_experiences.field.queryset.exists %}
+                    <p>No work experiences are stored. Your profile will be used, as before.</p>
+                {% endif %}
+                <p>Unchecked records are excluded from this request and remain stored. A selection with no records uses your profile alone.</p>
+            </fieldset>
 
             <div style="
                 display:flex;
@@ -1287,6 +1300,7 @@ document.addEventListener(
 </script>
 
 
+{% include "ai_character_counts.html" %}
 </body>
 
 </html>

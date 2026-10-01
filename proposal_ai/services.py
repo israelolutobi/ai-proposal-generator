@@ -5,12 +5,15 @@ from json import JSONDecodeError
 
 import httpx
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from openai import (
     APIConnectionError, APIError, APIResponseValidationError, APIStatusError,
     APITimeoutError, AuthenticationError, BadRequestError, InternalServerError,
     NotFoundError, OpenAI, OpenAIError, PermissionDeniedError, RateLimitError,
     UnprocessableEntityError,
 )
+
+from . import ai_limits
 
 
 CHAT_MODEL = "gpt-5"
@@ -57,6 +60,11 @@ class AIRequestError(AIConfigurationError):
 
 class AIResponseError(AIError):
     category = "invalid_response"
+
+
+class AIInputError(AIError):
+    category = "input_limit"
+    user_message = "This AI request is too large or contains invalid text. Shorten the supplied context or select fewer experiences."
 
 
 class _DropProviderLogs(logging.Filter):
@@ -109,37 +117,50 @@ def _request(operation):
         raise AITemporaryError() from None
 
 
-def _validated_text(content):
+def _validated_text(content, maximum=None):
     if not isinstance(content, str) or not content.strip():
+        raise AIResponseError()
+    if maximum is not None and len(content.strip()) > maximum:
         raise AIResponseError()
     return content.strip()
 
 
-def _chat_text(messages):
+def _chat_text(messages, operation, output_maximum):
+    try:
+        ai_limits.check_request(messages, operation)
+    except ValidationError:
+        raise AIInputError() from None
     response = _request(lambda client: client.chat.completions.create(
         model=CHAT_MODEL, messages=messages,
+        max_completion_tokens=ai_limits.COMPLETION_TOKENS[operation],
     ))
     try:
-        content = response.choices[0].message.content
+        choice = response.choices[0]
+        if choice.finish_reason != "stop":
+            raise AIResponseError()
+        content = choice.message.content
     except (AttributeError, IndexError, TypeError):
         raise AIResponseError() from None
-    return _validated_text(content)
+    # Bound raw extraction JSON before trimming/parsing, including huge padding.
+    if operation == "extraction" and isinstance(content, str) and len(content) > output_maximum:
+        raise AIResponseError()
+    return _validated_text(content, output_maximum)
 
 
 def extract_job_details(prompt):
     # Task 2C's JobExtractionForm remains the schema validation layer.
-    return _chat_text([{"role": "user", "content": prompt}])
+    return _chat_text([{"role": "user", "content": prompt}], "extraction", ai_limits.EXTRACTION_RESPONSE_CHARACTERS)
 
 
 def generate_profile_summary(prompt):
-    return _chat_text([{"role": "user", "content": prompt}])
+    return _chat_text([{"role": "user", "content": prompt}], "summary", ai_limits.SUMMARY_OUTPUT_CHARACTERS)
 
 
 def generate_proposal(writing_instructions, application_context):
     return _chat_text([
         {"role": "system", "content": writing_instructions},
         {"role": "user", "content": application_context},
-    ])
+    ], "proposal", ai_limits.PROPOSAL_OUTPUT_CHARACTERS)
 
 
 def generate_freelancer_profile_summary(

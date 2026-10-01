@@ -85,7 +85,7 @@
                 id="professional_title"
                 name="professional_title"
                 value="{{ form.professional_title.value|default_if_none:'' }}"
-                maxlength="{{ form.professional_title.field.max_length }}"
+                data-ai-max="{{ form.professional_title.field.max_length }}"
                 placeholder="e.g. Python Backend Developer"
                 required
                 style="
@@ -172,6 +172,7 @@
                     type="text"
                     id="key_skills"
                     name="key_skills"
+                    data-ai-max="{{ summary_skills_maximum }}"
                     value="{{ key_skills }}"
                     placeholder="e.g. Python, Django, APIs, PostgreSQL"
                     autocomplete="off"
@@ -666,6 +667,7 @@ document.addEventListener(
 </script>
 
 
+{% include "ai_character_counts.html" %}
 </body>
 
 </html>

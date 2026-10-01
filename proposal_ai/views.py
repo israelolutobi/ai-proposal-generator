@@ -9,7 +9,8 @@ from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods, require_POST
 
 from .forms import (
-    FreelancerProfileForm, JobConfirmationForm, JobExtractionForm, JobPasteForm,
+    FreelancerProfileForm, JobExtractionForm, JobPasteForm, ProfileSummaryGenerationForm,
+    ProposalGenerationForm,
     LoginForm, OUTCOME_STATUS_CHOICES, ProposalOutcomeForm, RegistrationForm,
     SubmissionConfirmationForm, WorkExperienceForm,
 )
@@ -22,7 +23,7 @@ from .models import (
     WorkExperience,
 )
 from .platform_config import get_platform_config
-from . import services
+from . import ai_limits, services
 
 
 def has_submission(proposal, confirmation=None):
@@ -233,6 +234,7 @@ def create_freelancer_profile(request):
             "profile": profile,
             "form": form,
             "key_skills": request.POST.get("key_skills", "") if request.method == "POST" else "",
+            "summary_skills_maximum": ai_limits.SUMMARY_SKILLS_CHARACTERS,
             "next_page": next_page,
             "page_title": page_title,
             "page_description": page_description,
@@ -250,35 +252,13 @@ def generate_profile_summary(request):
     Nothing is saved here. The generated text is returned to the browser so
     the user can review or edit it before submitting the normal profile form.
     """
-    professional_title = request.POST.get(
-        "professional_title", ""
-    ).strip()
-
-    key_skills = request.POST.get(
-        "key_skills", ""
-    ).strip()
-
-    if not professional_title:
-        return JsonResponse(
-            {
-                "error": (
-                    "Please enter your professional title "
-                    "before generating a summary."
-                )
-            },
-            status=400,
-        )
-
-    if not key_skills:
-        return JsonResponse(
-            {
-                "error": (
-                    "Add a few key skills or services first. "
-                    "For example: Python, Django, APIs, PostgreSQL."
-                )
-            },
-            status=400,
-        )
+    form = ProfileSummaryGenerationForm(request.POST)
+    if not form.is_valid():
+        return JsonResponse({"error": " ".join(
+            f"{form.fields[name].label}: {' '.join(errors)}" for name, errors in form.errors.items()
+        )}, status=400)
+    professional_title = form.cleaned_data["professional_title"]
+    key_skills = form.cleaned_data["key_skills"]
 
     prompt = f"""
 Write a concise professional freelancer profile summary using ONLY the
@@ -599,8 +579,9 @@ def confirm_job_features(request, job_post_id):
     if not profile:
         return redirect("create_freelancer_profile")
 
-    form = JobConfirmationForm(
-        request.POST if request.method == "POST" else None, instance=job_post
+    form = ProposalGenerationForm(
+        request.POST if request.method == "POST" else None, instance=job_post,
+        user=request.user, profile=profile,
     )
     if request.method == "POST" and form.is_valid():
         job_post = form.save(commit=False)
@@ -647,13 +628,13 @@ def confirm_job_features(request, job_post_id):
 
         profile_context = (
             f"Professional Title: "
-            f"{profile.professional_title or ''}\n"
+            f"{(profile.professional_title or '').strip()}\n"
 
             f"Profile Summary: "
             f"{profile_summary}\n"
 
             f"Preferred Tone: "
-            f"{profile.preferred_tone or 'professional'}"
+            f"{(profile.preferred_tone or '').strip() or 'professional'}"
         )
 
 
@@ -661,49 +642,7 @@ def confirm_job_features(request, job_post_id):
         # BUILD WORK EXPERIENCE CONTEXT
         # ---------------------------------------------------------
 
-        experiences = WorkExperience.objects.filter(
-            user=request.user
-        ).order_by("-created_at")
-
-        if experiences.exists():
-
-            experience_blocks = []
-
-            for index, experience in enumerate(
-                experiences,
-                start=1,
-            ):
-
-                experience_blocks.append(
-                    (
-                        f"Experience {index}:\n"
-
-                        f"Role / Project Title: "
-                        f"{experience.job_title or ''}\n"
-
-                        f"Company / Project: "
-                        f"{experience.company_or_project or ''}\n"
-
-                        f"Relevant Tasks / Responsibilities: "
-                        f"{experience.tasks or ''}\n"
-
-                        f"Skills Used: "
-                        f"{experience.skills_used or ''}\n"
-
-                        f"Experience Depth: "
-                        f"{experience.experience_depth or ''}"
-                    )
-                )
-
-            experience_context = "\n\n".join(
-                experience_blocks
-            )
-
-        else:
-
-            experience_context = (
-                "No detailed work experiences were provided."
-            )
+        experience_context = ai_limits.experience_context(form.cleaned_data["selected_experiences"])
 
 
         # ---------------------------------------------------------
@@ -940,9 +879,13 @@ CONFIRMED JOB DETAILS
         # ---------------------------------------------------------
 
         try:
+            ai_limits.check_characters(profile_context, ai_limits.PROFILE_CONTEXT_CHARACTERS, "Formatted profile context", stored=True, normalize=False)
+            ai_limits.check_characters(job_context, ai_limits.JOB_CONTEXT_CHARACTERS, "Formatted job context", normalize=False)
             generated_content = services.generate_proposal(
                 proposal_writing_instructions, application_context,
             )
+        except ValidationError as error:
+            form.add_error(None, error)
         except services.AIError as error:
             form.add_error(None, error.user_message)
         else:

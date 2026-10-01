@@ -106,6 +106,30 @@ OpenAI key. Mock the application service functions in view tests; service tests
 use mocked SDK clients or in-memory HTTP transports. Tests run serially;
 parallel execution is rejected until worker network guards are implemented.
 
+Beta AI limits are defined in `proposal_ai/ai_limits.py`, separately from storage:
+pasted/confirmed descriptions 20,000 Unicode characters, job skills 2,000;
+summary title/skills 255/2,000; profile summary sent to AI 5,000. Selected experience
+tasks/skills/depth allow 4,000/1,000/2,000 characters; role/company allow 255 each.
+Choose up to 10 owned experiences (8,000 characters per formatted record and
+20,000 total). All are initially selected only when they fit; otherwise explicitly
+choose a subset. Stored records are never deleted or truncated by selection.
+Formatted profile/job context ceilings are 6,000/24,000 characters. Final summary,
+extraction and proposal requests allow 4,000/24,000/60,000 characters, with a shared
+128,000 UTF-8 byte backstop. Fields are outer-trimmed; constructed context and
+requests count their exact formatting. Browser counters count Unicode code points;
+server validation is authoritative.
+
+Chat completion caps are 2,048/8,192/6,144 tokens for summary/extraction/proposal,
+including reasoning. Visible summaries/proposals allow 2,000/8,000 characters.
+Only complete (`finish_reason="stop"`) responses are accepted. Extraction raw JSON
+is limited to 281,000 characters before parsing: the known schema's 23,310 bounded
+string characters may each take 12 characters as escaped non-BMP JSON, plus keys,
+budgets and normal formatting. Arbitrarily padded/extra JSON is bounded too.
+Over-limit input or incomplete/oversized output fails without partial persistence,
+silent truncation or automatic retries. These provisional caps are not exact input
+token budgets or measured latency guarantees. Per-user quotas and evidence ranking
+remain separate work. The unused legacy Responses helper is not an active workflow.
+
 ---
 
 ## Project Status

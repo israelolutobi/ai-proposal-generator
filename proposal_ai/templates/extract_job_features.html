@@ -85,6 +85,7 @@
 
             <textarea
                     name="raw_job_text"
+                    data-ai-max="{{ form.raw_job_text.field.max_length }}"
                     required
                     style="
                         width:100%;
@@ -149,6 +150,7 @@
 
 </div>
 
+{% include "ai_character_counts.html" %}
 </body>
 
 </html>

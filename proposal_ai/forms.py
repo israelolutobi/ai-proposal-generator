@@ -4,13 +4,14 @@ import re
 
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
-from django.core.validators import MinValueValidator, URLValidator
+from django.core.validators import MaxLengthValidator, MinValueValidator, URLValidator
 
 from .models import (
     FreelancerProfile, JobPost, Proposal, ProposalOutcome,
     ProposalUseConfirmation, WorkExperience,
 )
 from .platform_config import PLATFORM_CONFIGS, normalize_platform_name
+from . import ai_limits
 
 
 # The existing outcome UI is a subset of Proposal's declared status choices.
@@ -85,9 +86,16 @@ class WorkExperienceForm(forms.ModelForm):
         }
 
 
+class ProfileSummaryGenerationForm(forms.Form):
+    professional_title = forms.CharField(max_length=ai_limits.SUMMARY_TITLE_CHARACTERS)
+    key_skills = forms.CharField(max_length=ai_limits.SUMMARY_SKILLS_CHARACTERS)
+
+
 class JobPasteForm(forms.Form):
-    # TextField/UI define no length limit. Token limits belong to AI quotas.
-    raw_job_text = forms.CharField(label="Full Job Description", widget=forms.Textarea)
+    raw_job_text = forms.CharField(
+        label="Full Job Description", widget=forms.Textarea,
+        max_length=ai_limits.JOB_PASTE_CHARACTERS,
+    )
 
 
 class JobConfirmationForm(forms.ModelForm):
@@ -112,6 +120,12 @@ class JobConfirmationForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        for name, maximum in (
+            ("job_description", ai_limits.JOB_DESCRIPTION_CHARACTERS),
+            ("skills_required", ai_limits.JOB_SKILLS_CHARACTERS),
+        ):
+            self.fields[name].max_length = maximum
+            self.fields[name].validators.append(MaxLengthValidator(maximum))
         for name in ("hourly_min", "hourly_max", "fixed_budget"):
             self.fields[name].validators.append(MinValueValidator(0))
             self.fields[name].widget.attrs["min"] = "0"
@@ -121,6 +135,79 @@ class JobConfirmationForm(forms.ModelForm):
         minimum, maximum = cleaned.get("hourly_min"), cleaned.get("hourly_max")
         if minimum is not None and maximum is not None and minimum > maximum:
             self.add_error("hourly_max", "Hourly maximum must be at least the hourly minimum.")
+        return cleaned
+
+
+class ExperienceSelectionField(forms.ModelMultipleChoiceField):
+    def clean(self, value):
+        if value:
+            if len(value) > ai_limits.EXPERIENCE_COUNT:
+                raise forms.ValidationError(
+                    f"Choose no more than {ai_limits.EXPERIENCE_COUNT} experiences.",
+                    code="ai_experience_count",
+                )
+            try:
+                ids = [int(pk) for pk in value]
+            except (TypeError, ValueError):
+                raise forms.ValidationError("Choose valid owned experiences.", code="invalid_choice") from None
+            if len(ids) != len(set(ids)):
+                raise forms.ValidationError("Choose each experience only once.", code="duplicate_experience")
+        selected = super().clean(value)
+        ai_limits.experience_context(selected)
+        return selected
+
+    def label_from_instance(self, obj):
+        return f"{obj.job_title} ({obj.company_or_project or 'No company/project'})"
+
+
+class ProposalGenerationForm(JobConfirmationForm):
+    selected_experiences = ExperienceSelectionField(
+        queryset=WorkExperience.objects.none(), required=False,
+        widget=forms.CheckboxSelectMultiple, label="Work experiences included in this application",
+    )
+
+    def __init__(self, data=None, *args, user, profile, **kwargs):
+        self.profile = profile
+        owned = WorkExperience.objects.filter(user=user).order_by("-created_at", "-pk")
+        candidates = list(owned[:ai_limits.EXPERIENCE_COUNT + 1])
+        try:
+            ai_limits.experience_context(candidates)
+        except forms.ValidationError:
+            self.selection_required = True
+        else:
+            self.selection_required = False
+        explicit_selection = data is not None and (
+            "experience_selection_submitted" in data or "selected_experiences" in data
+        )
+        self.missing_selection = data is not None and not explicit_selection and self.selection_required
+        initial = kwargs.setdefault("initial", {})
+        if not self.selection_required:
+            ids = [str(record.pk) for record in candidates]
+            initial.setdefault("selected_experiences", ids)
+            if data is not None and not explicit_selection:
+                data = data.copy()
+                if hasattr(data, "setlist"):
+                    data.setlist("selected_experiences", ids)
+                else:
+                    data["selected_experiences"] = ids
+        super().__init__(data, *args, **kwargs)
+        self.fields["selected_experiences"].queryset = owned
+        self.fields["selected_experiences"].help_text = (
+            f"Choose up to {ai_limits.EXPERIENCE_COUNT} experiences, with at most "
+            f"{ai_limits.EXPERIENCE_CONTEXT_CHARACTERS:,} formatted characters in total. "
+            "Only checked records are sent. Stored records are kept. "
+            + ("Your full history does not fit; choose a subset before generating." if self.selection_required
+               else "Your full history fits and is selected by default; you can change the selection.")
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.missing_selection:
+            self.add_error("selected_experiences", "Your full history does not fit. Explicitly choose which experiences to include.")
+        try:
+            ai_limits.check_fields(self.profile, ai_limits.PROFILE_FIELD_LIMITS)
+        except forms.ValidationError as error:
+            self.add_error(None, error)
         return cleaned
 
 
@@ -140,7 +227,7 @@ class JobExtractionForm(JobConfirmationForm):
                 data[key] = value
             return data
 
-        if not isinstance(content, str) or not content.strip():
+        if not isinstance(content, str) or len(content) > ai_limits.EXTRACTION_RESPONSE_CHARACTERS or not content.strip():
             raise forms.ValidationError("Invalid job extraction.")
         try:
             data = json.loads(content, parse_float=Decimal, parse_constant=reject_constant,

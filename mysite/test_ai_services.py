@@ -29,7 +29,7 @@ PRIVATE_DETAIL = "PRIVATE_PROVIDER_DETAIL_FIXTURE"
 
 
 def chat_response(content=" Generated text. "):
-    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
+    return SimpleNamespace(choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(content=content))])
 
 
 @override_settings(OPENAI_API_KEY=FAKE_KEY)
@@ -87,6 +87,7 @@ class AIServiceTests(SimpleTestCase):
         self.assertEqual(result, "Generated text.")
         self.client.chat.completions.create.assert_called_once_with(
             model="gpt-5", messages=[{"role": "user", "content": "Exact extraction prompt"}],
+            max_completion_tokens=8192,
         )
         self.client.responses.create.assert_not_called()
 
@@ -94,6 +95,7 @@ class AIServiceTests(SimpleTestCase):
         self.assertEqual(services.generate_profile_summary("Exact summary prompt"), "Generated text.")
         self.client.chat.completions.create.assert_called_once_with(
             model="gpt-5", messages=[{"role": "user", "content": "Exact summary prompt"}],
+            max_completion_tokens=2048,
         )
 
     def test_proposal_keeps_system_and_user_messages_in_order(self):
@@ -101,7 +103,7 @@ class AIServiceTests(SimpleTestCase):
         self.client.chat.completions.create.assert_called_once_with(model="gpt-5", messages=[
             {"role": "system", "content": "Exact instructions"},
             {"role": "user", "content": "Exact context"},
-        ])
+        ], max_completion_tokens=6144)
 
     def test_legacy_helper_keeps_responses_endpoint_model_and_reasoning(self):
         self.assertEqual(services.generate_freelancer_profile_summary(" Developer ", " Django "), "Legacy summary.")
@@ -280,7 +282,7 @@ class SDKPolicyTests(SimpleTestCase):
     def test_installed_sdk_success_returns_text_and_preserves_request_body(self):
         def handler(request):
             body = json.loads(request.content)
-            self.assertEqual(body, {"model": "gpt-5", "messages": [{"role": "user", "content": "Exact prompt"}]})
+            self.assertEqual(body, {"model": "gpt-5", "messages": [{"role": "user", "content": "Exact prompt"}], "max_completion_tokens": 2048})
             return httpx.Response(200, json={"id": "chatcmpl-test", "object": "chat.completion", "created": 0, "model": "gpt-5", "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": " Success "}}]})
         with self.fake_transport(handler):
             self.assertEqual(services.generate_profile_summary("Exact prompt"), "Success")
