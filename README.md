@@ -95,6 +95,17 @@ Start the development server:
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
+AI calls go through `proposal_ai/services.py`. Existing prompts, models and
+API styles are preserved. Requests use a 5-second connection timeout and
+45-second read/write/pool timeouts (network inactivity limits, not an overall
+deadline). SDK retries are disabled; users can retry a failed request.
+
+Run tests with `.\.venv\Scripts\python.exe manage.py test`. The configured
+test runner clears AI credentials and blocks networking, so tests need no
+OpenAI key. Mock the application service functions in view tests; service tests
+use mocked SDK clients or in-memory HTTP transports. Tests run serially;
+parallel execution is rejected until worker network guards are implemented.
+
 ---
 
 ## Project Status

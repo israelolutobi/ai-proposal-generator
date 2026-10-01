@@ -49,7 +49,11 @@ class LifecycleTestCase(TestCase):
 
     def setUp(self):
         self.client.force_login(self.owner)
-        for target in ("proposal_ai.views.get_openai_client", "proposal_ai.views.OpenAI"):
+        for target in (
+            "proposal_ai.views.services.extract_job_details",
+            "proposal_ai.views.services.generate_profile_summary",
+            "proposal_ai.views.services.generate_proposal",
+        ):
             guard = patch(target, side_effect=AssertionError("No external AI calls permitted."))
             mocked = guard.start()
             self.addCleanup(guard.stop)

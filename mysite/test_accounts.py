@@ -24,12 +24,12 @@ User = get_user_model()
 class AccountTestCase(TestCase):
     def setUp(self):
         super().setUp()
-        ai_client = patch(
-            "proposal_ai.views.get_openai_client",
-            side_effect=AssertionError("Account requests must not call AI."),
-        )
-        ai_client.start()
-        self.addCleanup(ai_client.stop)
+        for target in ("extract_job_details", "generate_profile_summary", "generate_proposal"):
+            ai_call = patch("proposal_ai.views.services." + target,
+                            side_effect=AssertionError("Account requests must not call AI."))
+            mocked = ai_call.start()
+            self.addCleanup(ai_call.stop)
+            self.addCleanup(mocked.assert_not_called)
 
     def registration_data(self, **changes):
         password = secrets.token_urlsafe(32)

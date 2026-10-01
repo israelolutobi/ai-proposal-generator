@@ -1,4 +1,3 @@
-from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.conf import settings
@@ -33,17 +32,18 @@ class ProfileExperienceTestCase(TestCase):
         super().setUp()
         self.client.force_login(self.owner)
         client_patch = patch(
-            "proposal_ai.views.get_openai_client",
+            "proposal_ai.views.services.generate_profile_summary",
             side_effect=AssertionError("Form requests must not call AI."),
         )
         self.ai_client = client_patch.start()
         self.addCleanup(client_patch.stop)
         self.addCleanup(self.ai_client.assert_not_called)
-        sdk_patch = patch(
-            "proposal_ai.views.OpenAI", side_effect=AssertionError("No live AI client allowed.")
-        )
-        sdk_patch.start()
-        self.addCleanup(sdk_patch.stop)
+        for target in ("extract_job_details", "generate_proposal"):
+            service_patch = patch("proposal_ai.views.services." + target,
+                                  side_effect=AssertionError("Form requests must not call AI."))
+            mocked = service_patch.start()
+            self.addCleanup(service_patch.stop)
+            self.addCleanup(mocked.assert_not_called)
 
     def profile_data(self, **changes):
         data = {
@@ -491,18 +491,16 @@ class ProfileExperienceSecurityTests(ProfileExperienceTestCase):
         self.assertEqual(self.stored_data(), before)
 
     def test_mocked_profile_summary_is_saved_only_by_explicit_valid_profile_post(self):
-        client = Mock()
-        client.chat.completions.create.return_value = SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content="Example generated summary."))]
-        )
+        client = Mock(return_value="Example generated summary.")
         before = self.stored_data()
-        with patch("proposal_ai.views.get_openai_client", return_value=client):
+        with patch("proposal_ai.views.services.generate_profile_summary", new=client):
             response = self.client.post(reverse("generate_profile_summary"),
                                         {"professional_title": "Developer", "key_skills": "Django"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"summary": "Example generated summary."})
         self.assertEqual(self.stored_data(), before)
-        client.chat.completions.create.assert_called_once()
+        client.assert_called_once()
+        self.assertIn("Professional title:\nDeveloper", client.call_args.args[0])
         response = self.client.post(
             reverse("create_freelancer_profile"), self.profile_data(profile_summary=response.json()["summary"])
         )

@@ -1,8 +1,3 @@
-import json
-import logging
-import os
-
-from django.conf import settings
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -12,7 +7,6 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_http_methods, require_POST
-from openai import OpenAI, OpenAIError
 
 from .forms import (
     FreelancerProfileForm, JobConfirmationForm, JobExtractionForm, JobPasteForm,
@@ -28,29 +22,7 @@ from .models import (
     WorkExperience,
 )
 from .platform_config import get_platform_config
-
-
-logger = logging.getLogger(__name__)
-
-
-def get_openai_client():
-    """
-    Create the OpenAI client only when an AI-powered action is requested.
-
-    This prevents Django from crashing at startup if the local API key has not
-    been loaded yet, while still failing clearly when an AI feature is used.
-    """
-    api_key = getattr(settings, "OPENAI_API_KEY", None) or os.getenv(
-        "OPENAI_API_KEY"
-    )
-
-    if not api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY is not configured. "
-            "Check your local .env file or deployment environment variables."
-        )
-
-    return OpenAI(api_key=api_key)
+from . import services
 
 
 def has_submission(proposal, confirmation=None):
@@ -334,26 +306,7 @@ Rules:
 """.strip()
 
     try:
-        client = get_openai_client()
-
-        response = client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-        )
-
-        summary = (
-            response.choices[0].message.content or ""
-        ).strip()
-
-        if not summary:
-            raise RuntimeError(
-                "The AI returned an empty profile summary."
-            )
+        summary = services.generate_profile_summary(prompt)
 
         summary = summary.replace("—", "-")
 
@@ -363,16 +316,11 @@ Rules:
             }
         )
 
-    except Exception:
-        logger.exception(
-            "Failed to generate freelancer profile summary."
-        )
-
+    except services.AIError as error:
         return JsonResponse(
             {
                 "error": (
-                    "ProposalIQ couldn't generate the summary right now. "
-                    "You can try again or skip this step."
+                    error.user_message
                 )
             },
             status=500,
@@ -597,13 +545,9 @@ def extract_job_features(request):
         )
 
         try:
-            client = get_openai_client()
-            response = client.chat.completions.create(
-                model="gpt-5",
-                messages=[{"role": "user", "content": prompt}],
-            )
-            extraction_form = JobExtractionForm.from_json(response.choices[0].message.content)
-        except (OpenAIError, TimeoutError, RuntimeError, ValidationError, AttributeError, IndexError, TypeError):
+            extracted_text = services.extract_job_details(prompt)
+            extraction_form = JobExtractionForm.from_json(extracted_text)
+        except (services.AIError, ValidationError):
             # Never show/log raw provider output, exception text or credentials.
             form.add_error(None, "We couldn't extract valid job details. Please try again.")
             return render(request, "extract_job_features.html", {
@@ -995,61 +939,48 @@ CONFIRMED JOB DETAILS
         # GENERATE PLATFORM-APPROPRIATE WRITTEN CONTENT
         # ---------------------------------------------------------
 
-        client = get_openai_client()
-
-        response = client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {
-                    "role": "system",
-                    "content": proposal_writing_instructions,
-                },
-                {
-                    "role": "user",
-                    "content": application_context,
-                },
-            ],
-        )
-
-        generated_content = (
-            response.choices[0].message.content
-            or ""
-        ).strip()
+        try:
+            generated_content = services.generate_proposal(
+                proposal_writing_instructions, application_context,
+            )
+        except services.AIError as error:
+            form.add_error(None, error.user_message)
+        else:
 
 
-        # Hard safeguard in case the model still emits an em dash.
+            # Hard safeguard in case the model still emits an em dash.
 
-        generated_content = generated_content.replace(
-            "—",
-            "-"
-        )
-
-
-        # ---------------------------------------------------------
-        # SAVE THE BROADER APPLICATION RECORD
-        # ---------------------------------------------------------
-        #
-        # Proposal remains the legacy model name for now.
-        #
-        # final_text stores the platform-specific written component.
-        #
-        # content_type tells ProposalIQ what that text represents.
-        # ---------------------------------------------------------
-
-        # Keep the external request outside the transaction. Only validated
-        # details are used; the confirmed job and Proposal persist together.
-        with transaction.atomic():
-            job_post.confirmed_by_user = True
-            job_post.save()
-            Proposal.objects.create(
-                user=request.user,
-                job_post=job_post,
-                final_text=generated_content,
-                content_type=content_type,
-                status="generated",
+            generated_content = generated_content.replace(
+                "—",
+                "-"
             )
 
-        return redirect("dashboard")
+
+            # ---------------------------------------------------------
+            # SAVE THE BROADER APPLICATION RECORD
+            # ---------------------------------------------------------
+            #
+            # Proposal remains the legacy model name for now.
+            #
+            # final_text stores the platform-specific written component.
+            #
+            # content_type tells ProposalIQ what that text represents.
+            # ---------------------------------------------------------
+
+            # Keep the external request outside the transaction. Only validated
+            # details are used; the confirmed job and Proposal persist together.
+            with transaction.atomic():
+                job_post.confirmed_by_user = True
+                job_post.save()
+                Proposal.objects.create(
+                    user=request.user,
+                    job_post=job_post,
+                    final_text=generated_content,
+                    content_type=content_type,
+                    status="generated",
+                )
+
+            return redirect("dashboard")
 
 
     # -------------------------------------------------------------

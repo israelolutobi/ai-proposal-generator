@@ -9,7 +9,7 @@ from django.db import IntegrityError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils.html import escape
-from openai import OpenAIError
+from proposal_ai.services import AIConfigurationError, AITemporaryError, AITimeoutError
 
 from proposal_ai.forms import JobConfirmationForm, JobExtractionForm, JobPasteForm
 from proposal_ai.models import FreelancerProfile, JobPost, Proposal, WorkExperience
@@ -45,17 +45,14 @@ class JobValidationTestCase(TestCase):
         self.client.force_login(self.owner)
         self.provider = Mock()
         self.output("Mock generated — application")
-        client_patch = patch("proposal_ai.views.get_openai_client", return_value=self.provider)
-        self.get_client = client_patch.start()
-        self.addCleanup(client_patch.stop)
-        sdk_patch = patch("proposal_ai.views.OpenAI", side_effect=AssertionError("No live AI client allowed."))
-        sdk_patch.start()
-        self.addCleanup(sdk_patch.stop)
+        self.get_client = self.provider
+        for target in ("extract_job_details", "generate_proposal"):
+            service_patch = patch("proposal_ai.views.services." + target, self.provider)
+            service_patch.start()
+            self.addCleanup(service_patch.stop)
 
     def output(self, content):
-        self.provider.chat.completions.create.return_value = SimpleNamespace(
-            choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
-        )
+        self.provider.return_value = content
 
     def raw_text(self):
         return "Looking for a Django developer for an hourly project.\n" + "Build reliable application views. " * 20
@@ -103,8 +100,8 @@ class JobPasteExtractionTests(JobValidationTestCase):
         self.assertEqual(job.hourly_min, Decimal("25.00"))
         self.assertFalse(job.confirmed_by_user)
         self.assertEqual(Proposal.objects.count(), 0)
-        self.provider.chat.completions.create.assert_called_once()
-        self.assertEqual(self.provider.chat.completions.create.call_args.kwargs["model"], "gpt-5")
+        self.provider.assert_called_once()
+        self.assertIn(job.raw_job_text, self.provider.call_args.args[0])
 
     def test_empty_missing_and_whitespace_paste_rejected_even_with_warning_bypass(self):
         for value in (None, "", " \t\n "):
@@ -240,10 +237,9 @@ class JobPasteExtractionTests(JobValidationTestCase):
         self.assertEqual(job.fixed_budget, Decimal("125.25"))
 
     def test_mocked_provider_errors_are_controlled_and_preserve_original_text(self):
-        for error in (TimeoutError("PRIVATE_PROVIDER_DETAIL"), OpenAIError("PRIVATE_PROVIDER_DETAIL"),
-                      RuntimeError("PRIVATE_PROVIDER_DETAIL")):
+        for error in (AITimeoutError(), AITemporaryError(), AIConfigurationError()):
             with self.subTest(error_type=type(error).__name__):
-                self.provider.chat.completions.create.side_effect = error
+                self.provider.side_effect = error
                 response = self.client.post(reverse("extract_job_features"), {"raw_job_text": self.raw_text()})
                 self.assertEqual(response.status_code, 200)
                 self.assertContains(response, escape("We couldn't extract valid job details."))
@@ -251,9 +247,9 @@ class JobPasteExtractionTests(JobValidationTestCase):
                 self.assertEqual(response.context["form"]["raw_job_text"].value(), self.raw_text())
                 self.assertEqual(JobPost.objects.count(), 0)
 
-    def test_malformed_provider_response_structure_is_controlled(self):
+    def test_non_text_service_output_is_controlled(self):
         for response_data in (None, SimpleNamespace(choices=[]), SimpleNamespace(choices=[SimpleNamespace()])):
-            self.provider.chat.completions.create.return_value = response_data
+            self.provider.return_value = response_data
             response = self.client.post(reverse("extract_job_features"), {"raw_job_text": self.raw_text()})
             self.assertEqual(response.status_code, 200)
             self.assertContains(response, escape("We couldn't extract valid job details."))
@@ -290,7 +286,7 @@ class JobConfirmationTests(JobValidationTestCase):
         for message in response.context["form"].errors[field]:
             self.assertContains(response, escape(message))
         self.get_client.assert_not_called()
-        self.provider.chat.completions.create.assert_not_called()
+        self.provider.assert_not_called()
         return response
 
     def test_owner_get_loads_existing_values_without_save_or_provider_call(self):
@@ -322,11 +318,10 @@ class JobConfirmationTests(JobValidationTestCase):
         self.assertEqual(proposal.content_type, "cover_letter")
         self.assertEqual(proposal.status, "generated")
         self.assertEqual(proposal.final_text, "Mock generated - application")
-        call = self.provider.chat.completions.create.call_args.kwargs
-        self.assertEqual(call["model"], "gpt-5")
-        self.assertEqual([message["role"] for message in call["messages"]], ["system", "user"])
-        self.assertIn(data["job_description"], call["messages"][1]["content"])
-        self.assertNotIn("OTHER_PRIVATE_CONTEXT", call["messages"][1]["content"])
+        instructions, application_context = self.provider.call_args.args
+        self.assertIn("PLATFORM-SPECIFIC TASK:", instructions)
+        self.assertIn(data["job_description"], application_context)
+        self.assertNotIn("OTHER_PRIVATE_CONTEXT", application_context)
 
     def test_another_user_cannot_get_or_post_job_by_id(self):
         before = self.stored_data()
@@ -420,9 +415,11 @@ class JobConfirmationTests(JobValidationTestCase):
 
     def test_provider_failure_does_not_save_validated_job_or_proposal(self):
         before = self.stored_data()
-        self.provider.chat.completions.create.side_effect = OpenAIError("Mock generation failure")
-        with self.assertRaises(OpenAIError):
-            self.client.post(self.confirm_url(), self.job_data())
+        self.provider.side_effect = AITemporaryError()
+        response = self.client.post(self.confirm_url(), self.job_data())
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("__all__", response.context["form"].errors)
+        self.assertEqual(response.context["form"]["job_title"].value(), self.job_data()["job_title"])
         self.assertEqual(self.stored_data(), before)
 
     def test_proposal_save_failure_rolls_back_the_confirmed_job_write(self):
@@ -434,11 +431,11 @@ class JobConfirmationTests(JobValidationTestCase):
 
     def test_external_generation_occurs_before_any_confirmation_write(self):
         before = self.stored_data()
-        response = self.provider.chat.completions.create.return_value
-        def verify_before_call(**kwargs):
+        response = self.provider.return_value
+        def verify_before_call(writing_instructions, application_context):
             self.assertEqual(self.stored_data(), before)
             return response
-        self.provider.chat.completions.create.side_effect = verify_before_call
+        self.provider.side_effect = verify_before_call
         self.assertEqual(self.client.post(self.confirm_url(), self.job_data()).status_code, 302)
 
 

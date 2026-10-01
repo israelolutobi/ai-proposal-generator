@@ -176,3 +176,6 @@ CSRF_COOKIE_SECURE = not DEBUG
 # DEFAULT PRIMARY KEY FIELD
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Ordinary Django tests must never spend API credit or access external services.
+TEST_RUNNER = "mysite.test_runner.NoNetworkDiscoverRunner"

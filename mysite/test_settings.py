@@ -133,7 +133,7 @@ class ProtectedPageRedirectTests(SimpleTestCase):
     def test_anonymous_dashboard_request_redirects_to_existing_login_page(self):
         self.assertEqual(reverse("login"), "/login/")
         with patch(
-            "proposal_ai.views.get_openai_client",
+            "proposal_ai.views.services.generate_proposal",
             side_effect=AssertionError("This request must not call AI."),
         ):
             response = self.client.get(reverse("dashboard"))
