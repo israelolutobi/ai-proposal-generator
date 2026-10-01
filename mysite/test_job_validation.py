@@ -13,7 +13,7 @@ from proposal_ai.services import AIConfigurationError, AITemporaryError, AITimeo
 
 from proposal_ai.forms import JobConfirmationForm, JobExtractionForm, JobPasteForm
 from proposal_ai.models import FreelancerProfile, JobPost, Proposal, WorkExperience
-from .ai_test_helpers import SignedAIClient
+from .ai_test_helpers import SignedAIClient, service_result
 
 
 User = get_user_model()
@@ -54,7 +54,8 @@ class JobValidationTestCase(TestCase):
             self.addCleanup(service_patch.stop)
 
     def output(self, content):
-        self.provider.return_value = content
+        # Non-text values intentionally exercise rejection of a broken boundary.
+        self.provider.return_value = service_result(content) if type(content) is str else content
 
     def raw_text(self):
         return "Looking for a Django developer for an hourly project.\n" + "Build reliable application views. " * 20

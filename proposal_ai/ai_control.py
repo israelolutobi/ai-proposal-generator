@@ -240,11 +240,23 @@ def _owned_live(row, moment):
                                     lifecycle__in=ACTIVE, lease_expires_at__gt=moment)
 
 
-def mark_dispatch(row):
+def _telemetry_fields(telemetry):
+    if type(telemetry) is not services.AITelemetry:
+        raise TypeError("Invalid AI telemetry.")
+    # Revalidate at the persistence boundary, copying only approved scalar fields.
+    measured = services.AITelemetry(**telemetry.scalar_fields()).scalar_fields()
+    # An absent optional snapshot must not erase the known dispatch configuration.
+    identity = ("provider", "api_style", "requested_model", "completion_token_cap")
+    return {name: value for name, value in measured.items() if value is not None or name not in identity}
+
+
+def mark_dispatch(row, telemetry=None):
     moment = now()
+    telemetry = telemetry if telemetry is not None else services.request_telemetry(row.operation)
     try:
         changed = _owned_live(row, moment).filter(lifecycle=Lifecycle.RESERVED).update(
             lifecycle=Lifecycle.IN_FLIGHT, dispatch_started_at=moment,
+            **_telemetry_fields(telemetry),
         )
         if not changed:
             recover_stale(row.user)
@@ -257,37 +269,62 @@ def mark_dispatch(row):
         raise unavailable() from None
 
 
-def fail(row, category, *, release=False):
+def fail(row, category, *, release=False, telemetry=None):
     if category not in Failure.values:
         category = Failure.UNEXPECTED
     moment = now()
+    measured = _telemetry_fields(telemetry) if telemetry is not None else {}
     try:
         with transaction.atomic():
             _recover_stale(row.user, moment)
             _owned_live(row, moment).update(
                 lifecycle=Lifecycle.FAILED, quota_state=Quota.RELEASED if release else Quota.CONSUMED,
                 completed_at=moment, failure_category=category,
+                **measured,
             )
     except DatabaseError:
         raise unavailable() from None
 
 
+def record_telemetry(row, telemetry):
+    """Short fenced write, committed before any application persistence transaction."""
+    measured = _telemetry_fields(telemetry)
+    moment = now()
+    try:
+        changed = _owned_live(row, moment).filter(lifecycle=Lifecycle.IN_FLIGHT).update(**measured)
+        if not changed:
+            recover_stale(row.user)
+            raise ControlError("This request expired before completion. Start a new generation.")
+    except DatabaseError:
+        try:
+            # Paid work may have happened. Never release or retry after this write failure.
+            fail(row, Failure.COORDINATION)
+        except ControlError:
+            pass  # If the database stays unavailable, normal stale recovery applies.
+        raise unavailable() from None
+
+
 def call_provider(row, function):
+    requested = services.request_telemetry(row.operation)
     try:
         services.check_configuration()
     except services.AIConfigurationError:
-        fail(row, Failure.LOCAL_CONFIGURATION, release=True)
+        fail(row, Failure.LOCAL_CONFIGURATION, release=True, telemetry=requested)
         raise
-    mark_dispatch(row)
+    mark_dispatch(row, requested)
     try:
-        return function()
+        result = function()
+        if type(result) is not services.AIServiceResult:
+            raise services.AIResponseError()
     except services.AIError as error:
         release = isinstance(error, (services.AIConfigurationError, services.AICapacityError, services.AIInputError))
-        fail(row, error.category, release=release)
+        fail(row, error.category, release=release, telemetry=error.telemetry)
         raise
     except Exception:
         fail(row, Failure.UNEXPECTED)
         raise ControlError("ProposalQ couldn't complete this request. Start a new generation to try again.", 503) from None
+    record_telemetry(row, result.telemetry)
+    return result
 
 
 def succeed(row, persist=None):

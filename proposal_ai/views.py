@@ -312,7 +312,8 @@ Rules:
                                     request.POST.get("ai_nonce", ""), form.cleaned_data, prompt)
         if admitted.replay:
             raise ai_control.ControlError("The summary request completed, but its text is not stored. Generate a new summary explicitly.")
-        summary = ai_control.call_provider(admitted.request, lambda: services.generate_profile_summary(prompt))
+        result = ai_control.call_provider(admitted.request, lambda: services.generate_profile_summary(prompt))
+        summary = result.value
 
         summary = summary.replace("—", "-")
 
@@ -574,8 +575,8 @@ def extract_job_features(request):
                 if admitted.request.job_post_id and JobPost.objects.filter(pk=admitted.request.job_post_id, user=request.user).exists():
                     return redirect("confirm_job_features", job_post_id=admitted.request.job_post_id)
                 raise ai_control.ControlError("The previous job result is no longer available. Start a new extraction.")
-            extracted_text = ai_control.call_provider(admitted.request, lambda: services.extract_job_details(prompt))
-            extraction_form = JobExtractionForm.from_json(extracted_text)
+            result = ai_control.call_provider(admitted.request, lambda: services.extract_job_details(prompt))
+            extraction_form = JobExtractionForm.from_json(result.value)
         except ai_control.ControlError as error:
             form.add_error(None, error.user_message)
             return ai_control_response(render(request, "extract_job_features.html", {
@@ -990,9 +991,10 @@ CONFIRMED JOB DETAILS
                                         request.POST.get("ai_nonce", ""), form.cleaned_data, messages, job_post.pk)
             if admitted.replay:
                 return redirect("dashboard")
-            generated_content = ai_control.call_provider(admitted.request, lambda: services.generate_proposal(
+            result = ai_control.call_provider(admitted.request, lambda: services.generate_proposal(
                 proposal_writing_instructions, application_context,
             ))
+            generated_content = result.value
         except ai_control.ControlError as error:
             form.add_error(None, error.user_message)
             response_status = error.status

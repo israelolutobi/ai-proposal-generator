@@ -152,11 +152,35 @@ outputs and failed local persistence consume credits. No automatic retry occurs.
 Active leases last 10 minutes; undispatched stale reservations release credits,
 dispatched stale requests become uncertain/consumed. Late workers cannot persist
 after losing their request state. The ledger stores hashes and references, never
-prompts, private inputs or generated text. Automatic deletion is deferred to the
-Task 3D retention decision.
+prompts, private inputs or generated text. Automatic deletion is not implemented;
+telemetry retention duration remains a separate pre-Beta/privacy-policy decision.
 
-Migration `0014_ai_request` must be reviewed and applied explicitly before using
-AI features. Development SQLite uses write-first transactions and fails closed
+AIRequest also records nullable, privacy-safe provider telemetry: requested and
+reported model identity, Chat Completions token counts, optional reasoning/cached
+counts, service tier, completion cap, finish reason and monotonic provider-call
+latency in integer milliseconds. Missing or malformed optional usage stays unknown
+(NULL); genuinely reported zero stays zero. Completion tokens already include
+reasoning tokens. Provider-call latency excludes admission, client construction,
+application persistence and rendering. `response_text_characters` counts Python
+characters in the raw returned completion text, including rejected responses when
+available; extraction counts returned JSON text, not visible prose. No completion
+text, provider request IDs, raw responses or errors are stored as telemetry.
+
+Services return immutable validated-value/scalar-telemetry objects. Conditional
+ledger writes preserve received provider evidence before application persistence,
+including when saving a JobPost/Proposal fails; expired/terminal workers cannot
+overwrite telemetry or persist results. Staff with AIRequest view permission can
+inspect the ledger in Django admin; adding, changing, deleting and bulk mutation
+are disabled, and nonces/fingerprints are excluded from its display.
+
+Measured provider usage is separate from product quota credits. Monetary estimates,
+pricing snapshots and billing calculations are not implemented. Requests without
+reported usage cannot be treated as zero cost. The ledger counts admitted requests,
+not every rejected form/allowance attempt; killed workers may leave usage unknown.
+
+Migrations `0014_ai_request` and `0015_ai_request_telemetry` must be reviewed and
+applied explicitly before using AI features. Existing rows retain NULL telemetry;
+no historical usage is invented. Development SQLite uses write-first transactions and fails closed
 on lock/busy errors. Production requires one shared database with partial unique
 constraints; PostgreSQL admission requires READ COMMITTED isolation. Run the
 concurrency tests against the intended production database before release; local

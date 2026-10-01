@@ -30,6 +30,7 @@ class AIRequest(models.Model):
     class Failure(models.TextChoices):
         LOCAL_CONFIGURATION = "local_configuration", "Local configuration"
         CONFIGURATION = "configuration", "Provider configuration rejection"
+        AUTHENTICATION = "authentication", "Provider authentication rejection"
         CAPACITY = "capacity", "Provider capacity rejection"
         INVALID_REQUEST = "invalid_request", "Provider request rejection"
         INPUT_LIMIT = "input_limit", "Input validation"
@@ -37,6 +38,8 @@ class AIRequest(models.Model):
         CONNECTION = "connection", "Connection"
         TEMPORARY = "temporary", "Temporary failure"
         INVALID_RESPONSE = "invalid_response", "Invalid response"
+        INCOMPLETE_RESPONSE = "incomplete_response", "Incomplete response"
+        OVERSIZED_RESPONSE = "oversized_response", "Oversized response"
         PERSISTENCE = "persistence", "Persistence failure"
         COORDINATION = "coordination", "Coordination failure"
         STALE = "stale", "Expired request"
@@ -58,6 +61,23 @@ class AIRequest(models.Model):
     failure_category = models.CharField(max_length=24, choices=Failure.choices, blank=True)
     job_post = models.ForeignKey("JobPost", null=True, blank=True, on_delete=models.SET_NULL)
     proposal = models.ForeignKey("Proposal", null=True, blank=True, on_delete=models.SET_NULL)
+
+    # Provider evidence is independent of quota units and future monetary estimates.
+    # NULL means unknown; zero is reserved for an actual reported/measured zero.
+    provider = models.CharField(max_length=24, null=True, blank=True)
+    api_style = models.CharField(max_length=24, null=True, blank=True)
+    requested_model = models.CharField(max_length=200, null=True, blank=True)
+    response_model = models.CharField(max_length=200, null=True, blank=True)
+    input_tokens = models.PositiveBigIntegerField(null=True, blank=True)
+    completion_tokens = models.PositiveBigIntegerField(null=True, blank=True)
+    reasoning_tokens = models.PositiveBigIntegerField(null=True, blank=True)
+    cached_input_tokens = models.PositiveBigIntegerField(null=True, blank=True)
+    total_tokens = models.PositiveBigIntegerField(null=True, blank=True)
+    provider_latency_ms = models.PositiveBigIntegerField(null=True, blank=True)
+    service_tier = models.CharField(max_length=16, null=True, blank=True)
+    completion_token_cap = models.PositiveBigIntegerField(null=True, blank=True)
+    finish_reason = models.CharField(max_length=16, null=True, blank=True)
+    response_text_characters = models.PositiveBigIntegerField(null=True, blank=True)
 
     class Meta:
         constraints = [

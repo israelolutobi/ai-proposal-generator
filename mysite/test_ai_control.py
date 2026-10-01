@@ -1,4 +1,5 @@
 """Beta controls use isolated databases and fake providers, never live AI."""
+from .ai_test_helpers import service_result
 from datetime import datetime, timedelta, timezone
 import json
 import threading
@@ -400,7 +401,7 @@ class WorkflowTests(TestCase):
         for name, result in (("generate_profile_summary", "PRIVATE_SUMMARY"),
                              ("extract_job_details", json.dumps({"job_title": "Extracted", "job_description": "PRIVATE_JOB"})),
                              ("generate_proposal", "PRIVATE_PROPOSAL")):
-            mocked = patch("proposal_ai.views.services." + name, return_value=result)
+            mocked = patch("proposal_ai.views.services." + name, return_value=service_result(result))
             self.providers[name] = mocked.start()
             self.addCleanup(mocked.stop)
 
@@ -588,7 +589,7 @@ class WorkflowTests(TestCase):
         self.providers["generate_profile_summary"].assert_not_called()
 
     def test_malformed_extraction_consumes_and_creates_no_job(self):
-        self.providers["extract_job_details"].return_value = "malformed"
+        self.providers["extract_job_details"].return_value = service_result("malformed")
         self.assertEqual(self.post(O.JOB_EXTRACTION).status_code, 200)
         self.assertEqual(JobPost.objects.count(), 1)
         row = AIRequest.objects.get()
@@ -598,7 +599,7 @@ class WorkflowTests(TestCase):
         def expire(prompt):
             self.clock_mock.return_value = MOMENT + control.LEASE
             control.recover_stale(self.user)
-            return json.dumps({"job_title": "Extracted", "job_description": "Description"})
+            return service_result(json.dumps({"job_title": "Extracted", "job_description": "Description"}))
         self.providers["extract_job_details"].side_effect = expire
         self.assertEqual(self.post(O.JOB_EXTRACTION).status_code, 409)
         self.assertEqual(JobPost.objects.count(), 1)
@@ -608,7 +609,7 @@ class WorkflowTests(TestCase):
         def expire(*args):
             self.clock_mock.return_value = MOMENT + control.LEASE
             control.recover_stale(self.user)
-            return "Generated"
+            return service_result("Generated")
         self.providers["generate_proposal"].side_effect = expire
         self.assertEqual(self.post(O.PROPOSAL_GENERATION).status_code, 409)
         self.assertEqual(Proposal.objects.count(), 0)
@@ -665,7 +666,7 @@ class WorkflowTests(TestCase):
                     result = self.post(operation)
                 self.assertEqual(result.status_code, 500 if operation == O.PROFILE_SUMMARY else 200)
                 row = AIRequest.objects.latest("pk")
-                self.assertEqual((row.lifecycle, row.quota_state, row.failure_category), (L.FAILED, Q.CONSUMED, F.INVALID_RESPONSE))
+                self.assertEqual((row.lifecycle, row.quota_state, row.failure_category), (L.FAILED, Q.CONSUMED, F.INCOMPLETE_RESPONSE if finish == "length" else F.OVERSIZED_RESPONSE))
                 self.assertEqual(JobPost.objects.count(), 1)
                 self.assertEqual(Proposal.objects.count(), 0)
 
@@ -746,7 +747,7 @@ class ConcurrencyTests(TransactionTestCase):
         tokens = [control.issue_nonce(self.user, operation) for operation in operations]
         if same_nonce:
             tokens[1] = tokens[0]
-        provider = Mock(return_value="Generated")
+        provider = Mock(return_value=service_result("Generated"))
         results = []
         def attempt(index):
             connections.close_all()
@@ -801,8 +802,8 @@ class ConcurrencyTests(TransactionTestCase):
             admitted = control.admit(self.user, O.PROFILE_SUMMARY, control.issue_nonce(self.user, O.PROFILE_SUMMARY), {}, "context")
             def provider():
                 self.assertFalse(connections["default"].in_atomic_block)
-                return "Generated"
-            self.assertEqual(control.call_provider(admitted.request, provider), "Generated")
+                return service_result("Generated")
+            self.assertEqual(control.call_provider(admitted.request, provider).value, "Generated")
             control.succeed(admitted.request)
 
     def test_two_users_hold_independent_slots_across_connections(self):

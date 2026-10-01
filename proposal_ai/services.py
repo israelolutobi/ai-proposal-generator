@@ -1,6 +1,9 @@
-"""The single OpenAI boundary. Callers receive text or a safe typed failure."""
+"""The OpenAI boundary: validated values and scalar telemetry, never ORM writes."""
+from dataclasses import dataclass, field, fields, replace
 import logging
 import os
+import re
+import time
 from json import JSONDecodeError
 
 import httpx
@@ -24,13 +27,85 @@ REQUEST_TIMEOUT = httpx.Timeout(45.0, connect=5.0)
 MAX_RETRIES = 0
 
 
+def _count(value):
+    # Keep values compatible with nullable signed-64-bit database counters.
+    return value if type(value) is int and 0 <= value <= 2**63 - 1 else None
+
+
+def _model_identifier(value):
+    if (type(value) is str and 0 < len(value) <= 200
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", value)):
+        return value
+    return None
+
+
+@dataclass(frozen=True, slots=True)
+class AITelemetry:
+    """Allowlisted immutable metadata. Missing/malformed optional values stay unknown."""
+    provider: str | None = None
+    api_style: str | None = None
+    requested_model: str | None = None
+    response_model: str | None = None
+    input_tokens: int | None = None
+    completion_tokens: int | None = None
+    reasoning_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    total_tokens: int | None = None
+    provider_latency_ms: int | None = None
+    service_tier: str | None = None
+    completion_token_cap: int | None = None
+    finish_reason: str | None = None
+    response_text_characters: int | None = None
+
+    def __post_init__(self):
+        choices = {
+            "provider": ("openai",),
+            "api_style": ("chat_completions",),
+            "service_tier": ("auto", "default", "flex", "scale", "priority"),
+            "finish_reason": ("stop", "length", "tool_calls", "content_filter", "function_call"),
+        }
+        for item in fields(AITelemetry):
+            value = getattr(self, item.name)
+            if item.name in choices:
+                value = value if type(value) is str and value in choices[item.name] else None
+            elif item.name in ("requested_model", "response_model"):
+                value = _model_identifier(value)
+            else:
+                value = _count(value)
+            object.__setattr__(self, item.name, value)
+
+    def scalar_fields(self):
+        # Explicit dataclass fields only: never serialize an SDK object or extras.
+        return {item.name: getattr(self, item.name) for item in fields(AITelemetry)}
+
+
+@dataclass(frozen=True, slots=True)
+class AIServiceResult:
+    value: str = field(repr=False)
+    telemetry: AITelemetry
+
+    def __post_init__(self):
+        if type(self.value) is not str or type(self.telemetry) is not AITelemetry:
+            raise TypeError("Invalid AI service result.")
+
+
+def request_telemetry(operation):
+    """Public non-secret configuration snapshot, without client construction."""
+    budget = {"profile_summary": "summary", "job_extraction": "extraction",
+              "proposal_generation": "proposal"}[operation]
+    return AITelemetry(provider="openai", api_style="chat_completions",
+                       requested_model=CHAT_MODEL,
+                       completion_token_cap=ai_limits.COMPLETION_TOKENS[budget])
+
+
 class AIError(Exception):
     category = "provider"
     user_message = "ProposalQ couldn't complete the AI request right now. Please try again."
 
-    def __init__(self):
+    def __init__(self, telemetry=None):
         # Safe exception text contains no provider messages or payloads.
         super().__init__(self.user_message)
+        self.telemetry = telemetry if type(telemetry) is AITelemetry else None
 
 
 class AITemporaryError(AIError):
@@ -54,12 +129,24 @@ class AIConfigurationError(AIError):
     user_message = "AI generation is temporarily unavailable."
 
 
+class AIAuthenticationError(AIConfigurationError):
+    category = "authentication"
+
+
 class AIRequestError(AIConfigurationError):
     category = "invalid_request"
 
 
 class AIResponseError(AIError):
     category = "invalid_response"
+
+
+class AIIncompleteResponseError(AIResponseError):
+    category = "incomplete_response"
+
+
+class AIOversizedResponseError(AIResponseError):
+    category = "oversized_response"
 
 
 class AIInputError(AIError):
@@ -99,62 +186,115 @@ def _create_client():
         raise AIConfigurationError() from None
 
 
-def _request(operation):
+def _request(operation, telemetry=None):
     try:
         with _create_client() as client:
-            return operation(client)
+            if telemetry is None:  # Preserve the inactive legacy Responses helper.
+                return operation(client)
+            started = time.perf_counter_ns()
+            try:
+                response = operation(client)
+            finally:
+                elapsed = max(0, (time.perf_counter_ns() - started) // 1_000_000)
+                telemetry = replace(telemetry, provider_latency_ms=elapsed)
+            return response, telemetry
+    except AIError as error:
+        # Local configuration/client construction failed before SDK invocation.
+        if error.telemetry is None:
+            error.telemetry = telemetry
+        raise
     except (APITimeoutError, TimeoutError):
-        raise AITimeoutError() from None
+        raise AITimeoutError(telemetry) from None
     except APIConnectionError:
-        raise AIConnectionError() from None
+        raise AIConnectionError(telemetry) from None
     except RateLimitError:
-        raise AICapacityError() from None
-    except (AuthenticationError, PermissionDeniedError):
-        raise AIConfigurationError() from None
+        raise AICapacityError(telemetry) from None
+    except AuthenticationError:
+        raise AIAuthenticationError(telemetry) from None
+    except PermissionDeniedError:
+        raise AIConfigurationError(telemetry) from None
     except (BadRequestError, NotFoundError, UnprocessableEntityError):
-        raise AIRequestError() from None
+        raise AIRequestError(telemetry) from None
     except (APIResponseValidationError, JSONDecodeError, UnicodeDecodeError):
-        raise AIResponseError() from None
+        raise AIResponseError(telemetry) from None
     except InternalServerError:
-        raise AITemporaryError() from None
+        raise AITemporaryError(telemetry) from None
     except APIStatusError as error:
         if error.status_code == 408:
-            raise AITimeoutError() from None
+            raise AITimeoutError(telemetry) from None
         if error.status_code == 409 or error.status_code >= 500:
-            raise AITemporaryError() from None
-        raise AIRequestError() from None
+            raise AITemporaryError(telemetry) from None
+        raise AIRequestError(telemetry) from None
     except (APIError, OpenAIError):
-        raise AITemporaryError() from None
+        raise AITemporaryError(telemetry) from None
 
 
-def _validated_text(content, maximum=None):
+def _validated_text(content, maximum=None, telemetry=None):
     if not isinstance(content, str) or not content.strip():
-        raise AIResponseError()
+        raise AIResponseError(telemetry)
     if maximum is not None and len(content.strip()) > maximum:
-        raise AIResponseError()
+        raise AIOversizedResponseError(telemetry)
     return content.strip()
 
 
+def _optional_attribute(value, name):
+    try:
+        return getattr(value, name, None)
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+
+def _first_choice(response):
+    choices = _optional_attribute(response, "choices")
+    return choices[0] if isinstance(choices, (list, tuple)) and choices else None
+
+
+def _response_telemetry(response, telemetry):
+    usage = _optional_attribute(response, "usage")
+    completion = _optional_attribute(usage, "completion_tokens_details")
+    prompt = _optional_attribute(usage, "prompt_tokens_details")
+    choice = _first_choice(response)
+    content = _optional_attribute(_optional_attribute(choice, "message"), "content")
+    return replace(
+        telemetry, response_model=_optional_attribute(response, "model"),
+        input_tokens=_optional_attribute(usage, "prompt_tokens"),
+        completion_tokens=_optional_attribute(usage, "completion_tokens"),
+        total_tokens=_optional_attribute(usage, "total_tokens"),
+        reasoning_tokens=_optional_attribute(completion, "reasoning_tokens"),
+        cached_input_tokens=_optional_attribute(prompt, "cached_tokens"),
+        service_tier=_optional_attribute(response, "service_tier"),
+        finish_reason=_optional_attribute(choice, "finish_reason"),
+        response_text_characters=len(content) if type(content) is str else None,
+    )
+
+
 def _chat_text(messages, operation, output_maximum):
+    telemetry = AITelemetry(provider="openai", api_style="chat_completions",
+                            requested_model=CHAT_MODEL,
+                            completion_token_cap=ai_limits.COMPLETION_TOKENS[operation])
     try:
         ai_limits.check_request(messages, operation)
     except ValidationError:
-        raise AIInputError() from None
-    response = _request(lambda client: client.chat.completions.create(
+        raise AIInputError(telemetry) from None
+    response, telemetry = _request(lambda client: client.chat.completions.create(
         model=CHAT_MODEL, messages=messages,
         max_completion_tokens=ai_limits.COMPLETION_TOKENS[operation],
-    ))
+    ), telemetry)
+    # Capture typed scalar evidence before rejecting incomplete/invalid content.
+    telemetry = _response_telemetry(response, telemetry)
     try:
-        choice = response.choices[0]
+        choice = _first_choice(response)
         if choice.finish_reason != "stop":
-            raise AIResponseError()
+            if telemetry.finish_reason is not None:
+                raise AIIncompleteResponseError(telemetry)
+            raise AIResponseError(telemetry)
         content = choice.message.content
     except (AttributeError, IndexError, TypeError):
-        raise AIResponseError() from None
+        raise AIResponseError(telemetry) from None
     # Bound raw extraction JSON before trimming/parsing, including huge padding.
     if operation == "extraction" and isinstance(content, str) and len(content) > output_maximum:
-        raise AIResponseError()
-    return _validated_text(content, output_maximum)
+        raise AIOversizedResponseError(telemetry)
+    return AIServiceResult(_validated_text(content, output_maximum, telemetry), telemetry)
 
 
 def extract_job_details(prompt):

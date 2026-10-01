@@ -1,4 +1,5 @@
 """Reviewed Beta budgets; no real provider or user database is used."""
+from .ai_test_helpers import service_result
 import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -145,10 +146,10 @@ class ServiceBudgetTests(SimpleTestCase):
 
     def call(self, operation, text):
         if operation == "summary":
-            return services.generate_profile_summary(text)
+            return services.generate_profile_summary(text).value
         if operation == "extraction":
-            return services.extract_job_details(text)
-        return services.generate_proposal("", text)
+            return services.extract_job_details(text).value
+        return services.generate_proposal("", text).value
 
     def test_each_request_exactly_at_character_ceiling(self):
         for operation, maximum in limits.REQUEST_CHARACTERS.items():
@@ -170,7 +171,7 @@ class ServiceBudgetTests(SimpleTestCase):
         self.constructor.assert_not_called()
 
     def test_utf8_backstop_exactly_at_limit(self):
-        self.assertEqual(services.generate_proposal("", "😀" * 32000), "Generated text")
+        self.assertEqual(services.generate_proposal("", "😀" * 32000).value, "Generated text")
 
     def test_utf8_backstop_one_byte_over_before_client_creation(self):
         with self.assertRaises(services.AIInputError):
@@ -236,7 +237,7 @@ class ServiceBudgetTests(SimpleTestCase):
 
     def test_visible_output_outer_whitespace_normalized(self):
         self.client.chat.completions.create.return_value = response(" \n" + "x" * 2000 + " \t")
-        self.assertEqual(len(services.generate_profile_summary("Prompt")), 2000)
+        self.assertEqual(len(services.generate_profile_summary("Prompt").value), 2000)
 
     def test_empty_output_still_rejected_for_all_operations(self):
         self.client.chat.completions.create.return_value = response(" \n ")
@@ -246,7 +247,7 @@ class ServiceBudgetTests(SimpleTestCase):
 
     def test_raw_extraction_output_exactly_at_limit_is_not_truncated(self):
         self.client.chat.completions.create.return_value = response("x" * limits.EXTRACTION_RESPONSE_CHARACTERS)
-        self.assertEqual(len(services.extract_job_details("Prompt")), limits.EXTRACTION_RESPONSE_CHARACTERS)
+        self.assertEqual(len(services.extract_job_details("Prompt").value), limits.EXTRACTION_RESPONSE_CHARACTERS)
 
     def test_oversized_extraction_padding_is_rejected_before_trim(self):
         self.client.chat.completions.create.return_value = response(" " * limits.EXTRACTION_RESPONSE_CHARACTERS + "{}")
@@ -278,9 +279,9 @@ class AIBudgetWorkflowTests(TestCase):
             patched = patch("proposal_ai.views.services." + name)
             self.patches[name] = patched.start()
             self.addCleanup(patched.stop)
-        self.patches["generate_profile_summary"].return_value = "Summary"
-        self.patches["generate_proposal"].return_value = "Proposal"
-        self.patches["extract_job_details"].return_value = json.dumps(self.job_data())
+        self.patches["generate_profile_summary"].return_value = service_result("Summary")
+        self.patches["generate_proposal"].return_value = service_result("Proposal")
+        self.patches["extract_job_details"].return_value = service_result(json.dumps(self.job_data()))
 
     def job_data(self, **changes):
         return {"job_title": "Updated", "job_description": "Updated description", **changes}
@@ -460,7 +461,7 @@ class AIBudgetWorkflowTests(TestCase):
             self.assert_proposal_rejected(self.job_data(**{name: "x" * (maximum + 1)}))
 
     def test_oversized_extracted_field_creates_no_job(self):
-        self.patches["extract_job_details"].return_value = json.dumps(self.job_data(job_description="x" * 20001))
+        self.patches["extract_job_details"].return_value = service_result(json.dumps(self.job_data(job_description="x" * 20001)))
         before = self.records()
         result = self.client.post(reverse("extract_job_features"), {"raw_job_text": "developer hourly project", "continue_anyway": "true"})
         self.assertEqual(result.status_code, 200)

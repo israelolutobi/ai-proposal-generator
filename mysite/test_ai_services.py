@@ -19,6 +19,7 @@ from django.utils.html import escape
 import httpx
 import openai
 
+from .ai_test_helpers import service_result
 from proposal_ai import services
 from proposal_ai.models import FreelancerProfile, JobPost, Proposal
 from mysite.test_runner import ExternalNetworkBlocked, NoNetworkDiscoverRunner, block_external_network
@@ -47,7 +48,7 @@ class AIServiceTests(SimpleTestCase):
     def test_environment_key_is_used_without_logging_its_value(self):
         with override_settings(OPENAI_API_KEY=None), patch.dict(os.environ, {"OPENAI_API_KEY": FAKE_KEY}):
             with self.assertNoLogs("proposal_ai.services"):
-                self.assertEqual(services.generate_profile_summary("Private prompt"), "Generated text.")
+                self.assertEqual(services.generate_profile_summary("Private prompt").value, "Generated text.")
         self.assertEqual(self.constructor.call_args.kwargs["api_key"], FAKE_KEY)
 
     def test_settings_key_takes_precedence_over_environment(self):
@@ -84,7 +85,7 @@ class AIServiceTests(SimpleTestCase):
 
     def test_extraction_keeps_chat_endpoint_model_and_exact_input(self):
         result = services.extract_job_details("Exact extraction prompt")
-        self.assertEqual(result, "Generated text.")
+        self.assertEqual(result.value, "Generated text.")
         self.client.chat.completions.create.assert_called_once_with(
             model="gpt-5", messages=[{"role": "user", "content": "Exact extraction prompt"}],
             max_completion_tokens=8192,
@@ -92,14 +93,14 @@ class AIServiceTests(SimpleTestCase):
         self.client.responses.create.assert_not_called()
 
     def test_active_summary_keeps_chat_endpoint_model_and_exact_input(self):
-        self.assertEqual(services.generate_profile_summary("Exact summary prompt"), "Generated text.")
+        self.assertEqual(services.generate_profile_summary("Exact summary prompt").value, "Generated text.")
         self.client.chat.completions.create.assert_called_once_with(
             model="gpt-5", messages=[{"role": "user", "content": "Exact summary prompt"}],
             max_completion_tokens=2048,
         )
 
     def test_proposal_keeps_system_and_user_messages_in_order(self):
-        self.assertEqual(services.generate_proposal("Exact instructions", "Exact context"), "Generated text.")
+        self.assertEqual(services.generate_proposal("Exact instructions", "Exact context").value, "Generated text.")
         self.client.chat.completions.create.assert_called_once_with(model="gpt-5", messages=[
             {"role": "system", "content": "Exact instructions"},
             {"role": "user", "content": "Exact context"},
@@ -151,8 +152,8 @@ class AIServiceTests(SimpleTestCase):
     def test_rate_limit_maps_to_capacity_failure(self):
         self.mapped_error(self.status_error(openai.RateLimitError, 429), services.AICapacityError, "capacity")
 
-    def test_authentication_maps_to_configuration_failure(self):
-        self.mapped_error(self.status_error(openai.AuthenticationError, 401), services.AIConfigurationError, "configuration")
+    def test_authentication_maps_to_authentication_failure(self):
+        self.mapped_error(self.status_error(openai.AuthenticationError, 401), services.AIAuthenticationError, "authentication")
 
     def test_permission_maps_to_configuration_failure(self):
         self.mapped_error(self.status_error(openai.PermissionDeniedError, 403), services.AIConfigurationError, "configuration")
@@ -285,7 +286,7 @@ class SDKPolicyTests(SimpleTestCase):
             self.assertEqual(body, {"model": "gpt-5", "messages": [{"role": "user", "content": "Exact prompt"}], "max_completion_tokens": 2048})
             return httpx.Response(200, json={"id": "chatcmpl-test", "object": "chat.completion", "created": 0, "model": "gpt-5", "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": " Success "}}]})
         with self.fake_transport(handler):
-            self.assertEqual(services.generate_profile_summary("Exact prompt"), "Success")
+            self.assertEqual(services.generate_profile_summary("Exact prompt").value, "Success")
 
     def test_installed_sdk_malformed_response_body_is_a_safe_response_failure(self):
         for body in ("garbled json", "[]", '"text"', "null", '{"choices": []}'):
@@ -341,7 +342,7 @@ class AICallerTests(TestCase):
         return {"platform": "Upwork", "job_title": "Updated job", "job_description": "Updated description"}
 
     def test_extraction_success_through_boundary_saves_owned_unconfirmed_job(self):
-        self.calls["extract_job_details"].return_value = json.dumps(self.job_data())
+        self.calls["extract_job_details"].return_value = service_result(json.dumps(self.job_data()))
         response = self.client.post(reverse("extract_job_features"), {"raw_job_text": self.raw_text()})
         self.assertEqual(response.status_code, 302)
         job = JobPost.objects.exclude(pk=self.job.pk).get()
@@ -364,7 +365,7 @@ class AICallerTests(TestCase):
 
     def test_malformed_extracted_json_still_creates_no_job(self):
         before = self.snapshot()
-        self.calls["extract_job_details"].return_value = "malformed json"
+        self.calls["extract_job_details"].return_value = service_result("malformed json")
         response = self.client.post(reverse("extract_job_features"), {"raw_job_text": self.raw_text()})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["form"]["raw_job_text"].value(), self.raw_text())
@@ -372,7 +373,7 @@ class AICallerTests(TestCase):
 
     def test_summary_success_keeps_json_contract_and_never_saves_profile(self):
         before = self.snapshot()
-        self.calls["generate_profile_summary"].return_value = "Generated — summary."
+        self.calls["generate_profile_summary"].return_value = service_result("Generated — summary.")
         response = self.client.post(reverse("generate_profile_summary"), {"professional_title": "Developer", "key_skills": "Django"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"summary": "Generated - summary."})
@@ -390,7 +391,7 @@ class AICallerTests(TestCase):
                 self.assertEqual(self.snapshot(), before)
 
     def test_proposal_success_persists_confirmed_job_and_proposal(self):
-        self.calls["generate_proposal"].return_value = "Generated — proposal."
+        self.calls["generate_proposal"].return_value = service_result("Generated — proposal.")
         response = self.client.post(self.confirm_url(), self.job_data())
         self.assertRedirects(response, reverse("dashboard"))
         self.job.refresh_from_db()

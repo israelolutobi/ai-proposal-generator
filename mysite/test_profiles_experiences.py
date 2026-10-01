@@ -1,3 +1,4 @@
+from .ai_test_helpers import service_result
 from unittest.mock import Mock, patch
 
 from django.conf import settings
@@ -493,7 +494,7 @@ class ProfileExperienceSecurityTests(ProfileExperienceTestCase):
         self.assertEqual(self.stored_data(), before)
 
     def test_mocked_profile_summary_is_saved_only_by_explicit_valid_profile_post(self):
-        client = Mock(return_value="Example generated summary.")
+        client = Mock(return_value=service_result("Example generated summary."))
         before = self.stored_data()
         with patch("proposal_ai.views.services.generate_profile_summary", new=client):
             response = self.client.post(reverse("generate_profile_summary"),

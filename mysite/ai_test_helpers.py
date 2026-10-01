@@ -12,7 +12,12 @@ from django.test import Client, override_settings
 from django.urls import resolve
 from django.utils import timezone
 
-from proposal_ai import ai_control
+from proposal_ai import ai_control, services
+
+
+def service_result(value):
+    """A service fake with text length but no invented provider usage or latency."""
+    return services.AIServiceResult(value, services.AITelemetry(response_text_characters=len(value)))
 
 
 class SignedAIClient(Client):
