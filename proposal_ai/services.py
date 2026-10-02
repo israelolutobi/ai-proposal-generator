@@ -133,6 +133,11 @@ class AIAuthenticationError(AIConfigurationError):
     category = "authentication"
 
 
+class AIDisabledError(AIConfigurationError):
+    category = "ai_disabled"
+    user_message = "ProposalQ AI generation is temporarily unavailable. Please try again later."
+
+
 class AIRequestError(AIConfigurationError):
     category = "invalid_request"
 
@@ -175,7 +180,13 @@ def _api_key():
 
 def check_configuration():
     """Local preflight only; never constructs a client or performs network I/O."""
+    ensure_enabled()
     _api_key()
+
+
+def ensure_enabled():
+    if getattr(settings, "AI_ENABLED", False) is not True:
+        raise AIDisabledError()
 
 
 def _create_client():
@@ -188,9 +199,13 @@ def _create_client():
 
 def _request(operation, telemetry=None):
     try:
+        # Also protects the inactive helper. Never cancel/refund after SDK work begins.
+        ensure_enabled()
         with _create_client() as client:
             if telemetry is None:  # Preserve the inactive legacy Responses helper.
+                ensure_enabled()
                 return operation(client)
+            ensure_enabled()
             started = time.perf_counter_ns()
             try:
                 response = operation(client)

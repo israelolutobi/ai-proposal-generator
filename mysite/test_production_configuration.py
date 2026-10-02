@@ -55,7 +55,7 @@ def production_overrides(**changes):
              "CSRF_TRUSTED_ORIGINS", "SESSION_COOKIE_SECURE", "CSRF_COOKIE_SECURE",
              "SECURE_SSL_REDIRECT", "SECURE_HSTS_SECONDS", "SECURE_HSTS_INCLUDE_SUBDOMAINS",
              "SECURE_HSTS_PRELOAD", "SECURE_PROXY_SSL_HEADER", "TRUST_PROXY_HEADERS",
-             "DEPLOYMENT_RUNTIME")
+              "DEPLOYMENT_RUNTIME", "AI_ENABLED", "AI_GLOBAL_DAILY_CREDITS", "AI_GLOBAL_WEEKLY_CREDITS")
     return {name: parsed[name] for name in names}
 
 

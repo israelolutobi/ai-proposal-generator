@@ -75,7 +75,12 @@ def main():
         return 2
     os.environ.update(DATABASE_URL=url, SECRET_KEY=secrets.token_urlsafe(64), DEBUG="False",
                       OPENAI_API_KEY="", GEMINI_API_KEY="", DJANGO_SETTINGS_MODULE="mysite.settings",
-                      PYTHONDONTWRITEBYTECODE="1", ALLOWED_HOSTS="localhost,127.0.0.1")
+                      PYTHONDONTWRITEBYTECODE="1", ALLOWED_HOSTS="localhost,127.0.0.1",
+                      APP_ENV="development", AI_ENABLED="True", PYTHON_DOTENV_DISABLED="1")
+    # Individual global-control tests explicitly opt into synthetic ceilings.
+    # Ordinary DATABASE_URL/.env/production AI policy never selects test state.
+    os.environ.pop("AI_GLOBAL_DAILY_CREDITS", None)
+    os.environ.pop("AI_GLOBAL_WEEKLY_CREDITS", None)
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     import django
     django.setup()
@@ -83,7 +88,8 @@ def main():
     from django.core.management import call_command
     if settings.TEST_RUNNER != "mysite.test_runner.NoNetworkDiscoverRunner":
         raise TestConfigurationError("The network-blocking test runner must remain active.")
-    labels = ["mysite.postgres_admission_tests", "mysite.postgres_concurrency_tests"]
+    labels = ["mysite.postgres_admission_tests", "mysite.postgres_concurrency_tests",
+              "mysite.postgres_global_exposure_tests"]
     call_command("test", *labels, verbosity=2, interactive=False)
     return 0
 

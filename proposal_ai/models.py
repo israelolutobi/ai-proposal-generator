@@ -3,6 +3,31 @@ from django.db import models
 from django.utils import timezone
 
 
+class AIQuotaPeriod(models.Model):
+    """Durable product-credit accounting; period dates are UTC, not browser dates."""
+    class Kind(models.TextChoices):
+        DAILY = "daily", "Daily"
+        WEEKLY = "weekly", "Weekly"
+
+    kind = models.CharField(max_length=6, choices=Kind.choices, editable=False)
+    period_start = models.DateField(editable=False)
+    credit_limit = models.BigIntegerField(null=True, blank=True, editable=False)
+    reserved_credits = models.BigIntegerField(default=0, editable=False)
+    consumed_credits = models.BigIntegerField(default=0, editable=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("kind", "period_start"), name="ai_quota_period_unique"),
+            models.CheckConstraint(condition=models.Q(kind__in=("daily", "weekly")), name="ai_quota_period_kind"),
+            models.CheckConstraint(condition=models.Q(reserved_credits__gte=0), name="ai_quota_reserved_nonnegative"),
+            models.CheckConstraint(condition=models.Q(consumed_credits__gte=0), name="ai_quota_consumed_nonnegative"),
+            models.CheckConstraint(condition=models.Q(credit_limit__isnull=True) | models.Q(credit_limit__gte=0), name="ai_quota_limit_nonnegative"),
+        ]
+
+    def __str__(self):
+        return f"{self.kind}: {self.period_start} UTC"
+
+
 class AIRequest(models.Model):
     """Payload-free request ledger; allowances are not provider cost estimates."""
 
@@ -28,6 +53,7 @@ class AIRequest(models.Model):
         RELEASED = "released", "Released"
 
     class Failure(models.TextChoices):
+        AI_DISABLED = "ai_disabled", "AI disabled before provider execution"
         LOCAL_CONFIGURATION = "local_configuration", "Local configuration"
         CONFIGURATION = "configuration", "Provider configuration rejection"
         AUTHENTICATION = "authentication", "Provider authentication rejection"
@@ -61,6 +87,10 @@ class AIRequest(models.Model):
     failure_category = models.CharField(max_length=24, choices=Failure.choices, blank=True)
     job_post = models.ForeignKey("JobPost", null=True, blank=True, on_delete=models.SET_NULL)
     proposal = models.ForeignKey("Proposal", null=True, blank=True, on_delete=models.SET_NULL)
+    global_day_period = models.ForeignKey(AIQuotaPeriod, null=True, blank=True, editable=False,
+                                         on_delete=models.PROTECT, related_name="daily_requests")
+    global_week_period = models.ForeignKey(AIQuotaPeriod, null=True, blank=True, editable=False,
+                                          on_delete=models.PROTECT, related_name="weekly_requests")
 
     # Provider evidence is independent of quota units and future monetary estimates.
     # NULL means unknown; zero is reserved for an actual reported/measured zero.

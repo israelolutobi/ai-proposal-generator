@@ -8,6 +8,36 @@ import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 
 
+AI_GLOBAL_LIMIT_MAX = 2**31 - 1
+
+
+def ai_configuration(environment, production=False):
+    enabled = boolean(environment, "AI_ENABLED", not production)
+    names = ("AI_GLOBAL_DAILY_CREDITS", "AI_GLOBAL_WEEKLY_CREDITS")
+    supplied = [name in environment for name in names]
+    if any(supplied) and not all(supplied):
+        raise ImproperlyConfigured("Configure both AI_GLOBAL_DAILY_CREDITS and AI_GLOBAL_WEEKLY_CREDITS.")
+    limits = {name: integer(environment, name, 0, maximum=AI_GLOBAL_LIMIT_MAX)
+              if all(supplied) else None for name in names}
+    configuration = {"AI_ENABLED": enabled, **limits}
+    validate_ai_configuration(configuration, production=production)
+    return configuration
+
+
+def validate_ai_configuration(configuration, production=False):
+    def setting(name):
+        return configuration[name] if isinstance(configuration, Mapping) else getattr(configuration, name)
+    enabled = setting("AI_ENABLED")
+    if type(enabled) is not bool:
+        raise ImproperlyConfigured("AI_ENABLED must be True or False.")
+    limits = [setting(name) for name in ("AI_GLOBAL_DAILY_CREDITS", "AI_GLOBAL_WEEKLY_CREDITS")]
+    if any(value is not None for value in limits):
+        if any(type(value) is not int or not 0 <= value <= AI_GLOBAL_LIMIT_MAX for value in limits):
+            raise ImproperlyConfigured("Global AI limits must be a valid pair of nonnegative integers within the supported range.")
+    elif production and enabled:
+        raise ImproperlyConfigured("Enabled production AI requires explicit AI_GLOBAL_DAILY_CREDITS and AI_GLOBAL_WEEKLY_CREDITS.")
+
+
 def environment_mode(environment):
     mode = environment.get("APP_ENV", "development").strip().lower()
     if mode not in {"development", "production"}:
@@ -120,7 +150,9 @@ def validate_production(configuration):
     def setting(name):
         return configuration[name] if isinstance(configuration, Mapping) else getattr(configuration, name)
 
-    if setting("APP_ENV") != "production":
+    production = setting("APP_ENV") == "production"
+    validate_ai_configuration(configuration, production=production)
+    if not production:
         return
     if setting("DEBUG"):
         raise ImproperlyConfigured("DEBUG must be False in production.")

@@ -291,18 +291,78 @@ pricing snapshots and billing calculations are not implemented. Requests without
 reported usage cannot be treated as zero cost. The ledger counts admitted requests,
 not every rejected form/allowance attempt; killed workers may leave usage unknown.
 
-Migrations `0014_ai_request` and `0015_ai_request_telemetry` must be reviewed and
+Migrations `0014_ai_request`, `0015_ai_request_telemetry` and
+`0016_ai_global_exposure` must be reviewed and
 applied explicitly before using AI features. Existing rows retain NULL telemetry;
 no historical usage is invented. Development SQLite uses write-first transactions and fails closed
 on lock/busy errors. Production requires one shared database with partial unique
 constraints; PostgreSQL admission requires READ COMMITTED isolation. Run the
 concurrency tests against the intended production database before release; local
 SQLite tests do not prove PostgreSQL behavior.
+SQLite contention may reject both competitors with controlled failures and no
+dispatch; local concurrency tests verify this fail-closed outcome as well as a
+single winner. PostgreSQL integration tests require a winner when capacity permits.
 
-Admission timestamps and the 10-minute lease start after the reservation INSERT
-acquires the active slot. The provisional INSERT timestamps are refreshed inside
-the same transaction before burst/quota decisions. A wait spanning midnight or
-Monday assigns the new reservation to the UTC period when its slot was acquired.
+Admission timestamps and the full 10-minute lease start after the reservation
+INSERT acquires the active slot and, with global controls enabled, after both
+global period locks are acquired. The provisional INSERT timestamps are refreshed
+inside the same transaction before all burst/quota decisions. A wait spanning
+midnight or Monday rolls back/restarts admission against the final UTC periods;
+database-only restarts are bounded and never retry provider work.
+
+`AI_ENABLED` is a server-side availability switch. Development defaults to True;
+explicit production defaults to False. Only True/False (case-insensitive) are
+accepted; supplied blank/invalid values fail startup. Disabled AI returns a safe
+503 for new generation, while saved product areas and completed extraction/proposal
+replays remain available. Summary replay retains its existing lost-output behavior.
+Checks run before admission, after lock waits, immediately before dispatch and at
+the SDK boundary, including the unused Responses helper. A disabled undispatched
+reservation releases capacity; already-started paid work is not cancelled/refunded.
+
+`AI_GLOBAL_DAILY_CREDITS` and `AI_GLOBAL_WEEKLY_CREDITS` provide separate service-wide
+product-credit ceilings. **Actual production thresholds remain unselected and
+require human approval.** Both are required when production AI is enabled; both
+may be omitted in development or with production AI disabled. If either is supplied,
+both must be valid decimal integers from 0 through 2147483647. Zero admits no new
+paid work, and does not promise a reset retry. Negative, blank, malformed and
+unlimited sentinel values are rejected. There is no required daily/weekly ratio.
+Local omission disables only global enforcement; existing account controls remain.
+Product credits do not guarantee a monetary spend ceiling.
+
+`AIQuotaPeriod` holds durable reserved/consumed totals for UTC days and Monday-based
+UTC weeks, with immutable request bindings on the authoritative AIRequest ledger.
+Admission claims the ledger first, then locks periods in `(kind, period_start, pk)`
+order. Both reservations are committed together. Success/ambiguous paid failures
+consume; definitive releasable failures and undispatched stale requests release.
+Lifecycle and counter transitions commit together, exactly once. No provider I/O
+occurs inside these transactions. Recorded non-NULL period limits must match worker
+configuration; conflicts fail closed without overwriting policy. Changing a current
+period's limit is not an automatic live configuration operation.
+
+Deploy 0016 as an operator/release migration with old AI-writing workers stopped,
+before enabling new workers. It binds historical requests using their recorded
+UTC admission time and aggregates only recorded reserved/consumed credits; released
+requests add no credits. It preserves lifecycle/telemetry and leaves historical
+limits NULL, initialized under lock only if a period becomes current for admission.
+Do not run migrations during worker startup. Back up and review this bootstrap
+before a real deployment; development/test rehearsals do not migrate real data.
+
+For read-only operator inspection, run `python manage.py ai_status`. It reports this
+process's policy, current period totals/reset times and safe ledger discrepancy
+warnings; it never creates periods, repairs counters, recovers requests or calls
+providers. Period admin is inspection-only under normal staff/model permissions.
+Automatic admission recovery sweeps at most 50 expired accounts, each in a separate
+ledger-first transaction before new-period locking. Explicit recovery is a separate
+mutating command: `python manage.py recover_ai_requests --limit 50` (1–1000).
+Recovery always adjusts the original bound periods, never the recovery period,
+and never redispatches. Current/active periods and request bindings must be retained;
+formal retention remains separate. Account/ledger deletion does not guess refunds
+or lower durable counters; a discrepancy requires operator investigation.
+
+An environment switch is process-local, not a dynamic distributed toggle. To stop
+AI fleet-wide, set `AI_ENABLED=False`, replace/restart every web worker/replica,
+verify each adopted configuration (including read-only status), and drain existing
+in-flight work. Do not remove the API key as an operational shutdown mechanism.
 
 PostgreSQL integration tests are separate from ordinary `manage.py test` discovery.
 Use a dedicated disposable PostgreSQL cluster with a `proposalq_task4b` database
@@ -326,8 +386,9 @@ TLS/proxy isolation, upstream timeouts and graceful draining against the contrac
 above. Gunicorn now uses the reviewed 90/105-second policy; provider inactivity
 timeouts still do not create an overall deadline. Open registration permits
 multiple-account allowance abuse; account controls are not a global spending
-ceiling. Global AI exposure/kill switch, controlled signup, health checks,
-backups, pricing and telemetry retention remain separate reviewed tasks.
+ceiling. The global controls above require approved limits and verified fleet-wide
+configuration before hosted AI Beta. Controlled signup, health checks, backups,
+pricing and telemetry retention remain separate reviewed tasks.
 
 ---
 

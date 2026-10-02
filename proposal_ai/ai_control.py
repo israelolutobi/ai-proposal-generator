@@ -13,12 +13,13 @@ import math
 import uuid
 
 from django.core import signing
+from django.conf import settings
 from django.db import DatabaseError, IntegrityError, connection, transaction
-from django.db.models import Sum
+from django.db.models import F, Sum
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare, salted_hmac
 
-from . import services
+from . import ai_global, services
 from .models import AIRequest, JobPost, Proposal
 
 
@@ -39,6 +40,16 @@ WEEKLY_CREDITS = 100
 NONCE_MAX_AGE = 24 * 60 * 60
 LEASE = timedelta(minutes=10)
 NONCE_SALT = "proposalq.ai-request.v1"
+ADMISSION_RESTARTS = 3
+STALE_RECOVERY_BATCH = 50
+
+
+class _RestartAdmission(Exception):
+    pass
+
+
+class _ExpiredDuringAccounting(Exception):
+    pass
 
 
 def now():
@@ -56,6 +67,11 @@ class ControlError(Exception):
 
 def unavailable():
     return ControlError("ProposalQ request controls are temporarily unavailable. Please try again later.", 503)
+
+
+def _require_enabled():
+    if getattr(settings, "AI_ENABLED", False) is not True:
+        raise ControlError(services.AIDisabledError.user_message, 503)
 
 
 def issue_nonce(user, operation, resource_id=None, intent=Intent.GENERATE):
@@ -111,22 +127,48 @@ def allowance(user, moment=None):
 
 
 def _recover_stale(user, moment):
-    # A write is deliberately first: SQLite must not upgrade a stale read snapshot.
+    # Write first on SQLite and claim the ledger row before any period lock.
     expired = AIRequest.objects.filter(user=user, lifecycle__in=ACTIVE, lease_expires_at__lte=moment)
-    expired.filter(dispatch_started_at__isnull=True).update(
-        lifecycle=Lifecycle.FAILED, quota_state=Quota.RELEASED,
-        completed_at=moment, failure_category=Failure.STALE,
-    )
-    expired.filter(dispatch_started_at__isnull=False).update(
-        lifecycle=Lifecycle.UNCERTAIN, quota_state=Quota.CONSUMED,
-        completed_at=moment, failure_category=Failure.STALE,
-    )
+    expired.update(lease_expires_at=F("lease_expires_at"))
+    counts = {"released": 0, "consumed": 0}
+    for row in expired.order_by("pk"):
+        dispatched = row.dispatch_started_at is not None
+        quota = Quota.CONSUMED if dispatched else Quota.RELEASED
+        changed = expired.filter(pk=row.pk, quota_state=Quota.RESERVED).update(
+            lifecycle=Lifecycle.UNCERTAIN if dispatched else Lifecycle.FAILED,
+            quota_state=quota, completed_at=moment, failure_category=Failure.STALE,
+        )
+        if changed:
+            ai_global.finish_reservation(row, quota)
+            counts["consumed" if dispatched else "released"] += 1
+    return counts
 
 
-def recover_stale(user):
+def recover_stale(user, moment=None):
     try:
         with transaction.atomic():
-            _recover_stale(user, now())
+            return _recover_stale(user, moment or now())
+    except (DatabaseError, ai_global.CoordinationError):
+        raise unavailable() from None
+
+
+def recover_global_stale(limit=STALE_RECOVERY_BATCH, moment=None):
+    """Bounded cross-user recovery, one ledger-first transaction per account.
+
+    Never invoke while retaining a new admission's period locks.
+    """
+    if type(limit) is not int or not 1 <= limit <= 1000:
+        raise ValueError("Recovery batch must be between 1 and 1000.")
+    moment = moment or now()
+    try:
+        users = list(AIRequest.objects.filter(lifecycle__in=ACTIVE, lease_expires_at__lte=moment)
+                     .order_by("lease_expires_at", "pk").values_list("user_id", flat=True)[:limit])
+        counts = {"released": 0, "consumed": 0}
+        for user_id in users:
+            result = recover_stale(user_id, moment)
+            for name in counts:
+                counts[name] += result[name]
+        return counts
     except DatabaseError:
         raise unavailable() from None
 
@@ -174,63 +216,60 @@ def admit(user, operation, token, submitted_input, effective_input, resource_id=
     try:
         if not connection.features.supports_partial_indexes:
             raise unavailable()
-        with transaction.atomic():
-            _recover_stale(user, moment)
-            if connection.vendor == "postgresql":
-                # A stale snapshot after waiting on the active-slot constraint
-                # could miss recently finalized usage. Require fresh reads.
-                with connection.cursor() as cursor:
-                    cursor.execute("SHOW transaction_isolation")
-                    if cursor.fetchone()[0] != "read committed":
-                        raise unavailable()
-            existing = AIRequest.objects.filter(user=user, nonce=identity).first()
-            if existing:
-                return _replay(existing, submitted, effective)
-            row = AIRequest.objects.create(
-                user=user, operation=operation, nonce=identity, intent=intent,
-                submitted_fingerprint=submitted, effective_fingerprint=effective,
-                quota_units=CREDITS[operation], admitted_at=moment,
-                lease_expires_at=moment + LEASE, job_post_id=resource_id,
-            )
-            # The INSERT can wait for another request to relinquish its active
-            # slot. Its initial timestamps are provisional until that wait ends.
-            # Persist one fresh admission time for the lease and all limits below.
-            moment = now()
-            row.admitted_at = moment
-            row.lease_expires_at = moment + LEASE
-            row.save(update_fields=["admitted_at", "lease_expires_at"])
-            maximum, window = BURSTS[operation]
-            attempts = AIRequest.objects.filter(
-                user=user, operation=operation, dispatch_started_at__gt=moment - window,
-                dispatch_started_at__lte=moment,
-            ).order_by("dispatch_started_at")
-            if attempts.count() >= maximum:
-                retry = max(1, math.ceil((attempts.first().dispatch_started_at + window - moment).total_seconds()))
-                raise ControlError("Please wait before generating again.", 429, retry_after=retry)
-            metadata, daily, weekly = allowance(user, moment)
-            day, week, day_reset, week_reset = boundaries(moment)
-            resets = []
-            if daily > DAILY_CREDITS:
-                resets.append(day_reset)
-            if weekly > WEEKLY_CREDITS:
-                resets.append(week_reset)
-            if resets:
-                # Remove the tentative reservation from displayed allowance too.
-                metadata["daily_remaining"] = max(0, DAILY_CREDITS - daily + row.quota_units)
-                metadata["weekly_remaining"] = max(0, WEEKLY_CREDITS - weekly + row.quota_units)
-                reset = max(resets)
-                metadata["next_reset"] = reset.isoformat()
-                raise ControlError("Your ProposalQ allowance is insufficient. It resets at " + reset.strftime("%Y-%m-%d %H:%M UTC") + ".",
-                                   429, retry_after=max(1, math.ceil((reset - moment).total_seconds())), metadata=metadata)
-            return Admission(row)
+        _require_read_committed()
+        existing = AIRequest.objects.filter(user=user, nonce=identity).first()
+        if existing:
+            recover_stale(user, moment)
+            existing.refresh_from_db()
+            return _replay(existing, submitted, effective)
+        _require_enabled()
+        configured = ai_global.limits()
+        # Old-period recovery commits separately, before new-period acquisition.
+        recover_stale(user, moment)
+        if configured[0] is not None:
+            recover_global_stale(moment=moment)
+        for attempt in range(ADMISSION_RESTARTS):
+            try:
+                with transaction.atomic():
+                    _require_read_committed()
+                    _require_enabled()
+                    # First application write establishes the account-wide slot.
+                    row = AIRequest.objects.create(
+                        user=user, operation=operation, nonce=identity, intent=intent,
+                        submitted_fingerprint=submitted, effective_fingerprint=effective,
+                        quota_units=CREDITS[operation], admitted_at=moment,
+                        lease_expires_at=moment + LEASE, job_post_id=resource_id,
+                    )
+                    moment = now()
+                    periods = None
+                    if configured[0] is not None:
+                        periods = ai_global.lock_current(moment)
+                        moment = now()
+                        if not ai_global.matches(periods, moment):
+                            raise _RestartAdmission()
+                    # One final application time after ALL contention, never DB NOW().
+                    row.admitted_at = moment
+                    row.lease_expires_at = moment + LEASE
+                    row.save(update_fields=["admitted_at", "lease_expires_at"])
+                    _require_enabled()
+                    _check_user_limits(user, row, moment)
+                    if periods is not None:
+                        ai_global.reserve(row, periods, configured, moment)
+                    _require_enabled()
+                    return Admission(row)
+            except _RestartAdmission:
+                # Only database admission restarts. No provider work has started.
+                continue
+        raise unavailable()
+    except ai_global.CapacityError as error:
+        raise ControlError(services.AIDisabledError.user_message, 429, retry_after=error.retry_after) from None
+    except ai_global.CoordinationError:
+        raise unavailable() from None
     except ControlError:
-        # A rejected admission rolls back its transaction, including recovery.
-        # Commit stale transitions independently so old nonces stay terminal.
+        # Recovery has its own ledger-first transaction and cannot retain new locks.
         recover_stale(user)
         raise
     except IntegrityError:
-        # A competing insert can win PostgreSQL's unique constraint. Re-read only
-        # after leaving the failed transaction; never fall through to dispatch.
         try:
             existing = AIRequest.objects.filter(user=user, nonce=identity).first()
             if existing:
@@ -240,6 +279,41 @@ def admit(user, operation, token, submitted_input, effective_input, resource_id=
         raise ControlError("An AI request is already running for your account. Please wait.") from None
     except DatabaseError:
         raise unavailable() from None
+
+
+def _require_read_committed():
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute("SHOW transaction_isolation")
+            if cursor.fetchone()[0] != "read committed":
+                raise unavailable()
+
+
+def _check_user_limits(user, row, moment):
+    operation = row.operation
+    maximum, window = BURSTS[operation]
+    attempts = AIRequest.objects.filter(
+        user=user, operation=operation, dispatch_started_at__gt=moment - window,
+        dispatch_started_at__lte=moment,
+    ).order_by("dispatch_started_at")
+    if attempts.count() >= maximum:
+        retry = max(1, math.ceil((attempts.first().dispatch_started_at + window - moment).total_seconds()))
+        raise ControlError("Please wait before generating again.", 429, retry_after=retry)
+    metadata, daily, weekly = allowance(user, moment)
+    day, week, day_reset, week_reset = boundaries(moment)
+    resets = []
+    if daily > DAILY_CREDITS:
+        resets.append(day_reset)
+    if weekly > WEEKLY_CREDITS:
+        resets.append(week_reset)
+    if resets:
+        # Remove the tentative reservation from displayed allowance too.
+        metadata["daily_remaining"] = max(0, DAILY_CREDITS - daily + row.quota_units)
+        metadata["weekly_remaining"] = max(0, WEEKLY_CREDITS - weekly + row.quota_units)
+        reset = max(resets)
+        metadata["next_reset"] = reset.isoformat()
+        raise ControlError("Your ProposalQ allowance is insufficient. It resets at " + reset.strftime("%Y-%m-%d %H:%M UTC") + ".",
+                           429, retry_after=max(1, math.ceil((reset - moment).total_seconds())), metadata=metadata)
 
 
 def _owned_live(row, moment):
@@ -258,17 +332,22 @@ def _telemetry_fields(telemetry):
 
 
 def mark_dispatch(row, telemetry=None):
+    if getattr(settings, "AI_ENABLED", False) is not True:
+        fail(row, Failure.AI_DISABLED, release=True)
+        _require_enabled()
     moment = now()
     telemetry = telemetry if telemetry is not None else services.request_telemetry(row.operation)
     try:
-        changed = _owned_live(row, moment).filter(lifecycle=Lifecycle.RESERVED).update(
+        owned = AIRequest.objects.get(pk=row.pk, user_id=row.user_id, nonce=row.nonce)
+        ai_global.check_dispatch_bindings(owned)
+        changed = _owned_live(row, moment).filter(lifecycle=Lifecycle.RESERVED, quota_state=Quota.RESERVED).update(
             lifecycle=Lifecycle.IN_FLIGHT, dispatch_started_at=moment,
             **_telemetry_fields(telemetry),
         )
         if not changed:
-            recover_stale(row.user)
+            recover_stale(row.user_id)
             raise ControlError("This request is no longer active. Start a new generation.")
-    except DatabaseError:
+    except (DatabaseError, AIRequest.DoesNotExist, ai_global.CoordinationError):
         try:
             fail(row, Failure.COORDINATION, release=True)
         except ControlError:
@@ -283,13 +362,20 @@ def fail(row, category, *, release=False, telemetry=None):
     measured = _telemetry_fields(telemetry) if telemetry is not None else {}
     try:
         with transaction.atomic():
-            _recover_stale(row.user, moment)
-            _owned_live(row, moment).update(
+            _recover_stale(row.user_id, moment)
+            quota = Quota.RELEASED if release else Quota.CONSUMED
+            changed = _owned_live(row, moment).filter(quota_state=Quota.RESERVED).update(
                 lifecycle=Lifecycle.FAILED, quota_state=Quota.RELEASED if release else Quota.CONSUMED,
                 completed_at=moment, failure_category=category,
                 **measured,
             )
-    except DatabaseError:
+            if changed:
+                owned = AIRequest.objects.get(pk=row.pk)
+                if ai_global.finish_reservation(owned, quota) and owned.lease_expires_at <= now():
+                    raise _ExpiredDuringAccounting()
+    except _ExpiredDuringAccounting:
+        recover_stale(row.user_id)
+    except (DatabaseError, ai_global.CoordinationError):
         raise unavailable() from None
 
 
@@ -300,7 +386,7 @@ def record_telemetry(row, telemetry):
     try:
         changed = _owned_live(row, moment).filter(lifecycle=Lifecycle.IN_FLIGHT).update(**measured)
         if not changed:
-            recover_stale(row.user)
+            recover_stale(row.user_id)
             raise ControlError("This request expired before completion. Start a new generation.")
     except DatabaseError:
         try:
@@ -315,6 +401,9 @@ def call_provider(row, function):
     requested = services.request_telemetry(row.operation)
     try:
         services.check_configuration()
+    except services.AIDisabledError:
+        fail(row, Failure.AI_DISABLED, release=True, telemetry=requested)
+        raise ControlError(services.AIDisabledError.user_message, 503) from None
     except services.AIConfigurationError:
         fail(row, Failure.LOCAL_CONFIGURATION, release=True, telemetry=requested)
         raise
@@ -326,6 +415,8 @@ def call_provider(row, function):
     except services.AIError as error:
         release = isinstance(error, (services.AIConfigurationError, services.AICapacityError, services.AIInputError))
         fail(row, error.category, release=release, telemetry=error.telemetry)
+        if isinstance(error, services.AIDisabledError):
+            raise ControlError(error.user_message, 503) from None
         raise
     except Exception:
         fail(row, Failure.UNEXPECTED)
@@ -340,11 +431,14 @@ def succeed(row, persist=None):
         with transaction.atomic():
             # This write owns/fences the ledger row before application persistence.
             # Recovery cannot pass it until this transaction commits or rolls back.
-            changed = _owned_live(row, moment).filter(lifecycle=Lifecycle.IN_FLIGHT).update(
+            changed = _owned_live(row, moment).filter(lifecycle=Lifecycle.IN_FLIGHT, quota_state=Quota.RESERVED).update(
                 lifecycle=Lifecycle.SUCCEEDED, quota_state=Quota.CONSUMED,
                 completed_at=moment, failure_category="",
             )
             if not changed:
+                raise ControlError("This request expired before completion. Start a new generation.")
+            owned = AIRequest.objects.get(pk=row.pk)
+            if ai_global.finish_reservation(owned, Quota.CONSUMED) and owned.lease_expires_at <= now():
                 raise ControlError("This request expired before completion. Start a new generation.")
             result = persist() if persist else None
             if isinstance(result, JobPost):
@@ -353,7 +447,7 @@ def succeed(row, persist=None):
                 AIRequest.objects.filter(pk=row.pk).update(job_post_id=result.job_post_id, proposal=result)
             return result
     except ControlError:
-        recover_stale(row.user)
+        recover_stale(row.user_id)
         raise
     except Exception:
         fail(row, Failure.PERSISTENCE)

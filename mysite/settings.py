@@ -9,7 +9,7 @@ from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 from mysite.configuration import (
-    boolean, csv_values, database_configuration, environment_mode, integer,
+    ai_configuration, boolean, csv_values, database_configuration, environment_mode, integer,
     trusted_origins, validate_hsts, validate_production,
 )
 from mysite.runtime import gunicorn_configuration
@@ -25,6 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 APP_ENV = environment_mode(os.environ)
 IS_PRODUCTION = APP_ENV == "production"
+globals().update(ai_configuration(os.environ, production=IS_PRODUCTION))
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 

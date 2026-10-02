@@ -861,6 +861,7 @@ class TransactionTelemetryTests(TransactionTestCase):
         old = [("proposal_ai", "0014_ai_request")]
         new = [("proposal_ai", "0015_ai_request_telemetry")]
         executor = MigrationExecutor(connection)
+        final_targets = executor.loader.graph.leaf_nodes()
         try:
             executor.migrate(old)
             apps = executor.loader.project_state(old).apps
@@ -872,8 +873,8 @@ class TransactionTelemetryTests(TransactionTestCase):
                 admitted_at=MOMENT, lease_expires_at=MOMENT)
             executor = MigrationExecutor(connection)
             executor.migrate(new)
-            current = AIRequest.objects.get(pk=row.pk)
+            current = executor.loader.project_state(new).apps.get_model("proposal_ai", "AIRequest").objects.get(pk=row.pk)
             self.assertTrue(all(getattr(current, name) is None for name in TELEMETRY_FIELDS))
             self.assertEqual((current.lifecycle, current.quota_state, current.quota_units), (L.SUCCEEDED, Q.CONSUMED, 1))
         finally:
-            MigrationExecutor(connection).migrate(new)
+            MigrationExecutor(connection).migrate(final_targets)

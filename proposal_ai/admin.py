@@ -1,7 +1,25 @@
 """Permission-controlled, inspection-only access to the AI request ledger."""
 from django.contrib import admin
 
-from .models import AIRequest
+from .models import AIQuotaPeriod, AIRequest
+
+
+@admin.register(AIQuotaPeriod)
+class AIQuotaPeriodAdmin(admin.ModelAdmin):
+    list_display = ("kind", "period_start", "credit_limit", "reserved_credits", "consumed_credits")
+    list_filter = ("kind",)
+    ordering = ("-period_start", "kind")
+    fields = readonly_fields = ("id", "kind", "period_start", "credit_limit", "reserved_credits", "consumed_credits")
+    actions = None
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(AIRequest)
