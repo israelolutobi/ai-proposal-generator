@@ -186,6 +186,28 @@ constraints; PostgreSQL admission requires READ COMMITTED isolation. Run the
 concurrency tests against the intended production database before release; local
 SQLite tests do not prove PostgreSQL behavior.
 
+Admission timestamps and the 10-minute lease start after the reservation INSERT
+acquires the active slot. The provisional INSERT timestamps are refreshed inside
+the same transaction before burst/quota decisions. A wait spanning midnight or
+Monday assigns the new reservation to the UTC period when its slot was acquired.
+
+PostgreSQL integration tests are separate from ordinary `manage.py test` discovery.
+Use a dedicated disposable PostgreSQL cluster with a `proposalq_task4b` database
+on an explicit loopback port. Set `PROPOSALQ_POSTGRES_TESTS=1`,
+`PROPOSALQ_POSTGRES_TEST_DATABASE_URL` to that test-only connection, and
+`PROPOSALQ_TEST_PG_DATA_DIR` to its server data directory, then run:
+
+```powershell
+.\.venv\Scripts\python.exe -B scripts/run_postgres_tests.py
+```
+
+The launcher verifies the cluster identity, rejects additional databases, requires
+READ COMMITTED, and creates/destroys `test_proposalq_task4b`. It never chooses a
+connection from `.env` or ordinary `DATABASE_URL`. Providers remain mocked and the
+network guard stays active. CI can use an isolated PostgreSQL service published on
+a loopback port; require this suite before deployment promotion. Cluster setup and
+cleanup remain explicit operator steps. No CI infrastructure is added here.
+
 **PRE-BETA deployment review:** the Procfile does not set a Gunicorn timeout.
 The installed default is 30 seconds, while the AI client read timeout is 45 seconds
 and is not an overall deadline. Align worker/provider deadlines deliberately before

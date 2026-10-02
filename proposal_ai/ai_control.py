@@ -192,6 +192,13 @@ def admit(user, operation, token, submitted_input, effective_input, resource_id=
                 quota_units=CREDITS[operation], admitted_at=moment,
                 lease_expires_at=moment + LEASE, job_post_id=resource_id,
             )
+            # The INSERT can wait for another request to relinquish its active
+            # slot. Its initial timestamps are provisional until that wait ends.
+            # Persist one fresh admission time for the lease and all limits below.
+            moment = now()
+            row.admitted_at = moment
+            row.lease_expires_at = moment + LEASE
+            row.save(update_fields=["admitted_at", "lease_expires_at"])
             maximum, window = BURSTS[operation]
             attempts = AIRequest.objects.filter(
                 user=user, operation=operation, dispatch_started_at__gt=moment - window,
