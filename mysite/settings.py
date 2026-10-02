@@ -5,9 +5,14 @@ Django settings for mysite project.
 from pathlib import Path
 import os
 
-import dj_database_url
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
+
+from mysite.configuration import (
+    boolean, csv_values, database_configuration, environment_mode, integer,
+    trusted_origins, validate_hsts, validate_production,
+)
+from mysite.runtime import gunicorn_configuration
 
 
 load_dotenv()
@@ -18,6 +23,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY SETTINGS
 
+APP_ENV = environment_mode(os.environ)
+IS_PRODUCTION = APP_ENV == "production"
+
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 if not SECRET_KEY or not SECRET_KEY.strip():
@@ -25,19 +33,11 @@ if not SECRET_KEY or not SECRET_KEY.strip():
         "SECRET_KEY must be set in the environment or local .env file."
     )
 
-DEBUG = os.getenv("DEBUG", "False").strip().lower() == "true"
+DEBUG = boolean(os.environ, "DEBUG", False)
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-    if host.strip()
-]
+ALLOWED_HOSTS = csv_values(os.getenv("ALLOWED_HOSTS", "" if IS_PRODUCTION else "localhost,127.0.0.1"))
 
-CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",")
-    if origin.strip()
-]
+CSRF_TRUSTED_ORIGINS = trusted_origins(os.getenv("CSRF_TRUSTED_ORIGINS", ""), production=IS_PRODUCTION)
 
 
 # APPLICATIONS
@@ -100,21 +100,7 @@ WSGI_APPLICATION = "mysite.wsgi.application"
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-if DATABASE_URL:
-    DATABASES = {
-        "default": dj_database_url.parse(
-            DATABASE_URL,
-            conn_max_age=600,
-            conn_health_checks=True,
-        )
-    }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
+DATABASES = {"default": database_configuration(DATABASE_URL, BASE_DIR, production=IS_PRODUCTION)}
 
 
 # PASSWORD VALIDATION
@@ -166,11 +152,23 @@ STORAGES = {
 
 # HTTPS / PROXY SETTINGS
 
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+TRUST_PROXY_HEADERS = boolean(os.environ, "TRUST_PROXY_HEADERS", False)
+if TRUST_PROXY_HEADERS and not IS_PRODUCTION:
+    raise ImproperlyConfigured("TRUST_PROXY_HEADERS is supported only in explicit production mode.")
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if TRUST_PROXY_HEADERS else None
 
-SESSION_COOKIE_SECURE = not DEBUG
+SECURE_SSL_REDIRECT = boolean(os.environ, "SECURE_SSL_REDIRECT", IS_PRODUCTION)
+SECURE_HSTS_SECONDS = integer(os.environ, "SECURE_HSTS_SECONDS", 300 if IS_PRODUCTION else 0, maximum=2**31 - 1)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = boolean(os.environ, "SECURE_HSTS_INCLUDE_SUBDOMAINS", False)
+SECURE_HSTS_PRELOAD = boolean(os.environ, "SECURE_HSTS_PRELOAD", False)
+validate_hsts(SECURE_HSTS_SECONDS, SECURE_HSTS_INCLUDE_SUBDOMAINS, SECURE_HSTS_PRELOAD)
 
-CSRF_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_SECURE = IS_PRODUCTION or not DEBUG
+CSRF_COOKIE_SECURE = IS_PRODUCTION or not DEBUG
+
+# This is the same configuration consumed by gunicorn.conf.py, without I/O.
+DEPLOYMENT_RUNTIME = gunicorn_configuration(os.environ)
+validate_production(globals())
 
 
 # DEFAULT PRIMARY KEY FIELD

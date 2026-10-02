@@ -69,13 +69,13 @@ class SettingsTests(unittest.TestCase):
                 self.assertTrue(settings["SESSION_COOKIE_SECURE"])
                 self.assertTrue(settings["CSRF_COOKIE_SECURE"])
 
-    def test_non_true_values_do_not_enable_debug(self):
+    def test_invalid_debug_values_fail_startup(self):
         for value in ("", "1", "yes", "unexpected"):
             with self.subTest(debug=value):
-                settings = self.load_settings(
-                    {"SECRET_KEY": secrets.token_urlsafe(48), "DEBUG": value}
-                )
-                self.assertFalse(settings["DEBUG"])
+                with self.assertRaisesRegex(ImproperlyConfigured, "DEBUG must be True or False"):
+                    self.load_settings(
+                        {"SECRET_KEY": secrets.token_urlsafe(48), "DEBUG": value}
+                    )
 
     def test_local_dotenv_can_explicitly_enable_development_debug(self):
         settings = self.load_settings(

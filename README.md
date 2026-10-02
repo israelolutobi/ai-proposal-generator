@@ -68,6 +68,11 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 Set your own private `SECRET_KEY` in the environment or `.env`.
 The application will not start if it is missing or blank.
 
+`APP_ENV` defaults to `development`; accepted modes are `development` and
+`production` (case-insensitive). Invalid or blank modes fail startup. Production
+is never inferred from `DEBUG`. Development retains the SQLite fallback when
+`DATABASE_URL` is empty and needs no proxy trust.
+
 `DEBUG` defaults to `False`. For development over local HTTP, explicitly set
 the following environment variable or add it to `.env`:
 
@@ -78,7 +83,8 @@ DEBUG=True
 With debug enabled, session and CSRF cookies can be used over local HTTP.
 Leave debug disabled in production, where these cookies require HTTPS.
 Only `true` enables debug (case-insensitive, with surrounding whitespace ignored).
-`False`, missing values, and invalid values leave debug disabled.
+`False` or a missing value disables debug. All boolean settings accept only
+`True`/`False`; invalid or blank values fail startup rather than being guessed.
 Process environment variables take precedence over values in `.env`.
 Never commit `.env` or secret values. `OPENAI_API_KEY` is needed only for AI
 features; it can remain blank for non-AI development and tests.
@@ -94,6 +100,113 @@ Start the development server:
 ```bash
 .\.venv\Scripts\python.exe manage.py runserver
 ```
+
+### Controlled production configuration
+
+The supported runtime contract is Python **3.13.x**, verified locally with
+**3.13.5** and the existing pinned requirements. Django 6.0 requires Python 3.12
+or later. Select and verify an available Python 3.13 patch on the deployment host;
+this repository does not assume a provider's runtime-selection file. Use Linux
+for Gunicorn; Windows development continues to use `runserver`. No runtime or
+dependency upgrade is part of this change.
+
+Inject production values through the deployment environment. Keep private
+credentials outside Git and preserve a stable, randomly generated `SECRET_KEY`
+of at least 50 characters. Placeholder/insecure/low-diversity keys are rejected.
+The local `.env.example` contains development defaults: copying it alone does
+**not** produce a valid production configuration.
+
+| Setting | Controlled production contract |
+| --- | --- |
+| `APP_ENV` | Explicitly `production` |
+| `DEBUG` | `False` (also the default); `True` prevents startup |
+| `SECRET_KEY` | Private, stable random signing key; never commit it |
+| `DATABASE_URL` | Explicit named PostgreSQL database; no SQLite fallback |
+| `ALLOWED_HOSTS` | Explicit deployment DNS/IP hosts, comma-separated; no `*`, URLs or ports |
+| `CSRF_TRUSTED_ORIGINS` | Empty for same-origin traffic, or explicit HTTPS origins without paths/credentials; never derived from hosts |
+| `SECURE_SSL_REDIRECT` | `True` (production default); disabling it prevents startup |
+| `SECURE_HSTS_SECONDS` | `300` initially (production default), then increase after verifying HTTPS |
+| `SECURE_HSTS_INCLUDE_SUBDOMAINS` | `False` initially |
+| `SECURE_HSTS_PRELOAD` | `False` initially; never enabled automatically |
+| `TRUST_PROXY_HEADERS` | `False` by default; explicitly `True` only under the proxy contract below |
+| `OPENAI_API_KEY` | Required for enabled AI operations; not needed by configuration validation/tests |
+| `PORT` | Gunicorn binds `0.0.0.0:$PORT`, default `8000`; integer 1–65535 |
+| `WEB_CONCURRENCY` | Positive worker count; default one, choose using available CPU/memory |
+
+Production always requires secure session/CSRF cookies. If HSTS preload is
+deliberately enabled later, configuration requires `includeSubDomains=True` and
+at least one year of HSTS. That is only a consistency check: verify all affected
+domains and obtain deployment approval before extending HSTS or submitting to
+preload. With the staged defaults, Django intentionally reports `security.W005`
+and `security.W021`. They are not suppressed; do not enable broad/preload HSTS
+just to remove warnings.
+
+`dj-database-url` retains `CONN_MAX_AGE=600`, connection health checks and supplied
+PostgreSQL options. Parsing does not connect or prove TLS: the operator must
+select the provider's appropriate TLS/CA/hostname-verification policy and encode
+it in the approved database configuration. No provider-specific SSL parameters
+are imposed here. Configuration validation cannot prove database availability,
+certificate validity or whether migrations have been deployed.
+
+### Trusted proxy and timeout contract
+
+When TLS terminates at a reverse proxy and Gunicorn receives HTTP, explicitly set
+`TRUST_PROXY_HEADERS=True`. Django then uses `X-Forwarded-Proto: https`. This is
+safe only when direct untrusted access to Gunicorn is blocked and the ingress
+strips/overwrites client-supplied forwarded-scheme headers. Django cannot verify
+that trust boundary. Without that flag, Django ignores the forwarded scheme;
+incorrect proxy configuration can cause an HTTPS redirect loop. Development
+must leave the flag false. This does not configure client-IP trust.
+
+Gunicorn's separate forwarded-scheme inference is disabled, including its
+default loopback trust, so Django's explicit flag owns that decision. Repository
+startup is:
+
+```bash
+gunicorn --config gunicorn.conf.py mysite.wsgi:application
+```
+
+The shared runtime contract uses sync workers, one thread per worker, reload
+disabled, a **90-second worker timeout** and **105-second graceful timeout**.
+`WEB_CONCURRENCY` controls the worker count. `GUNICORN_CMD_ARGS` is rejected;
+do not override these policies using extra CLI flags or another config file.
+The Gunicorn startup hook checks its effective parsed settings too, so CLI
+overrides cannot silently weaken the reviewed timeout/worker/proxy policy.
+Provider timeouts remain connect 5 seconds and read/write/pool 45 seconds, with
+zero retries. Those are phase/inactivity limits, **not a total wall-clock
+deadline**; pathological calls can still outlive a worker. Existing uncertain
+request accounting/lease recovery remains necessary.
+
+The external reverse proxy/load balancer must allow **at least 120 seconds per
+request**. Drain new traffic before terminating an instance and allow more than
+105 seconds of infrastructure termination grace for Gunicorn's graceful drain.
+Verify the actual ingress/shutdown behavior on the chosen host; application
+configuration cannot enforce it. Synchronous AI requests occupy workers.
+
+### Build, release and startup
+
+Use separate deployment phases, from the repository root:
+
+1. **Build:** select the approved runtime, install pinned requirements and run
+   regression/PostgreSQL integration tests. With the intended production
+   configuration, run `python manage.py validate_deployment` and
+   `python manage.py check --deploy`.
+2. **Static build:** run `python manage.py collectstatic --noinput` once. WhiteNoise
+   uses `CompressedManifestStaticFilesStorage`; retain the resulting ignored
+   `staticfiles/` assets and manifest in the release artifact. Never commit them.
+3. **Release/pre-deploy:** deliberately run `python manage.py migrate` once against
+   the approved production PostgreSQL database, after backup/migration review.
+   Coordinate this step across instances; never run it in each worker.
+4. **Web startup:** use the Procfile/Gunicorn command above, then perform the
+   deployment operator's smoke/readiness checks before routing traffic.
+
+`validate_deployment` checks the effective Django/runtime configuration only. It
+does not connect to PostgreSQL/OpenAI, validate provider credentials, collect
+assets, apply migrations, or certify infrastructure readiness. Configuration
+errors identify the setting without printing its value or credentials.
+Migrations, static collection and seeding never run during web-worker startup.
+Stop a release if configuration, migration or static build fails. Health/readiness
+endpoints and infrastructure rollback/backup procedures remain separate tasks.
 
 AI calls go through `proposal_ai/services.py`. Existing prompts, models and
 API styles are preserved. Requests use a 5-second connection timeout and
@@ -208,12 +321,13 @@ network guard stays active. CI can use an isolated PostgreSQL service published 
 a loopback port; require this suite before deployment promotion. Cluster setup and
 cleanup remain explicit operator steps. No CI infrastructure is added here.
 
-**PRE-BETA deployment review:** the Procfile does not set a Gunicorn timeout.
-The installed default is 30 seconds, while the AI client read timeout is 45 seconds
-and is not an overall deadline. Align worker/provider deadlines deliberately before
-release. This task does not change deployment timeout behavior. Open registration
-also permits multiple-account allowance abuse; account controls are not a global
-spending ceiling.
+**PRE-BETA deployment review:** verify the selected production PostgreSQL database,
+TLS/proxy isolation, upstream timeouts and graceful draining against the contract
+above. Gunicorn now uses the reviewed 90/105-second policy; provider inactivity
+timeouts still do not create an overall deadline. Open registration permits
+multiple-account allowance abuse; account controls are not a global spending
+ceiling. Global AI exposure/kill switch, controlled signup, health checks,
+backups, pricing and telemetry retention remain separate reviewed tasks.
 
 ---
 
