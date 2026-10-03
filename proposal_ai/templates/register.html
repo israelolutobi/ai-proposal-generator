@@ -26,6 +26,8 @@
     border:1px solid #1e293b;
 ">
 
+    {% if registration_enabled %}
+
     <h2 style="
         margin-top:0;
         font-size:32px;
@@ -141,6 +143,13 @@
 
     </form>
 
+    {% else %}
+
+    <h2>Beta access</h2>
+    <p>Beta registration is currently closed.</p>
+
+    {% endif %}
+
     <p style="
         text-align:center;
         margin-top:25px;
@@ -149,7 +158,7 @@
 
         Already have an account?
 
-        <a href="/login/"
+        <a href="{% url 'login' %}"
            style="
                 color:#1e90ff;
                 text-decoration:none;

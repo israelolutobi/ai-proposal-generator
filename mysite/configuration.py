@@ -54,6 +54,17 @@ def boolean(environment, name, default):
     return value == "true"
 
 
+def validate_registration_configuration(configuration, production=False):
+    enabled = (configuration["REGISTRATION_ENABLED"] if isinstance(configuration, Mapping)
+               else configuration.REGISTRATION_ENABLED)
+    if type(enabled) is not bool:
+        raise ImproperlyConfigured("REGISTRATION_ENABLED must be True or False.")
+    if production and enabled:
+        raise ImproperlyConfigured(
+            "REGISTRATION_ENABLED must be False in production during controlled Beta."
+        )
+
+
 def integer(environment, name, default, minimum=0, maximum=None):
     value = environment.get(name, str(default)).strip()
     if not re.fullmatch(r"[0-9]+", value):
@@ -152,6 +163,7 @@ def validate_production(configuration):
 
     production = setting("APP_ENV") == "production"
     validate_ai_configuration(configuration, production=production)
+    validate_registration_configuration(configuration, production=production)
     if not production:
         return
     if setting("DEBUG"):

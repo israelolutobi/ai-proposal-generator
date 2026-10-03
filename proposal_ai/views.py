@@ -1,5 +1,6 @@
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db import transaction
@@ -102,6 +103,9 @@ def add_platform_display_metadata(proposal):
 @sensitive_post_parameters("password1", "password2")
 @require_http_methods(["GET", "HEAD", "POST"])
 def register_user(request):
+    if settings.REGISTRATION_ENABLED is not True:
+        return render(request, "register.html", status=403)
+
     form = RegistrationForm(request.POST if request.method == "POST" else None)
     if request.method == "POST" and form.is_valid():
         user = form.save()

@@ -105,6 +105,8 @@
 
     </form>
 
+    {% if registration_enabled %}
+
     <p style="
         text-align:center;
         margin-top:25px;
@@ -113,7 +115,7 @@
 
         Don't have an account?
 
-        <a href="/register/"
+        <a href="{% url 'register' %}"
            style="
                 color:#1e90ff;
                 text-decoration:none;
@@ -125,6 +127,8 @@
         </a>
 
     </p>
+
+    {% endif %}
 
 </div>
 

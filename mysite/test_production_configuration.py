@@ -55,7 +55,8 @@ def production_overrides(**changes):
              "CSRF_TRUSTED_ORIGINS", "SESSION_COOKIE_SECURE", "CSRF_COOKIE_SECURE",
              "SECURE_SSL_REDIRECT", "SECURE_HSTS_SECONDS", "SECURE_HSTS_INCLUDE_SUBDOMAINS",
              "SECURE_HSTS_PRELOAD", "SECURE_PROXY_SSL_HEADER", "TRUST_PROXY_HEADERS",
-              "DEPLOYMENT_RUNTIME", "AI_ENABLED", "AI_GLOBAL_DAILY_CREDITS", "AI_GLOBAL_WEEKLY_CREDITS")
+              "DEPLOYMENT_RUNTIME", "AI_ENABLED", "AI_GLOBAL_DAILY_CREDITS", "AI_GLOBAL_WEEKLY_CREDITS",
+              "REGISTRATION_ENABLED")
     return {name: parsed[name] for name in names}
 
 
@@ -349,6 +350,95 @@ class ConfigurationTests(unittest.TestCase):
             validate_production(parsed)
 
 
+class RegistrationConfigurationTests(unittest.TestCase):
+    def parsed(self, production=False, **changes):
+        return load_settings(environment(production, **changes))
+
+    def rejected(self, production=False, **changes):
+        with self.assertRaisesRegex(ImproperlyConfigured, "REGISTRATION_ENABLED"):
+            self.parsed(production, **changes)
+
+    def test_development_missing_enables_registration(self):
+        self.assertTrue(self.parsed()["REGISTRATION_ENABLED"])
+
+    def test_development_true_enables_registration(self):
+        self.assertTrue(self.parsed(REGISTRATION_ENABLED="True")["REGISTRATION_ENABLED"])
+
+    def test_development_false_disables_registration(self):
+        self.assertFalse(self.parsed(REGISTRATION_ENABLED="False")["REGISTRATION_ENABLED"])
+
+    def test_development_case_and_whitespace(self):
+        for value, expected in ((" tRuE ", True), ("\tFaLsE\n", False)):
+            with self.subTest(value=value):
+                self.assertIs(self.parsed(REGISTRATION_ENABLED=value)["REGISTRATION_ENABLED"], expected)
+
+    def test_development_blank_is_rejected(self):
+        for value in ("", " \t"):
+            with self.subTest(blank=True):
+                self.rejected(REGISTRATION_ENABLED=value)
+
+    def test_development_invalid_is_rejected(self):
+        for value in ("yes", "1", "0", "enabled", "unexpected"):
+            with self.subTest(value=value):
+                self.rejected(REGISTRATION_ENABLED=value)
+
+    def test_production_missing_disables_registration(self):
+        self.assertFalse(self.parsed(True)["REGISTRATION_ENABLED"])
+
+    def test_production_false_disables_registration(self):
+        self.assertFalse(self.parsed(True, REGISTRATION_ENABLED="False")["REGISTRATION_ENABLED"])
+
+    def test_production_false_case_and_whitespace(self):
+        self.assertFalse(self.parsed(True, REGISTRATION_ENABLED=" fAlSe ")["REGISTRATION_ENABLED"])
+
+    def test_production_true_is_rejected(self):
+        self.rejected(True, REGISTRATION_ENABLED="True")
+
+    def test_production_true_case_and_whitespace_is_rejected(self):
+        self.rejected(True, REGISTRATION_ENABLED=" tRuE ")
+
+    def test_production_blank_is_rejected(self):
+        for value in ("", " \t"):
+            with self.subTest(blank=True):
+                self.rejected(True, REGISTRATION_ENABLED=value)
+
+    def test_production_invalid_is_rejected(self):
+        for value in ("yes", "1", "0", "enabled", "unexpected"):
+            with self.subTest(value=value):
+                self.rejected(True, REGISTRATION_ENABLED=value)
+
+    def test_development_debug_false_does_not_close_registration(self):
+        parsed = self.parsed(DEBUG="False")
+        self.assertEqual(parsed["APP_ENV"], "development")
+        self.assertTrue(parsed["REGISTRATION_ENABLED"])
+
+    def test_database_and_https_do_not_infer_production(self):
+        parsed = self.parsed(DATABASE_URL="postgresql://test_user@127.0.0.1:1/disposable",
+                             SECURE_SSL_REDIRECT="True")
+        self.assertEqual(parsed["APP_ENV"], "development")
+        self.assertTrue(parsed["REGISTRATION_ENABLED"])
+
+    def test_effective_production_policy_cannot_enable_registration(self):
+        parsed = self.parsed(True)
+        parsed["REGISTRATION_ENABLED"] = True
+        with self.assertRaisesRegex(ImproperlyConfigured, "REGISTRATION_ENABLED"):
+            validate_production(parsed)
+
+    def test_effective_policy_rejects_non_boolean_values(self):
+        for value in (None, "False", 0, 1):
+            parsed = self.parsed()
+            parsed["REGISTRATION_ENABLED"] = value
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ImproperlyConfigured, "REGISTRATION_ENABLED"):
+                    validate_production(parsed)
+
+    def test_registration_error_does_not_echo_supplied_value(self):
+        marker = secrets.token_urlsafe(32)
+        with self.assertRaises(ImproperlyConfigured) as captured:
+            self.parsed(True, REGISTRATION_ENABLED=marker)
+        self.assertNotIn(marker, str(captured.exception))
+
+
 class RuntimeTests(unittest.TestCase):
     def test_explicit_worker_and_graceful_timeouts(self):
         parsed = gunicorn_configuration({})
@@ -483,6 +573,12 @@ class DeploymentBehaviorTests(SimpleTestCase):
               patch("proposal_ai.services.OpenAI", side_effect=AssertionError("No provider probe allowed."))):
             call_command("validate_deployment", stdout=output)
         self.assertIn("Production configuration is valid", output.getvalue())
+        self.assertIn("REGISTRATION_ENABLED=False; controlled-Beta registration is closed", output.getvalue())
+
+    def test_validator_rejects_unsafe_effective_registration_policy(self):
+        with configured_production(), override_settings(REGISTRATION_ENABLED=True):
+            with self.assertRaisesRegex(ImproperlyConfigured, "REGISTRATION_ENABLED"):
+                call_command("validate_deployment", stdout=io.StringIO())
 
     def test_validator_output_omits_credentials(self):
         secret = secrets.token_urlsafe(64)

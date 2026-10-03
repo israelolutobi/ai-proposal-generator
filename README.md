@@ -381,14 +381,97 @@ network guard stays active. CI can use an isolated PostgreSQL service published 
 a loopback port; require this suite before deployment promotion. Cluster setup and
 cleanup remain explicit operator steps. No CI infrastructure is added here.
 
+## Controlled Beta access
+
+The initial hosted Beta is for approximately ten manually vetted ordinary Django
+users. Public registration is closed. No invitation system, separate AI
+entitlement, email verification or public password-reset service is introduced.
+
+`APP_ENV` remains the authoritative environment mode. In development,
+`REGISTRATION_ENABLED` defaults to `True`; an explicit `False` closes signup for
+local testing. In production it defaults to `False`, and explicit `True` is a
+configuration error during controlled Beta. Values are case-insensitive and
+trimmed, but blank or values other than `True`/`False` fail startup. Closed
+registration returns HTTP 403 for GET, HEAD and valid-CSRF POST, with a login
+link. Public signup links disappear. Existing active users can still log in and
+use their saved data. `validate_deployment` reports the effective closed policy
+without inspecting users, connecting to the database or calling a provider.
+
+### Provisioning and onboarding
+
+Use the protected Django admin and Django's password mechanisms:
+
+1. Verify the tester through the approved external contact process.
+2. Create an ordinary user in the admin and set a strong initial password.
+3. Add the vetted email address on the user edit page if required.
+4. Confirm `is_active=True`, `is_staff=False`, `is_superuser=False`, and no
+   administrative permissions or permission-bearing groups.
+5. Deliver onboarding credentials through an appropriately protected external
+   channel. Keep plaintext credentials out of logs, documentation and source.
+6. The tester logs in and uses **Change password** in the authenticated navigation
+   (`/change-password/`) to replace the onboarding password.
+7. The tester completes their ProposalQ profile.
+
+Do not use `createsuperuser` for Beta testers. Do not run `seed_demo_data` in hosted
+Beta. Testers need no staff privileges. Only approved operators should be able to
+provision users through admin.
+
+**Before production AI is enabled, review the actual production User population.**
+Every active account must be intentionally approved for controlled Beta. Local
+database accounts do not establish the production population. Review historical
+and operator accounts too; do not automate deletion to perform this review.
+
+All active authenticated accounts receive the existing AI policy when globally
+enabled. Registration closure does not replace `AI_ENABLED`, per-user quotas,
+burst limits, global ceilings or idempotency. Production global AI thresholds
+remain **UNSELECTED** until separately approved; this task selects no values.
+
+### Password changes, recovery and revocation
+
+The authenticated password-change page requires the current password, CSRF and
+Django password validation. It preserves the changing browser's session; other
+sessions carrying the previous authentication hash lose authentication when
+subsequently checked. Passwords are hashed and are not rendered back into forms.
+It does not send email or provide public password recovery.
+
+For recovery, an approved operator verifies the tester through the external
+contact process and uses the admin's supported password-change mechanism to set
+fresh credentials. Deliver them through the protected channel, then have the
+tester change the replacement password after login. Do not send plaintext
+passwords through application logs or add credentials to shell command arguments.
+
+For revocation, set `User.is_active=False` and also invalidate the existing
+credentials using Django's supported admin password mechanisms (for example,
+disable password-based authentication). Deactivation blocks future authentication
+and subsequent protected requests, including future AI admission. Credential
+invalidation prevents an old browser session from becoming authenticated again
+if the account is later reactivated. Existing database session rows may remain;
+do not rely on deactivation alone to permanently invalidate their authentication
+hash. Reactivation must use freshly controlled credentials and operator review.
+
+Do not delete the user to revoke access: owned application records and AI history
+must remain. Already-dispatched AI work is not retroactively cancelled; existing
+accounting, stale recovery and fencing remain authoritative. A request already
+authenticated before deactivation may finish.
+
+### Hosted access protection release gates
+
+Before internet-accessible Beta, trusted ingress/platform protection must cover
+at least `/login/` and `/admin/login/`. Establish trustworthy client-IP handling
+before using IP limits, and never trust arbitrary client-supplied
+`X-Forwarded-For`. Protect admin through an appropriate operator-only
+ingress/authentication boundary where supported. These are infrastructure release
+requirements, not application throttling implemented here. The selected
+infrastructure and its actual protection remain **UNKNOWN** until verified.
+
 **PRE-BETA deployment review:** verify the selected production PostgreSQL database,
 TLS/proxy isolation, upstream timeouts and graceful draining against the contract
 above. Gunicorn now uses the reviewed 90/105-second policy; provider inactivity
-timeouts still do not create an overall deadline. Open registration permits
-multiple-account allowance abuse; account controls are not a global spending
-ceiling. The global controls above require approved limits and verified fleet-wide
-configuration before hosted AI Beta. Controlled signup, health checks, backups,
-pricing and telemetry retention remain separate reviewed tasks.
+timeouts still do not create an overall deadline. Keep production registration
+closed and review the active account population; account controls are not a global
+spending ceiling. The global controls above require approved limits and verified
+fleet-wide configuration before hosted AI Beta. Health checks, backups, pricing
+and telemetry retention remain separate reviewed tasks.
 
 ---
 

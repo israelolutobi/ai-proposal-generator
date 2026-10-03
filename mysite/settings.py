@@ -26,6 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 APP_ENV = environment_mode(os.environ)
 IS_PRODUCTION = APP_ENV == "production"
 globals().update(ai_configuration(os.environ, production=IS_PRODUCTION))
+REGISTRATION_ENABLED = boolean(os.environ, "REGISTRATION_ENABLED", not IS_PRODUCTION)
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
@@ -88,6 +89,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "mysite.context_processors.registration_policy",
             ],
         },
     },

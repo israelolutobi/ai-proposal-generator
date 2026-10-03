@@ -58,9 +58,9 @@
                 Go To Dashboard
             </a>
 
-        {% else %}
+        {% elif registration_enabled %}
 
-            <a href="/register/" style="
+            <a href="{% url 'register' %}" style="
                 background-color:#1e90ff;
                 color:white;
                 padding:16px 34px;
@@ -70,6 +70,21 @@
                 font-weight:bold;
             ">
                 Get Started
+            </a>
+
+        {% else %}
+
+            <p>Beta registration is currently closed.</p>
+            <a href="{% url 'login' %}" style="
+                background-color:#1e90ff;
+                color:white;
+                padding:16px 34px;
+                border-radius:10px;
+                text-decoration:none;
+                font-size:18px;
+                font-weight:bold;
+            ">
+                Login
             </a>
 
         {% endif %}

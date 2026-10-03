@@ -64,7 +64,9 @@
             Login
         </a>
 
-        <a href="/register/"
+        {% if registration_enabled %}
+
+        <a href="{% url 'register' %}"
            style="
                 background-color:#1e90ff;
                 color:white;
@@ -75,6 +77,8 @@
            ">
             Register
         </a>
+
+        {% endif %}
 
     </div>
 

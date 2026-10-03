@@ -74,6 +74,12 @@
 
         </a>
 
+        {% if user.is_authenticated %}
+        <a href="{% url 'password_change' %}" style="color:white; text-decoration:none;">
+            Change password
+        </a>
+        {% endif %}
+
         <form
             method="POST"
             action="{% url 'logout' %}"
