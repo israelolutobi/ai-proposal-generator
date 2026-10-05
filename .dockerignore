@@ -1,0 +1,26 @@
+# Only reviewed application/build inputs enter the image.
+**
+!requirements.txt
+!manage.py
+!gunicorn.conf.py
+!mysite/
+!mysite/**
+!proposal_ai/
+!proposal_ai/**
+!templates/
+!templates/**
+!scripts/
+!scripts/build_static.py
+!scripts/release.py
+
+# Exclude sensitive/generated files even inside an included directory.
+**/.env
+**/.env.*
+**/*.sqlite3
+**/*.sqlite3-*
+**/*.db
+**/__pycache__/
+**/*.pyc
+**/.git/
+**/.venv/
+**/staticfiles/
