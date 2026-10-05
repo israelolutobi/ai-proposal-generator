@@ -89,7 +89,7 @@ def main():
     if settings.TEST_RUNNER != "mysite.test_runner.NoNetworkDiscoverRunner":
         raise TestConfigurationError("The network-blocking test runner must remain active.")
     labels = ["mysite.postgres_admission_tests", "mysite.postgres_concurrency_tests",
-              "mysite.postgres_global_exposure_tests"]
+              "mysite.postgres_global_exposure_tests", "mysite.test_release_operations"]
     call_command("test", *labels, verbosity=2, interactive=False)
     return 0
 

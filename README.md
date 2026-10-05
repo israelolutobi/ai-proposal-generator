@@ -205,8 +205,20 @@ does not connect to PostgreSQL/OpenAI, validate provider credentials, collect
 assets, apply migrations, or certify infrastructure readiness. Configuration
 errors identify the setting without printing its value or credentials.
 Migrations, static collection and seeding never run during web-worker startup.
-Stop a release if configuration, migration or static build fails. Health/readiness
-endpoints and infrastructure rollback/backup procedures remain separate tasks.
+Stop a release if configuration, migration or static build fails. Run the
+read-only `python manage.py validate_release` after the coordinated migration
+and before traffic promotion. It verifies database/migration/physical schema and
+representative collected manifest assets; it never migrates, repairs or calls AI.
+Anonymous GET/HEAD `/health/live/` checks HTTP liveness without application DB
+queries; `/health/ready/` checks configuration/database/schema readiness with
+generic 200/503 responses. Both are non-cacheable. AI availability/allowances do
+not determine ordinary readiness. Probes never recover AI requests.
+
+See [the controlled-Beta release/backup/recovery runbook](docs/release_operations.md)
+for migration 0016 writer shutdown, release gates, explicit stale recovery,
+isolated restoration and compatible rollback. Hosting, ingress protection,
+backup/restore and drain behavior still require operator verification. Production
+global AI thresholds remain **UNSELECTED** until separately approved.
 
 AI calls go through `proposal_ai/services.py`. Existing prompts, models and
 API styles are preserved. Requests use a 5-second connection timeout and

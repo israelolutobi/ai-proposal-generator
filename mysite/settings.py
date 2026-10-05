@@ -13,6 +13,7 @@ from mysite.configuration import (
     trusted_origins, validate_hsts, validate_production,
 )
 from mysite.runtime import gunicorn_configuration
+from mysite.operational_logging import production_logging
 
 
 load_dotenv()
@@ -172,6 +173,9 @@ CSRF_COOKIE_SECURE = IS_PRODUCTION or not DEBUG
 # This is the same configuration consumed by gunicorn.conf.py, without I/O.
 DEPLOYMENT_RUNTIME = gunicorn_configuration(os.environ)
 validate_production(globals())
+
+if IS_PRODUCTION:
+    LOGGING = production_logging()
 
 
 # DEFAULT PRIMARY KEY FIELD
