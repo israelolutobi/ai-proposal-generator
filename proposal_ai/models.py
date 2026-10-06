@@ -3,6 +3,94 @@ from django.db import models
 from django.utils import timezone
 
 
+class ResearchDataset(models.Model):
+    """Immutable imported research snapshot. Raw workbook text is not served to users."""
+    source_name = models.CharField(max_length=255)
+    source_sha256 = models.CharField(max_length=64, unique=True)
+    imported_at = models.DateTimeField(auto_now_add=True)
+    case_count = models.PositiveIntegerField(default=0)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("-imported_at",)
+
+    def __str__(self):
+        return f"{self.source_name} ({self.case_count} cases)"
+
+
+class ResearchCase(models.Model):
+    dataset = models.ForeignKey(ResearchDataset, on_delete=models.CASCADE, related_name="cases")
+    case_key = models.CharField(max_length=64)
+    participant_key = models.CharField(max_length=64, blank=True)
+    round_label = models.CharField(max_length=100, blank=True)
+    case_type = models.CharField(max_length=50, blank=True)
+    outcome = models.CharField(max_length=100, blank=True)
+    application_route = models.CharField(max_length=100, blank=True)
+    client_relationship = models.CharField(max_length=100, blank=True)
+    domain_niche = models.TextField(blank=True)
+    job_title = models.TextField(blank=True)
+    budget_type = models.CharField(max_length=100, blank=True)
+    budget_low = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    budget_high = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    submitted_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    final_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(max_length=16, blank=True)
+    competition_timing = models.TextField(blank=True)
+    record_status = models.CharField(max_length=100, blank=True)
+    job_core_problem = models.TextField(blank=True)
+    primary_stack_domain = models.TextField(blank=True)
+    required_skills = models.TextField(blank=True)
+    explicit_instructions = models.TextField(blank=True)
+    scope_complexity = models.CharField(max_length=100, blank=True)
+    risk_signals = models.TextField(blank=True)
+    observable_fit_signals = models.TextField(blank=True)
+    opening_approach = models.TextField(blank=True)
+    experience_evidence = models.TextField(blank=True)
+    direct_job_match_evidence = models.TextField(blank=True)
+    solution_approach = models.TextField(blank=True)
+    tools_stack = models.TextField(blank=True)
+    instruction_coverage = models.TextField(blank=True)
+    strong_features = models.TextField(blank=True)
+    observable_gaps = models.TextField(blank=True)
+    outcome_confounds = models.TextField(blank=True)
+    source_fidelity = models.CharField(max_length=150, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("dataset", "case_key"), name="research_case_dataset_key_unique")]
+        indexes = [
+            models.Index(fields=("dataset", "outcome"), name="research_case_outcome"),
+            models.Index(fields=("dataset", "case_key"), name="research_case_key"),
+        ]
+
+    def __str__(self):
+        return f"{self.case_key}: {self.job_title[:80]}"
+
+
+class ResearchRequirement(models.Model):
+    research_case = models.ForeignKey(ResearchCase, on_delete=models.CASCADE, related_name="requirements")
+    requirement = models.TextField()
+    importance = models.CharField(max_length=100, blank=True)
+    proposal_evidence = models.TextField(blank=True)
+    coverage = models.CharField(max_length=50, blank=True)
+    interpretation_note = models.TextField(blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("research_case", "coverage"), name="research_req_coverage")]
+
+
+class ResearchNote(models.Model):
+    dataset = models.ForeignKey(ResearchDataset, on_delete=models.CASCADE, related_name="notes")
+    case_key = models.CharField(max_length=64, blank=True)
+    note_type = models.CharField(max_length=50, blank=True)
+    observation = models.TextField()
+    why_it_matters = models.TextField(blank=True)
+    confidence = models.CharField(max_length=50, blank=True)
+    do_not_overclaim = models.TextField(blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("dataset", "case_key"), name="research_note_case")]
+
+
 class AIQuotaPeriod(models.Model):
     """Durable product-credit accounting; period dates are UTC, not browser dates."""
     class Kind(models.TextChoices):
@@ -30,28 +118,23 @@ class AIQuotaPeriod(models.Model):
 
 class AIRequest(models.Model):
     """Payload-free request ledger; allowances are not provider cost estimates."""
-
     class Operation(models.TextChoices):
         PROFILE_SUMMARY = "profile_summary", "Profile summary"
         JOB_EXTRACTION = "job_extraction", "Job extraction"
         PROPOSAL_GENERATION = "proposal_generation", "Proposal generation"
-
     class Intent(models.TextChoices):
         GENERATE = "generate", "Generate"
         REGENERATE = "regenerate", "Regenerate"
-
     class Lifecycle(models.TextChoices):
         RESERVED = "reserved", "Reserved"
         IN_FLIGHT = "in_flight", "In flight"
         SUCCEEDED = "succeeded", "Succeeded"
         FAILED = "failed", "Failed"
         UNCERTAIN = "uncertain", "Uncertain"
-
     class Quota(models.TextChoices):
         RESERVED = "reserved", "Reserved"
         CONSUMED = "consumed", "Consumed"
         RELEASED = "released", "Released"
-
     class Failure(models.TextChoices):
         AI_DISABLED = "ai_disabled", "AI disabled before provider execution"
         LOCAL_CONFIGURATION = "local_configuration", "Local configuration"
@@ -87,13 +170,8 @@ class AIRequest(models.Model):
     failure_category = models.CharField(max_length=24, choices=Failure.choices, blank=True)
     job_post = models.ForeignKey("JobPost", null=True, blank=True, on_delete=models.SET_NULL)
     proposal = models.ForeignKey("Proposal", null=True, blank=True, on_delete=models.SET_NULL)
-    global_day_period = models.ForeignKey(AIQuotaPeriod, null=True, blank=True, editable=False,
-                                         on_delete=models.PROTECT, related_name="daily_requests")
-    global_week_period = models.ForeignKey(AIQuotaPeriod, null=True, blank=True, editable=False,
-                                          on_delete=models.PROTECT, related_name="weekly_requests")
-
-    # Provider evidence is independent of quota units and future monetary estimates.
-    # NULL means unknown; zero is reserved for an actual reported/measured zero.
+    global_day_period = models.ForeignKey(AIQuotaPeriod, null=True, blank=True, editable=False, on_delete=models.PROTECT, related_name="daily_requests")
+    global_week_period = models.ForeignKey(AIQuotaPeriod, null=True, blank=True, editable=False, on_delete=models.PROTECT, related_name="weekly_requests")
     provider = models.CharField(max_length=24, null=True, blank=True)
     api_style = models.CharField(max_length=24, null=True, blank=True)
     requested_model = models.CharField(max_length=200, null=True, blank=True)
@@ -112,16 +190,8 @@ class AIRequest(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=("user", "nonce"), name="ai_request_user_nonce_unique"),
-            models.UniqueConstraint(
-                fields=("user",), condition=models.Q(lifecycle__in=("reserved", "in_flight")),
-                name="ai_request_one_active_user",
-            ),
-            models.CheckConstraint(
-                condition=(models.Q(operation="profile_summary", quota_units=1)
-                           | models.Q(operation="job_extraction", quota_units=2)
-                           | models.Q(operation="proposal_generation", quota_units=3)),
-                name="ai_request_operation_units",
-            ),
+            models.UniqueConstraint(fields=("user",), condition=models.Q(lifecycle__in=("reserved", "in_flight")), name="ai_request_one_active_user"),
+            models.CheckConstraint(condition=(models.Q(operation="profile_summary", quota_units=1) | models.Q(operation="job_extraction", quota_units=2) | models.Q(operation="proposal_generation", quota_units=3)), name="ai_request_operation_units"),
         ]
         indexes = [
             models.Index(fields=("user", "admitted_at"), name="ai_request_user_admitted"),
@@ -131,396 +201,78 @@ class AIRequest(models.Model):
 
 
 class FreelancerProfile(models.Model):
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-    )
-
-    professional_title = models.CharField(
-        max_length=255
-    )
-
-    profile_summary = models.TextField(
-        blank=True,
-        null=True,
-    )
-
-    preferred_tone = models.CharField(
-        max_length=100,
-        default="professional",
-    )
-
-    created_at = models.DateTimeField(
-        auto_now_add=True
-    )
-
-    updated_at = models.DateTimeField(
-        auto_now=True
-    )
-
-    def __str__(self):
-        return self.professional_title
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    professional_title = models.CharField(max_length=255)
+    profile_summary = models.TextField(blank=True, null=True)
+    preferred_tone = models.CharField(max_length=100, default="professional")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    def __str__(self): return self.professional_title
 
 
 class WorkExperience(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-    )
-
-    job_title = models.CharField(
-        max_length=255
-    )
-
-    company_or_project = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True,
-    )
-
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    job_title = models.CharField(max_length=255)
+    company_or_project = models.CharField(max_length=255, blank=True, null=True)
     tasks = models.TextField()
-
-    skills_used = models.TextField(
-        blank=True,
-        null=True,
-    )
-
-    experience_depth = models.TextField(
-        blank=True,
-        null=True,
-    )
-
-    created_at = models.DateTimeField(
-        auto_now_add=True
-    )
-
-    def __str__(self):
-        return self.job_title
+    skills_used = models.TextField(blank=True, null=True)
+    experience_depth = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self): return self.job_title
 
 
 class JobPost(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-    )
-
-    raw_job_text = models.TextField(
-        blank=True,
-        null=True,
-    )
-
-    platform = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True,
-    )
-
-    job_title = models.CharField(
-        max_length=255,
-        default="Untitled Job",
-    )
-
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    raw_job_text = models.TextField(blank=True, null=True)
+    platform = models.CharField(max_length=100, blank=True, null=True)
+    job_title = models.CharField(max_length=255, default="Untitled Job")
     job_description = models.TextField()
-
-    budget_type = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True,
-    )
-
-    hourly_min = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        blank=True,
-        null=True,
-    )
-
-    hourly_max = models.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        blank=True,
-        null=True,
-    )
-
-    fixed_budget = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        blank=True,
-        null=True,
-    )
-
-    experience_level = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True,
-    )
-
-    project_duration = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True,
-    )
-
-    hours_per_week = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True,
-    )
-
-    skills_required = models.TextField(
-        blank=True,
-        null=True,
-    )
-
-    client_location = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True,
-    )
-
-    proposal_count = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True,
-    )
-
-    interviewing_count = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True,
-    )
-
-    invites_sent = models.CharField(
-        max_length=100,
-        blank=True,
-        null=True,
-    )
-
-    confirmed_by_user = models.BooleanField(
-        default=False
-    )
-
-    created_at = models.DateTimeField(
-        auto_now_add=True
-    )
-
-    def __str__(self):
-        return self.job_title
+    budget_type = models.CharField(max_length=100, blank=True, null=True)
+    hourly_min = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True)
+    hourly_max = models.DecimalField(max_digits=8, decimal_places=2, blank=True, null=True)
+    fixed_budget = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    experience_level = models.CharField(max_length=100, blank=True, null=True)
+    project_duration = models.CharField(max_length=100, blank=True, null=True)
+    hours_per_week = models.CharField(max_length=100, blank=True, null=True)
+    skills_required = models.TextField(blank=True, null=True)
+    client_location = models.CharField(max_length=255, blank=True, null=True)
+    proposal_count = models.CharField(max_length=100, blank=True, null=True)
+    interviewing_count = models.CharField(max_length=100, blank=True, null=True)
+    invites_sent = models.CharField(max_length=100, blank=True, null=True)
+    confirmed_by_user = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self): return self.job_title
 
 
 class Proposal(models.Model):
-
-    # ---------------------------------------------------------
-    # TYPE OF WRITTEN CONTENT GENERATED FOR THIS APPLICATION
-    # ---------------------------------------------------------
-    #
-    # Different freelance platforms use different terminology.
-    #
-    # Examples:
-    # Upwork       -> Cover Letter
-    # Some sites   -> Proposal Text
-    # Direct work  -> Pitch
-    #
-    # The Proposal model remains the broader application record,
-    # while content_type tells ProposalIQ what the generated
-    # written component actually represents.
-    # ---------------------------------------------------------
-
-    CONTENT_TYPE_CHOICES = [
-        (
-            "cover_letter",
-            "Cover Letter",
-        ),
-        (
-            "proposal_text",
-            "Proposal Text",
-        ),
-        (
-            "application_message",
-            "Application Message",
-        ),
-        (
-            "pitch",
-            "Pitch",
-        ),
-    ]
-
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-    )
-
-    job_post = models.ForeignKey(
-        JobPost,
-        on_delete=models.CASCADE,
-    )
-
-    # Keep the existing database field name for now.
-    #
-    # Conceptually, this stores the generated written component:
-    # cover letter, proposal text, pitch, etc.
-    #
-    # Renaming this field would create unnecessary migration work
-    # at this stage of the beta.
+    CONTENT_TYPE_CHOICES = [("cover_letter", "Cover Letter"), ("proposal_text", "Proposal Text"), ("application_message", "Application Message"), ("pitch", "Pitch")]
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    job_post = models.ForeignKey(JobPost, on_delete=models.CASCADE)
     final_text = models.TextField()
-
-    content_type = models.CharField(
-        max_length=50,
-        choices=CONTENT_TYPE_CHOICES,
-        default="proposal_text",
-    )
-
-    ai_score = models.PositiveIntegerField(
-        null=True,
-        blank=True,
-    )
-
-    STATUS_CHOICES = [
-        (
-            "generated",
-            "Generated",
-        ),
-
-        # New preferred terminology.
-        (
-            "submitted",
-            "Submitted",
-        ),
-
-        # Retained temporarily for backwards compatibility with
-        # existing ProposalIQ records and code.
-        (
-            "used",
-            "Used",
-        ),
-
-        (
-            "reply",
-            "Reply",
-        ),
-        (
-            "interview",
-            "Interview",
-        ),
-        (
-            "hired",
-            "Hired",
-        ),
-        (
-            "rejected",
-            "Rejected",
-        ),
-        (
-            "no_response",
-            "No Response",
-        ),
-    ]
-
-    status = models.CharField(
-        max_length=50,
-        choices=STATUS_CHOICES,
-        default="generated",
-    )
-
-    # Legacy field retained for now so existing code/data does
-    # not break. We will migrate the user-facing concept from
-    # "used" to "submitted" in the views/templates.
-    used_by_user = models.BooleanField(
-        default=False
-    )
-
-    # Legacy timestamp retained for backwards compatibility.
-    used_at = models.DateTimeField(
-        null=True,
-        blank=True,
-    )
-
-    created_at = models.DateTimeField(
-        auto_now_add=True
-    )
-
-    def __str__(self):
-        return (
-            f"Application for "
-            f"{self.job_post.job_title}"
-        )
+    content_type = models.CharField(max_length=50, choices=CONTENT_TYPE_CHOICES, default="proposal_text")
+    ai_score = models.PositiveIntegerField(null=True, blank=True)
+    STATUS_CHOICES = [("generated", "Generated"), ("submitted", "Submitted"), ("used", "Used"), ("reply", "Reply"), ("interview", "Interview"), ("hired", "Hired"), ("rejected", "Rejected"), ("no_response", "No Response")]
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default="generated")
+    used_by_user = models.BooleanField(default=False)
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self): return f"Application for {self.job_post.job_title}"
 
 
 class ProposalOutcome(models.Model):
-    proposal = models.OneToOneField(
-        Proposal,
-        on_delete=models.CASCADE,
-    )
-
-    status = models.CharField(
-        max_length=50
-    )
-
-    notes = models.TextField(
-        blank=True,
-        null=True,
-    )
-
-    created_at = models.DateTimeField(
-        auto_now_add=True
-    )
-
-    def __str__(self):
-        return (
-            f"{self.proposal.job_post.job_title} "
-            f"- {self.status}"
-        )
+    proposal = models.OneToOneField(Proposal, on_delete=models.CASCADE)
+    status = models.CharField(max_length=50)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self): return f"{self.proposal.job_post.job_title} - {self.status}"
 
 
 class ProposalUseConfirmation(models.Model):
-
-    # This model currently stores submission details.
-    #
-    # The class name is kept temporarily because renaming a Django
-    # model during an active beta creates unnecessary migration risk.
-    #
-    # In the user interface we will refer to this concept as a
-    # Submission rather than "Use Confirmation".
-
-    proposal = models.OneToOneField(
-        Proposal,
-        on_delete=models.CASCADE,
-    )
-
-    platform = models.CharField(
-        max_length=100
-    )
-
-    client_name = models.CharField(
-        max_length=255,
-        blank=True,
-        null=True,
-    )
-
-    job_url = models.URLField(
-        blank=True,
-        null=True,
-    )
-
-    # Keep the existing database field name for now.
-    # It can contain the final cover letter, proposal text,
-    # pitch or other platform-specific written content.
-    submitted_proposal_text = models.TextField(
-        blank=True,
-        null=True,
-    )
-
-    notes = models.TextField(
-        blank=True,
-        null=True,
-    )
-
-    confirmed_at = models.DateTimeField(
-        auto_now_add=True
-    )
-
-    def __str__(self):
-        return (
-            f"Submission confirmation for "
-            f"{self.proposal}"
-        )
+    proposal = models.OneToOneField(Proposal, on_delete=models.CASCADE)
+    platform = models.CharField(max_length=100)
+    client_name = models.CharField(max_length=255, blank=True, null=True)
+    job_url = models.URLField(blank=True, null=True)
+    submitted_proposal_text = models.TextField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    confirmed_at = models.DateTimeField(auto_now_add=True)
+    def __str__(self): return f"Submission confirmation for {self.proposal}"
