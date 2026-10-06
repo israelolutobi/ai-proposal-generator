@@ -14,6 +14,6 @@ RUN python scripts/build_static.py
 
 RUN groupadd --system proposalq && useradd --system --gid proposalq proposalq
 USER proposalq
-EXPOSE 8000
+EXPOSE 10000
 STOPSIGNAL SIGTERM
-CMD ["gunicorn", "--config", "gunicorn.conf.py", "mysite.wsgi:application"]
+CMD ["python", "scripts/start_web.py"]

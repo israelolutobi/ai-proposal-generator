@@ -1,96 +1,114 @@
-# Private hosted smoke deployment
+# Controlled Beta: Render Free + Neon Free
 
-Target: the actual ProposalQ application, one web instance with two Gunicorn sync
-workers and one managed PostgreSQL database. AI and registration stay disabled.
-No Redis, Celery or extra AI worker. No account, resource or cost is authorized by
-this configuration alone.
+Deploy the actual Django application as one Render Free Docker web service and
+one NEW Neon Free PostgreSQL database. Never create a Render PostgreSQL database,
+upload local SQLite, add paid resources, or enter payment information. AI and
+registration remain disabled. The public HTTPS home/login pages use Django
+authentication to protect application data; this is not a private network/VPN.
 
-Render's shared readiness/restart check conflicts with the approved runbook's
-avoidance of database-driven restart loops. Fly service readiness checks remove
-routing without restarting the Machine, so this deployment uses Fly instead.
+## Account setup and secrets
 
-## Owner prerequisites
+1. Sign in to Neon and create a Free project/database, PostgreSQL 17 preferred,
+   in an EU region near Render Frankfurt. Confirm the dashboard says Free and
+   does not require payment. Use the **direct** connection URL, not the pooled
+   hostname. Keep the URL in a password manager and provider secret UI only.
+2. Sign in to Render, authorize this GitHub repository, and create a Blueprint
+   from branch `codex/p0-private-beta-deploy` using `render.yaml`. Confirm the
+   web service plan is Free and the Blueprint creates **no database**. It is JSON
+   formatted YAML, supported by YAML parsers. Automatic deployments are off.
+3. Generate a stable production `SECRET_KEY` with a password manager (at least
+   64 random characters), save it privately, and enter it and the direct Neon
+   `DATABASE_URL` through Render's secret environment UI. Render's default
+   generated 256-bit Base64 value is shorter than our 50-character minimum;
+   do not use it. Never upload `.env`, place secrets in command arguments, or
+   paste them into chat. A first deploy may fail the schema gate until step 4.
+4. From the exact approved deployment checkout, run the interactive one-time
+   release below. Then manually deploy that commit on Render. Keep owner use
+   gated until both health endpoints and smoke checks pass.
 
-1. Sign in to Fly.io and approve the web/managed PostgreSQL costs before creating
-   resources. Choose an available common region and supported PostgreSQL version
-   (17 preferred). No purchase/payment action is performed by these files.
-2. Establish the owner-only HTTPS access gateway/VPN and trusted private backend
-   boundary. Flycast alone is HTTP, not browser HTTPS. The gateway must enforce
-   owner access, overwrite scheme headers and have a timeout at least 120 seconds.
-   Keep Django's HTTPS redirects and secure cookies enabled. Do not deploy a
-   publicly reachable origin as a shortcut.
-3. Create a NEW managed PostgreSQL database with working PostgreSQL TLS and a
-   direct connection URL. Verify maintenance/backups with the provider. Never
-   upload local SQLite or use the PostgreSQL integration launcher on this DB.
+## Effective production environment
 
-The host app name and region are intentionally not invented in `fly.toml`.
-Supply the owner-approved app name via `--app` and select the DB's region for the
-web instance. Keep exactly one web Machine; do not accept automatic extra replicas.
+`render.yaml` sets `APP_ENV=production`, `DEBUG=False`, `AI_ENABLED=False`,
+`REGISTRATION_ENABLED=False`, `PORT=10000`, `WEB_CONCURRENCY=2`, explicit proxy
+trust, HTTPS redirect, secure cookies via production settings, and staged HSTS
+300 seconds without subdomains/preload. It disables dotenv loading. Gunicorn
+retains sync workers, one thread, 90-second timeout and 105-second graceful
+timeout; Render shutdown grace is 150 seconds. Verify actual resource use and
+graceful behavior in the hosted environment before expanding access.
 
-## Secrets and effective environment
+Startup derives `ALLOWED_HOSTS` from Render's exact `RENDER_EXTERNAL_HOSTNAME`
+only when no explicit hosts were supplied. Explicit invalid values still fail
+validation. `CSRF_TRUSTED_ORIGINS` stays empty for same-origin HTTPS; any later
+custom origin must be explicitly approved. Leave `OPENAI_API_KEY`, Gemini keys,
+`AI_GLOBAL_DAILY_CREDITS`, `AI_GLOBAL_WEEKLY_CREDITS` and `GUNICORN_CMD_ARGS` absent.
+No production AI thresholds are selected while AI is off.
 
-Use provider secret management for a newly generated private stable `SECRET_KEY`
-(at least 50 random characters) and the managed database's `DATABASE_URL`.
-Do not put either in command arguments, logs, Git or an image build argument.
-Use the provider's secure secret UI/import mechanism. Never upload local `.env`.
+Both startup and the local release require a direct Neon URL, preserve its target
+and identity, and enforce `sslmode=verify-full`, the installed certifi CA bundle,
+and a 10-second connection timeout. Unrecognized libpq options are rejected;
+they cannot override the checked host, database, user or transaction settings.
+PostgreSQL 14+ and active TLS are checked before migration or serving traffic.
 
-`fly.toml` supplies production mode, debug/registration/AI False, port 8000,
-two sync workers, HTTPS redirect, HSTS 300 without subdomains/preload, and explicit
-proxy trust. Validate the trusted gateway before using that proxy trust.
+## Build, one-time migrations and startup
 
-Set `ALLOWED_HOSTS` in provider configuration to the exact HTTPS gateway hostname
-plus `proposalq-private-beta.internal` (the internal probe host). Empty
-`CSRF_TRUSTED_ORIGINS` is valid for same-origin access; if needed, use only the
-explicit approved HTTPS origin. Leave `OPENAI_API_KEY`, both `AI_GLOBAL_*_CREDITS`
-variables and `GUNICORN_CMD_ARGS` absent. Never copy development defaults wholesale.
+Render Free has no pre-deploy commands, shell or one-off jobs. Migrations therefore
+run **once from the owner's local virtual environment**, not during image build,
+web startup or in every worker:
 
-## Build, release and startup
+```powershell
+.\.venv\Scripts\python.exe scripts\local_release.py --create-owner
+```
+
+Run in a secure interactive terminal. It prompts for the expected new database
+name, Render hostname, and hidden database URL/signing key. The production key
+must match Render. Confirm the target with `MIGRATE`. The helper ignores the real
+`.env`, creates disposable static output outside the repository without passing
+production credentials to its builder, then uses the existing release process:
+validate configuration, Django deploy check, verify PostgreSQL/TLS, migrate once,
+and validate schema/static readiness. All application migrations through 0016
+and Django migrations apply. A failure exits unsuccessfully: do not deploy or
+reverse migrations automatically. No local application data is touched.
+
+`--create-owner` runs Django's interactive superuser creation only if no superuser
+exists. Enter its password only at the hidden prompt; never in arguments,
+environment documentation or logs. Without that flag only migrations run. Do
+not create arbitrary testers; registration remains closed.
+
+Only one operator may release/deploy at a time. For future releases against an
+existing database, follow the approved backup/drain rules in
+`docs/release_operations.md`; stop incompatible writers before migrations.
+Free hosting has no coordinated automated release hook. Do not switch automatic
+deploys on or deploy schema changes before the administrative release succeeds.
 
 The Docker image pins Python 3.13.5 and installs existing requirements unchanged.
-Its allowlisted context excludes `.env`, SQLite, virtual environments and Git.
-`scripts/build_static.py` uses an ephemeral in-memory signing key and synthetic
-unreachable database configuration. Networking/database access is blocked while
-it validates settings, collects static files, verifies the manifest and renders
-public/login/admin templates. Production credentials are never needed by build.
+Its allowlisted context excludes secrets, SQLite, virtual environments and Git.
+The existing static builder collects/verifies a retained WhiteNoise manifest
+using synthetic configuration with all network/database access blocked.
+Generated output is never committed. `scripts/start_web.py` then performs
+**read-only** production/database/schema/static validation before replacing
+itself with the existing Gunicorn command. Any failure prevents startup and
+promotion; no migration or collection occurs at startup.
 
-The image retains collected assets; generated output is not committed. Startup
-is exactly the existing Gunicorn command. It does not migrate or collect assets.
+## Health and hosted acceptance
 
-One operator runs one deployment at a time; prohibit overlapping manual/CI deploys.
-Fly's separate release command runs `scripts/release.py`, which validates the
-production configuration, requires AI/registration off, verifies PostgreSQL 14+
-and an active TLS connection, runs `migrate --noinput` once, then `validate_release`.
-Any failure stops that deploy. Do not fake, reverse or repair migrations blindly.
-All application migrations through 0016 and required Django migrations apply.
-If an existing database is involved, follow the backup/drain rules in the release
-runbook before migration; incompatible old writers must be stopped.
+Render's restart health path is `/health/live/`: it does not query PostgreSQL or
+OpenAI, so a database outage does not trigger a liveness restart loop. Keep
+`/health/ready/` for explicit HTTPS readiness verification after each deployment:
+it returns 200 only when production configuration/database/schema are valid.
+Render does not use this second endpoint as an ongoing routing gate; after
+startup the operator must monitor readiness and restrict use during outages.
+Require actual 200 responses, not redirects. Neither response exposes secrets.
 
-After owner prerequisites, use the approved app with `fly deploy --app APP_NAME
---flycast --ha=false`. Before deployment, verify the app has NO public IPv4/IPv6
-addresses; Flycast does not negate an existing public address. Keep the private
-gateway closed to users until every release and smoke check passes. A later
-manual redeploy reuses the same managed DB and stable signing key.
+Before owner use, verify HTTPS and HTTP redirects; home/login; CSS/logo/admin
+assets; both health paths; direct registration rejection and hidden signup links;
+protected-page authentication; secure session/CSRF cookies; owner profile and
+dashboard; and safe AI-disabled responses. Restart/redeploy normally and verify
+the owner account/profile persists in Neon. Do not call OpenAI or run destructive
+database-failure experiments. Record the real URL/results; configuration alone
+does not establish a successful deployment.
 
-Readiness is the routing gate; liveness is monitoring only. Internal probes send
-the explicit allowed host/scheme and must receive a real 200, not a redirect.
-Verify both over HTTPS at the actual gateway too. No probe calls AI. The host
-sends SIGTERM with 150-second grace; Gunicorn retains 90/105 seconds, sync workers
-and one thread. Fly grace is best-effort: actual graceful draining and gateway
-timeouts still require hosted verification. Inspect logs without exposing payloads.
-
-## Owner account and smoke acceptance
-
-Use an interactive console attached to the approved app:
-`fly ssh console --app APP_NAME --pty -C "python manage.py createsuperuser"`.
-The owner enters username/email/password; the password must never be supplied as
-a command argument or printed. Provision only the owner, not arbitrary testers.
-The owner logs in and can use `/change-password/`, create/edit a profile and use
-the dashboard. Registration stays closed.
-
-Verify real HTTPS/redirects, home/login, CSS/logo/admin assets, both health paths,
-register rejection, protected-route redirects, production cookies and owner
-access. Verify the owner-created profile/account persists through a normal
-restart/redeploy. Do not create synthetic jobs/proposals or call OpenAI. Inspect
-`showmigrations` and `ai_status` in the private operator console without dumping
-private records. Stop before adding any provider key, credit ceilings or enabling
-AI. Real hosted results must be recorded before claiming deployment success.
+Free services have cold starts/sleep, finite usage/storage and no production SLA.
+Check current quotas in both dashboards. Do not add payment methods or upgrade;
+if a Free limit stops service, report it. This target cannot promise continuous
+availability. Stop before adding any paid AI key, selecting global AI thresholds,
+or setting `AI_ENABLED=True`.

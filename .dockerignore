@@ -12,6 +12,8 @@
 !scripts/
 !scripts/build_static.py
 !scripts/release.py
+!scripts/start_web.py
+!scripts/local_release.py
 
 # Exclude sensitive/generated files even inside an included directory.
 **/.env

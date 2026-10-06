@@ -8,15 +8,9 @@ class ReleaseError(Exception):
     """Fixed operator messages only; database exceptions must never be printed."""
 
 
-def run_release():
-    from django.conf import settings
-    from django.core.management import call_command
+def verify_database():
+    """Inspect PostgreSQL/TLS before any administrative mutation."""
     from django.db import connection
-
-    call_command("validate_deployment")
-    if settings.AI_ENABLED or settings.REGISTRATION_ENABLED:
-        raise ReleaseError("Private smoke release requires AI and registration disabled.")
-    call_command("check", deploy=True)
     if connection.vendor != "postgresql":
         raise ReleaseError("Release migrations require PostgreSQL; SQLite is forbidden.")
     connection.ensure_connection()
@@ -25,6 +19,17 @@ def run_release():
     if connection.pg_version < 140000:
         raise ReleaseError("Release requires PostgreSQL 14 or later.")
     print("PostgreSQL version floor and encrypted connection verified.")
+
+
+def run_release():
+    from django.conf import settings
+    from django.core.management import call_command
+
+    call_command("validate_deployment")
+    if settings.AI_ENABLED or settings.REGISTRATION_ENABLED:
+        raise ReleaseError("Private smoke release requires AI and registration disabled.")
+    call_command("check", deploy=True)
+    verify_database()
     call_command("migrate", interactive=False)
     call_command("validate_release")
 
