@@ -37,6 +37,8 @@ class NoNetworkDiscoverRunner(DiscoverRunner):
         with (
             block_external_network(),
             patch.dict(os.environ, {"OPENAI_API_KEY": "", "GEMINI_API_KEY": ""}),
-            override_settings(OPENAI_API_KEY=""),
+            # Synthetic AI switch only inside the network-blocked test scope.
+            # Production/development processes and paid provider access stay off.
+            override_settings(OPENAI_API_KEY="", AI_ENABLED=True),
         ):
             return super().run_tests(test_labels, **kwargs)

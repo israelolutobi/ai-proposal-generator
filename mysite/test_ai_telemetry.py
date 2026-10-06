@@ -344,6 +344,8 @@ class SDKTelemetryTests(SimpleTestCase):
 @override_settings(**UI_SETTINGS)
 class LedgerCase(TestCase):
     def setUp(self):
+        from .test_research_intelligence import seed_research
+        seed_research()
         self.user = get_user_model().objects.create_user(username="telemetry-owner")
         self.other = get_user_model().objects.create_user(username="telemetry-other")
         clock = patch("proposal_ai.ai_control.now", return_value=MOMENT)

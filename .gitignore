@@ -9,3 +9,9 @@ db.sqlite3
 .env
 db.sqlite3
 staticfiles/
+
+# Private research source files must never enter Git or the image.
+**/*.xlsx
+**/*.xls
+**/*.csv
+**/*.tsv

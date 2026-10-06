@@ -36,6 +36,8 @@ class JobValidationTestCase(TestCase):
     client_class = SignedAIClient
     @classmethod
     def setUpTestData(cls):
+        from .test_research_intelligence import seed_research
+        seed_research()
         cls.owner = User.objects.create_user(username="job-owner")
         cls.other = User.objects.create_user(username="other-job-owner")
         FreelancerProfile.objects.create(user=cls.owner, professional_title="Django Developer")

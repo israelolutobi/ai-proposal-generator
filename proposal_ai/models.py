@@ -524,3 +524,101 @@ class ProposalUseConfirmation(models.Model):
             f"Submission confirmation for "
             f"{self.proposal}"
         )
+
+
+class ResearchDataset(models.Model):
+    """Immutable imported research snapshot. Raw workbook text is not served to users."""
+    source_name = models.CharField(max_length=255)
+    source_sha256 = models.CharField(max_length=64, unique=True)
+    imported_at = models.DateTimeField(auto_now_add=True)
+    case_count = models.PositiveIntegerField(default=0)
+    active = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ("-imported_at",)
+        constraints = [models.UniqueConstraint(fields=("active",), condition=models.Q(active=True), name="research_one_active")]
+
+    def __str__(self):
+        return f"{self.source_name} ({self.case_count} cases)"
+
+
+class ResearchCase(models.Model):
+    dataset = models.ForeignKey(ResearchDataset, on_delete=models.CASCADE, related_name="cases")
+    case_key = models.CharField(max_length=64)
+    participant_key = models.CharField(max_length=64, blank=True)
+    round_label = models.CharField(max_length=100, blank=True)
+    case_type = models.CharField(max_length=50, blank=True)
+    outcome = models.CharField(max_length=100, blank=True)
+    application_route = models.CharField(max_length=100, blank=True)
+    client_relationship = models.CharField(max_length=100, blank=True)
+    domain_niche = models.TextField(blank=True)
+    job_title = models.TextField(blank=True)
+    budget_type = models.CharField(max_length=100, blank=True)
+    budget_low = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    budget_high = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    submitted_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    final_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(max_length=16, blank=True)
+    competition_timing = models.TextField(blank=True)
+    record_status = models.CharField(max_length=100, blank=True)
+    job_core_problem = models.TextField(blank=True)
+    primary_stack_domain = models.TextField(blank=True)
+    required_skills = models.TextField(blank=True)
+    explicit_instructions = models.TextField(blank=True)
+    scope_complexity = models.CharField(max_length=100, blank=True)
+    risk_signals = models.TextField(blank=True)
+    observable_fit_signals = models.TextField(blank=True)
+    opening_approach = models.TextField(blank=True)
+    experience_evidence = models.TextField(blank=True)
+    direct_job_match_evidence = models.TextField(blank=True)
+    solution_approach = models.TextField(blank=True)
+    tools_stack = models.TextField(blank=True)
+    instruction_coverage = models.TextField(blank=True)
+    strong_features = models.TextField(blank=True)
+    observable_gaps = models.TextField(blank=True)
+    outcome_confounds = models.TextField(blank=True)
+    source_fidelity = models.CharField(max_length=150, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("dataset", "case_key"), name="research_case_dataset_key_unique")]
+        indexes = [
+            models.Index(fields=("dataset", "outcome"), name="research_case_outcome"),
+            models.Index(fields=("dataset", "case_key"), name="research_case_key"),
+        ]
+
+    def __str__(self):
+        return f"{self.case_key}: {self.job_title[:80]}"
+
+
+class ResearchRequirement(models.Model):
+    research_case = models.ForeignKey(ResearchCase, on_delete=models.CASCADE, related_name="requirements")
+    requirement = models.TextField()
+    importance = models.CharField(max_length=100, blank=True)
+    proposal_evidence = models.TextField(blank=True)
+    coverage = models.CharField(max_length=50, blank=True)
+    interpretation_note = models.TextField(blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("research_case", "coverage"), name="research_req_coverage")]
+
+
+class ResearchNote(models.Model):
+    dataset = models.ForeignKey(ResearchDataset, on_delete=models.CASCADE, related_name="notes")
+    case_key = models.CharField(max_length=64, blank=True)
+    note_type = models.CharField(max_length=50, blank=True)
+    observation = models.TextField()
+    why_it_matters = models.TextField(blank=True)
+    confidence = models.CharField(max_length=50, blank=True)
+    do_not_overclaim = models.TextField(blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("dataset", "case_key"), name="research_note_case")]
+
+
+
+class ResearchTerm(models.Model):
+    research_case = models.ForeignKey(ResearchCase, on_delete=models.CASCADE, related_name="terms")
+    token = models.CharField(max_length=64, db_index=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("research_case", "token"), name="research_term_unique")]

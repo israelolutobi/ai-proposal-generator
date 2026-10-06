@@ -36,6 +36,7 @@ def neon_url(value, expected_database):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--create-owner", action="store_true", help="Create the first superuser interactively if none exists.")
+    parser.add_argument("--research-workbook", type=Path, help="Validate/import a private snapshot after migration, with AI disabled.")
     arguments = parser.parse_args()
     # getpass otherwise falls back to echoing input when no secure terminal is
     # available. Refuse that mode instead of risking disclosure.
@@ -44,7 +45,7 @@ def main():
         return 1
     try:
         hostname = input("Approved Render hostname (without https://): ").strip()
-        database_name = input("Approved NEW Neon database name: ").strip()
+        database_name = input("Approved Neon database name: ").strip()
         raw_url = getpass.getpass("Direct Neon connection URL (hidden): ")
         signing_key = getpass.getpass("Production SECRET_KEY already saved in Render (hidden): ")
         from mysite.configuration import valid_host
@@ -82,10 +83,22 @@ def main():
             from django.core.management import call_command
             from scripts.release import run_release
             settings.STATIC_ROOT = Path(output)
-            if input("Confirm this is the approved new Neon target; type MIGRATE: ") != "MIGRATE":
+            if input("Confirm this is the approved Neon target; type MIGRATE: ") != "MIGRATE":
                 print("Administrative release cancelled; no migrations ran.")
                 return 1
             run_release()
+            if arguments.research_workbook:
+                call_command("import_research_workbook", str(arguments.research_workbook), validate_only=True)
+                call_command("import_research_workbook", str(arguments.research_workbook))
+                from proposal_ai.models import JobPost, ResearchDataset
+                from proposal_ai.research_intelligence import build_research_context
+                dataset = ResearchDataset.objects.get(active=True)
+                print(f"Active research snapshot: {dataset.pk}; cases: {dataset.case_count}.")
+                for title, description in (("Python Django developer", "Take over and debug a Django automation codebase"),
+                                           ("Wedding photographer", "Portrait photography lighting")):
+                    context = build_research_context(JobPost(job_title=title, job_description=description, skills_required=""))
+                    print(f"Research smoke: {title}; selected={context.matched_cases}; context_chars={len(context.text)}.")
+                call_command("validate_release")
             if arguments.create_owner:
                 if get_user_model().objects.filter(is_superuser=True).exists():
                     print("An operator account already exists; no account was created.")

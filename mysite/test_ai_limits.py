@@ -264,6 +264,8 @@ class AIBudgetWorkflowTests(TestCase):
     client_class = SignedAIClient
     @classmethod
     def setUpTestData(cls):
+        from .test_research_intelligence import seed_research
+        seed_research()
         cls.owner = get_user_model().objects.create_user(username="budget-owner")
         cls.other = get_user_model().objects.create_user(username="budget-other")
         cls.profile = FreelancerProfile.objects.create(user=cls.owner, professional_title="Developer", profile_summary="I build applications.")

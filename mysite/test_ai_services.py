@@ -309,6 +309,8 @@ class AICallerTests(TestCase):
     client_class = SignedAIClient
     @classmethod
     def setUpTestData(cls):
+        from .test_research_intelligence import seed_research
+        seed_research()
         cls.owner = get_user_model().objects.create_user(username="ai-owner")
         cls.profile = FreelancerProfile.objects.create(user=cls.owner, professional_title="Original developer", profile_summary="Original profile")
         cls.job = JobPost.objects.create(user=cls.owner, job_title="Original job", job_description="Original description", raw_job_text="Original raw input")

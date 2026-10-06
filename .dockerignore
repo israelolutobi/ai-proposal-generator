@@ -26,3 +26,9 @@
 **/.git/
 **/.venv/
 **/staticfiles/
+
+# Private research source files must never enter Git or the image.
+**/*.xlsx
+**/*.xls
+**/*.csv
+**/*.tsv

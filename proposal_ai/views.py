@@ -1,3 +1,5 @@
+from .research_intelligence import build_research_context, ResearchUnavailable
+from django.db import DatabaseError
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
@@ -988,6 +990,10 @@ CONFIRMED JOB DETAILS
         try:
             ai_limits.check_characters(profile_context, ai_limits.PROFILE_CONTEXT_CHARACTERS, "Formatted profile context", stored=True, normalize=False)
             ai_limits.check_characters(job_context, ai_limits.JOB_CONTEXT_CHARACTERS, "Formatted job context", normalize=False)
+            # Retrieve from the current snapshot BEFORE budget validation/admission.
+            # The exact enriched input is fingerprinted and sent unchanged.
+            research = build_research_context(job_post)
+            application_context += "\n\n" + research.text
             messages = [{"role": "system", "content": proposal_writing_instructions},
                         {"role": "user", "content": application_context}]
             ai_limits.check_request(messages, "proposal")
@@ -999,6 +1005,9 @@ CONFIRMED JOB DETAILS
                 proposal_writing_instructions, application_context,
             ))
             generated_content = result.value
+        except (ResearchUnavailable, DatabaseError):
+            form.add_error(None, ResearchUnavailable.user_message)
+            response_status = 503
         except ai_control.ControlError as error:
             form.add_error(None, error.user_message)
             response_status = error.status

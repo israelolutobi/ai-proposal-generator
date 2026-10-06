@@ -385,6 +385,8 @@ class ControlTests(TestCase):
 @override_settings(**UI_SETTINGS)
 class WorkflowTests(TestCase):
     def setUp(self):
+        from .test_research_intelligence import seed_research
+        seed_research()
         self.user = get_user_model().objects.create_user(username="workflow-owner")
         self.other = get_user_model().objects.create_user(username="workflow-other")
         self.profile = FreelancerProfile.objects.create(user=self.user, professional_title="Developer", profile_summary="PRIVATE_PROFILE")
@@ -404,6 +406,47 @@ class WorkflowTests(TestCase):
             mocked = patch("proposal_ai.views.services." + name, return_value=service_result(result))
             self.providers[name] = mocked.start()
             self.addCleanup(mocked.stop)
+
+    def test_research_pipeline_fingerprints_exact_provider_prompt_and_replays_once(self):
+        from proposal_ai.models import ResearchDataset, ResearchCase, ResearchTerm
+        dataset = ResearchDataset.objects.get(active=True)
+        case = ResearchCase.objects.create(dataset=dataset, case_key="C001", domain_niche="Django Python",
+                                           outcome="Hired", application_route="Cold", strong_features="PRIVATE_RESEARCH_PERSON")
+        ResearchTerm.objects.create(research_case=case, token="django")
+        client = Mock()
+        client.__enter__ = Mock(return_value=client)
+        client.__exit__ = Mock(return_value=False)
+        client.chat.completions.create.return_value = SimpleNamespace(
+            choices=[SimpleNamespace(finish_reason="stop", message=SimpleNamespace(content="Safe proposal."))],
+            model=services.CHAT_MODEL,
+            usage=SimpleNamespace(prompt_tokens=20, completion_tokens=3, total_tokens=23))
+        self.providers["generate_proposal"].side_effect = self.real_services["generate_proposal"]
+        token = self.token(O.PROPOSAL_GENERATION)
+        with patch("proposal_ai.services._create_client", return_value=client):
+            response = self.post(O.PROPOSAL_GENERATION, token, job_title="Django developer")
+            self.assertEqual(response.status_code, 302)
+            replay = self.post(O.PROPOSAL_GENERATION, token, job_title="Django developer")
+            self.assertEqual(replay.status_code, 302)
+        self.assertEqual(client.chat.completions.create.call_count, 1)
+        messages = client.chat.completions.create.call_args.kwargs["messages"]
+        self.assertIn("INTERNAL RESEARCH DECISION SUPPORT", messages[1]["content"])
+        self.assertIn('"selected_cases":1', messages[1]["content"])
+        self.assertNotIn("PRIVATE_RESEARCH_PERSON", messages[1]["content"])
+        row = AIRequest.objects.get(operation=O.PROPOSAL_GENERATION)
+        self.assertEqual(row.effective_fingerprint, control.fingerprint(messages, "effective"))
+        self.assertEqual(row.quota_state, Q.CONSUMED)
+        self.assertEqual(row.lifecycle, L.SUCCEEDED)
+        self.assertEqual(row.input_tokens, 20)
+        self.assertEqual(Proposal.objects.get().final_text, "Safe proposal.")
+
+    def test_missing_research_stops_before_reservation_and_provider(self):
+        from proposal_ai.models import ResearchDataset
+        ResearchDataset.objects.update(active=False)
+        response = self.post(O.PROPOSAL_GENERATION)
+        self.assertEqual(response.status_code, 503)
+        self.providers["generate_proposal"].assert_not_called()
+        self.assertFalse(AIRequest.objects.exists())
+        self.assertFalse(Proposal.objects.exists())
 
     def token(self, operation, intent=I.GENERATE):
         resource = self.job.pk if operation == O.PROPOSAL_GENERATION else None
@@ -841,5 +884,9 @@ class ConcurrencyTests(TransactionTestCase):
                 intent=I.GENERATE, submitted_fingerprint="a" * 64, effective_fingerprint="b" * 64,
                 lifecycle=L.SUCCEEDED, quota_state=Q.CONSUMED, quota_units=1,
                 admitted_at=MOMENT - timedelta(hours=1), lease_expires_at=MOMENT)
-        self.race([O.JOB_EXTRACTION, O.JOB_EXTRACTION], complete=True)
-        self.assertEqual(control.allowance(self.user, MOMENT)[1], 25)
+        outcomes = self.race([O.JOB_EXTRACTION, O.JOB_EXTRACTION], complete=True)
+        # SQLite permits both contenders to fail closed. Charge only the winner
+        # whose provider ran; do not require availability under contention.
+        expected = 23 + 2 * outcomes.count(200)
+        self.assertEqual(control.allowance(self.user, MOMENT)[1], expected)
+        self.assertLessEqual(expected, 25)
