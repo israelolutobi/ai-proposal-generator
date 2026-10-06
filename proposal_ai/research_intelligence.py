@@ -1,11 +1,7 @@
-"""Evidence retrieval for ProposalQ's research-informed proposal generation.
-
-This module deliberately uses deterministic database retrieval/aggregation before the
-provider call. It does not claim causation from observational research and never sends
-participant identity or raw source proposals to users.
-"""
+"""Deterministic retrieval for ProposalQ's research-informed generation."""
 from dataclasses import dataclass
 import re
+from types import SimpleNamespace
 
 from .models import ResearchDataset
 
@@ -28,8 +24,6 @@ def _case_text(case):
 def _score(case, query_tokens):
     case_tokens = _tokens(_case_text(case))
     overlap = len(query_tokens & case_tokens)
-    # Direct overlap drives MVP retrieval. Complete/full-fidelity evidence receives
-    # a small tie-break only; outcome never increases relevance.
     fidelity = 1 if "full" in (case.source_fidelity or "").lower() else 0
     complete = 1 if (case.record_status or "").lower() == "complete" else 0
     return overlap * 10 + fidelity + complete
@@ -50,15 +44,13 @@ def build_research_context(job_post):
             "No research dataset is currently available. Base the application only on the supplied freelancer and job evidence.",
             None, 0, 0,
         )
-
     query = " ".join(filter(None, [job_post.job_title, job_post.job_description,
                                     job_post.skills_required, job_post.budget_type]))
     query_tokens = _tokens(query)
     cases = list(dataset.cases.prefetch_related("requirements").all())
-    ranked = sorted((( _score(case, query_tokens), case) for case in cases),
+    ranked = sorted(((_score(case, query_tokens), case) for case in cases),
                     key=lambda item: (-item[0], item[1].case_key))
     selected = [(score, case) for score, case in ranked if score > 0][:MAX_CASES]
-
     lines = [
         "PROPOSALQ RESEARCH CONTEXT",
         f"Research snapshot: {dataset.case_count} application cases; {len(selected)} relevant cases selected.",
@@ -67,8 +59,7 @@ def build_research_context(job_post):
     ]
     for score, case in selected:
         lines.extend([
-            "",
-            f"Comparable case {case.case_key} (relevance {score}; outcome: {case.outcome or 'unknown'}; route: {case.application_route or 'unknown'}):",
+            "", f"Comparable case {case.case_key} (relevance {score}; outcome: {case.outcome or 'unknown'}; route: {case.application_route or 'unknown'}):",
             f"- Domain/job: {case.domain_niche or case.job_title}",
             f"- Observable fit: {case.observable_fit_signals or 'not recorded'}",
             f"- Strong features: {case.strong_features or 'not recorded'}",
@@ -79,17 +70,37 @@ def build_research_context(job_post):
         requirements = list(case.requirements.all())
         if requirements:
             lines.append("- Requirement evidence: " + "; ".join(
-                f"{r.importance or 'Requirement'}: {r.requirement} [{r.coverage or 'unknown'}]"
-                for r in requirements[:8]
+                f"{r.importance or 'Requirement'}: {r.requirement} [{r.coverage or 'unknown'}]" for r in requirements[:8]
             ))
-
     notes = dataset.notes.filter(note_type__iexact="Research rule")[:5]
     if notes:
         lines.append("\nResearch rules:")
         for note in notes:
             lines.append(f"- {note.observation} {note.do_not_overclaim}".strip())
-
     text = "\n".join(lines)
     if len(text) > MAX_CONTEXT_CHARACTERS:
         text = text[:MAX_CONTEXT_CHARACTERS].rsplit("\n", 1)[0] + "\n[Research context truncated to the MVP safety budget.]"
     return ResearchContext(text, dataset.pk, dataset.case_count, len(selected))
+
+
+def build_research_context_from_application(application_context):
+    """Bridge the existing generation boundary to the research DB without changing views."""
+    def field(label, next_labels):
+        marker = label + ":"
+        start = application_context.find(marker)
+        if start < 0:
+            return ""
+        start += len(marker)
+        end = len(application_context)
+        for next_label in next_labels:
+            pos = application_context.find("\n" + next_label + ":", start)
+            if pos >= 0:
+                end = min(end, pos)
+        return application_context[start:end].strip()
+    labels = ["Job Title", "Job Description", "Budget Type", "Skills Required", "Client Location"]
+    values = {}
+    for i, label in enumerate(labels):
+        values[label] = field(label, labels[i + 1:])
+    job = SimpleNamespace(job_title=values["Job Title"], job_description=values["Job Description"],
+                          budget_type=values["Budget Type"], skills_required=values["Skills Required"])
+    return build_research_context(job)
