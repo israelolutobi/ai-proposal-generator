@@ -527,6 +527,24 @@ class OperationalLoggingTests(SimpleTestCase):
         self.assertEqual(parsed["LOGGING"]["handlers"]["safe_operations"]["stream"], "ext://sys.stderr")
         self.assertFalse(parsed["LOGGING"]["disable_existing_loggers"])
 
+    def test_disallowed_host_has_a_fixed_reason_without_request_details(self):
+        record = self.record(name="django.security.DisallowedHost", message="private-host-marker")
+        record.status_code = 400
+        record.args = ("private-host-marker",)
+        record.exc_info = (ValueError, ValueError("private-error-marker"), None)
+        record.request = object()
+        payload = json.loads(SafeOperationalFormatter().format(record))
+        self.assertEqual(payload["category"], "security_rejection")
+        self.assertEqual(payload["reason"], "disallowed_host")
+        self.assertEqual(payload["status"], 400)
+        self.assertNotIn("private", json.dumps(payload))
+
+    def test_arbitrary_security_logger_does_not_become_a_reason(self):
+        record = self.record(name="django.security.private-marker", message="private-error-marker")
+        payload = json.loads(SafeOperationalFormatter().format(record))
+        self.assertNotIn("reason", payload)
+        self.assertNotIn("private", json.dumps(payload))
+
     def test_development_keeps_existing_logging_configuration(self):
         self.assertNotIn("LOGGING", load_settings(environment(False)))
 

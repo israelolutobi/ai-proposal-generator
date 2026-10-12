@@ -14,7 +14,10 @@ def _event(record):
     elif record.name in ("django", "django.request", "django.server"):
         return {"event": "request_failure", "category": "application_error"}
     elif record.name == "django.security" or record.name.startswith("django.security."):
-        return {"event": "request_rejected", "category": "security_rejection"}
+        event = {"event": "request_rejected", "category": "security_rejection"}
+        if record.name == "django.security.DisallowedHost":
+            event["reason"] = "disallowed_host"
+        return event
     return None
 
 

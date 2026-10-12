@@ -1,5 +1,7 @@
 """Release safety gates, using mock connections; no hosted database is touched."""
 import io
+from contextlib import redirect_stdout
+from hashlib import sha256
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import Mock, patch
 
@@ -89,6 +91,15 @@ class StartupGateTests(SimpleTestCase):
         self.database.assert_called_once_with()
         self.execute.assert_called_once_with(
             "gunicorn", ["gunicorn", "--config", "gunicorn.conf.py", "mysite.wsgi:application"])
+
+    @override_settings(ALLOWED_HOSTS=["beta.example", "www.beta.example"])
+    def test_startup_identifies_effective_hosts_without_logging_values(self):
+        output = io.StringIO()
+        with redirect_stdout(output):
+            start_web()
+        expected = sha256(b"beta.example\nwww.beta.example").hexdigest()
+        self.assertEqual(output.getvalue(), f"Validated ALLOWED_HOSTS SHA256={expected}\n")
+        self.assertNotIn("beta.example", output.getvalue())
 
     def test_failed_configuration_prevents_database_and_start(self):
         self.commands.side_effect = RuntimeError("Invalid configuration")

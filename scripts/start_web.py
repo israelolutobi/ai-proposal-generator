@@ -1,5 +1,6 @@
 """Read-only release gate followed by the existing Gunicorn command."""
 import os
+from hashlib import sha256
 from pathlib import Path
 import sys
 from urllib.parse import unquote, urlsplit
@@ -33,6 +34,9 @@ def start_web():
     from scripts.release import verify_database
 
     call_command("validate_deployment")
+    # Compare with the saved host policy without logging environment values.
+    host_policy = "\n".join(sorted(settings.ALLOWED_HOSTS)).encode("utf-8")
+    print(f"Validated ALLOWED_HOSTS SHA256={sha256(host_policy).hexdigest()}", flush=True)
     if settings.AI_ENABLED or settings.REGISTRATION_ENABLED:
         raise ValueError("Controlled Beta startup requires AI and registration disabled.")
     verify_database()
