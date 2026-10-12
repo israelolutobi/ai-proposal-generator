@@ -161,7 +161,7 @@ class ReadinessTests(TestCase):
         self.assertEqual(response.content, b"not ready\n")
 
     def test_pending_application_migration(self):
-        MigrationRecorder(connection).migration_qs.filter(app="proposal_ai", name="0017_research_intelligence").delete()
+        MigrationRecorder(connection).migration_qs.filter(app="proposal_ai", name="0018_account_security").delete()
         self.assertEqual(self.get().status_code, 503)
 
     def test_pending_framework_migration(self):
@@ -371,7 +371,8 @@ class ReleaseValidationTests(TestCase):
         self.assertNotIn("private-database-marker", str(error.exception))
 
     def test_pending_migration_rejects_release(self):
-        MigrationRecorder(connection).migration_qs.filter(app="proposal_ai", name="0017_research_intelligence").delete()
+        for app, name in MigrationExecutor(connection).loader.graph.leaf_nodes("proposal_ai"):
+            MigrationRecorder(connection).migration_qs.filter(app=app, name=name).delete()
         with self.assertRaisesRegex(CommandError, "unapplied"):
             self.run_command()
 

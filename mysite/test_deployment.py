@@ -6,6 +6,7 @@ from urllib.parse import parse_qs, urlsplit
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase, override_settings
+from django.core.exceptions import ImproperlyConfigured
 
 from scripts.release import ReleaseError, run_release
 from scripts.local_release import neon_url
@@ -37,15 +38,16 @@ class PrivateReleaseTests(SimpleTestCase):
         self.assertNotIn("migrate", self.command_names())
 
     def test_enabled_ai_prevents_release(self):
-        with override_settings(AI_ENABLED=True), self.assertRaises(ReleaseError):
+        with override_settings(AI_ENABLED=True), self.assertRaises(ImproperlyConfigured):
             run_release()
         self.database.ensure_connection.assert_not_called()
         self.assertNotIn("migrate", self.command_names())
 
-    def test_open_registration_prevents_release(self):
-        with override_settings(REGISTRATION_ENABLED=True), self.assertRaises(ReleaseError):
+    def test_open_registration_allows_ai_disabled_release(self):
+        with override_settings(REGISTRATION_ENABLED=True):
             run_release()
-        self.database.ensure_connection.assert_not_called()
+        self.assertEqual(self.command_names(), ["validate_deployment", "check", "migrate", "validate_release"])
+        self.database.ensure_connection.assert_called_once_with()
 
     def test_sqlite_is_rejected_before_connecting(self):
         self.database.vendor = "sqlite"
@@ -124,16 +126,16 @@ class StartupGateTests(SimpleTestCase):
         self.execute.assert_not_called()
 
     def test_enabled_ai_prevents_start(self):
-        with override_settings(AI_ENABLED=True), self.assertRaises(ValueError):
+        with override_settings(AI_ENABLED=True), self.assertRaises(ImproperlyConfigured):
             start_web()
         self.database.assert_not_called()
         self.execute.assert_not_called()
 
-    def test_open_registration_prevents_start(self):
-        with override_settings(REGISTRATION_ENABLED=True), self.assertRaises(ValueError):
+    def test_open_registration_allows_ai_disabled_start(self):
+        with override_settings(REGISTRATION_ENABLED=True):
             start_web()
-        self.database.assert_not_called()
-        self.execute.assert_not_called()
+        self.database.assert_called_once_with()
+        self.execute.assert_called_once()
 
 
 class RenderHostTests(SimpleTestCase):

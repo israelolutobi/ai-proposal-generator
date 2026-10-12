@@ -54,7 +54,9 @@ Import on the explicitly configured development PostgreSQL database:
 
 Use the reviewed checkout and the existing release process. Check backup/restore
 and stop incompatible writers before changes to an existing database. Render
-must retain AI_ENABLED=False, registration disabled and automatic deploys off.
+must retain AI_ENABLED=False and automatic deploys off. Registration stays disabled
+for the controlled Beta; the [Phase A procedure](public_registration.md) describes
+the separate reviewed public-registration release.
 Never add provider keys or select global credit thresholds for this release.
 
     python -B scripts/local_release.py --research-workbook /private/master.xlsx

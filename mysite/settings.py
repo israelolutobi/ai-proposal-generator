@@ -28,6 +28,7 @@ APP_ENV = environment_mode(os.environ)
 IS_PRODUCTION = APP_ENV == "production"
 globals().update(ai_configuration(os.environ, production=IS_PRODUCTION))
 REGISTRATION_ENABLED = boolean(os.environ, "REGISTRATION_ENABLED", not IS_PRODUCTION)
+AUTH_RATE_LIMIT_ENABLED = boolean(os.environ, "AUTH_RATE_LIMIT_ENABLED", True)
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 
@@ -68,6 +69,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "proposal_ai.account_security.AccountRateLimitMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
