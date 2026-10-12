@@ -16,10 +16,12 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import HttpResponse
 from . import views
 from . import health
 
 urlpatterns = [
+    path("robots.txt", lambda request: HttpResponse("User-agent: *\nAllow: /\n", content_type="text/plain"), name="robots_txt"),
     path("health/live/", health.live, name="health_live"),
     path("health/ready/", health.ready, name="health_ready"),
     path('admin/', admin.site.urls),
