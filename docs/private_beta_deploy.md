@@ -1,5 +1,9 @@
 # Controlled Beta: Render Free + Neon Free
 
+This procedure preserves closed registration. For the reviewed public signup
+release, use [Phase A: public registration](public_registration.md). The current
+startup/release validators accept either mode while requiring AI to remain off.
+
 Deploy the actual Django application as one Render Free Docker web service and
 one NEW Neon Free PostgreSQL database. Never create a Render PostgreSQL database,
 upload local SQLite, add paid resources, or enter payment information. AI and

@@ -56,7 +56,7 @@ def production_overrides(**changes):
              "SECURE_SSL_REDIRECT", "SECURE_HSTS_SECONDS", "SECURE_HSTS_INCLUDE_SUBDOMAINS",
              "SECURE_HSTS_PRELOAD", "SECURE_PROXY_SSL_HEADER", "TRUST_PROXY_HEADERS",
               "DEPLOYMENT_RUNTIME", "AI_ENABLED", "AI_GLOBAL_DAILY_CREDITS", "AI_GLOBAL_WEEKLY_CREDITS",
-              "REGISTRATION_ENABLED")
+              "REGISTRATION_ENABLED", "AUTH_RATE_LIMIT_ENABLED", "MIDDLEWARE", "AUTH_PASSWORD_VALIDATORS")
     return {name: parsed[name] for name in names}
 
 
@@ -391,11 +391,11 @@ class RegistrationConfigurationTests(unittest.TestCase):
     def test_production_false_case_and_whitespace(self):
         self.assertFalse(self.parsed(True, REGISTRATION_ENABLED=" fAlSe ")["REGISTRATION_ENABLED"])
 
-    def test_production_true_is_rejected(self):
-        self.rejected(True, REGISTRATION_ENABLED="True")
+    def test_production_true_is_allowed_with_ai_disabled(self):
+        self.assertTrue(self.parsed(True, REGISTRATION_ENABLED="True")["REGISTRATION_ENABLED"])
 
-    def test_production_true_case_and_whitespace_is_rejected(self):
-        self.rejected(True, REGISTRATION_ENABLED=" tRuE ")
+    def test_production_true_case_and_whitespace_is_allowed(self):
+        self.assertTrue(self.parsed(True, REGISTRATION_ENABLED=" tRuE ")["REGISTRATION_ENABLED"])
 
     def test_production_blank_is_rejected(self):
         for value in ("", " \t"):
@@ -418,11 +418,10 @@ class RegistrationConfigurationTests(unittest.TestCase):
         self.assertEqual(parsed["APP_ENV"], "development")
         self.assertTrue(parsed["REGISTRATION_ENABLED"])
 
-    def test_effective_production_policy_cannot_enable_registration(self):
+    def test_effective_production_policy_allows_registration_with_ai_disabled(self):
         parsed = self.parsed(True)
         parsed["REGISTRATION_ENABLED"] = True
-        with self.assertRaisesRegex(ImproperlyConfigured, "REGISTRATION_ENABLED"):
-            validate_production(parsed)
+        validate_production(parsed)
 
     def test_effective_policy_rejects_non_boolean_values(self):
         for value in (None, "False", 0, 1):
@@ -575,8 +574,8 @@ class DeploymentBehaviorTests(SimpleTestCase):
         self.assertIn("Production configuration is valid", output.getvalue())
         self.assertIn("REGISTRATION_ENABLED=False; controlled-Beta registration is closed", output.getvalue())
 
-    def test_validator_rejects_unsafe_effective_registration_policy(self):
-        with configured_production(), override_settings(REGISTRATION_ENABLED=True):
+    def test_validator_rejects_non_boolean_effective_registration_policy(self):
+        with configured_production(), override_settings(REGISTRATION_ENABLED="True"):
             with self.assertRaisesRegex(ImproperlyConfigured, "REGISTRATION_ENABLED"):
                 call_command("validate_deployment", stdout=io.StringIO())
 

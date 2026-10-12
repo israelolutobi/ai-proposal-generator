@@ -59,10 +59,32 @@ def validate_registration_configuration(configuration, production=False):
                else configuration.REGISTRATION_ENABLED)
     if type(enabled) is not bool:
         raise ImproperlyConfigured("REGISTRATION_ENABLED must be True or False.")
-    if production and enabled:
-        raise ImproperlyConfigured(
-            "REGISTRATION_ENABLED must be False in production during controlled Beta."
-        )
+    if production:
+        def setting(name):
+            return configuration[name] if isinstance(configuration, Mapping) else getattr(configuration, name)
+        if enabled and setting("AI_ENABLED") is not False:
+            raise ImproperlyConfigured("REGISTRATION_ENABLED requires AI_ENABLED=False for Phase A.")
+        if (setting("AUTH_RATE_LIMIT_ENABLED") is not True
+                or "proposal_ai.account_security.AccountRateLimitMiddleware" not in setting("MIDDLEWARE")):
+            raise ImproperlyConfigured("Production requires AUTH_RATE_LIMIT_ENABLED=True and account rate-limit middleware.")
+        required = {"django.middleware.csrf.CsrfViewMiddleware", "django.contrib.auth.middleware.AuthenticationMiddleware",
+                    "django.contrib.sessions.middleware.SessionMiddleware"}
+        validators = {item.get("NAME") for item in setting("AUTH_PASSWORD_VALIDATORS")}
+        required_validators = {"django.contrib.auth.password_validation." + name for name in (
+            "UserAttributeSimilarityValidator", "MinimumLengthValidator", "CommonPasswordValidator", "NumericPasswordValidator"
+        )}
+        middleware = setting("MIDDLEWARE")
+        limiter = "proposal_ai.account_security.AccountRateLimitMiddleware"
+        if (not required.issubset(middleware) or not required_validators.issubset(validators)
+                or any(middleware.index(name) > middleware.index(limiter) for name in required)):
+            raise ImproperlyConfigured("Production account protection requires CSRF, sessions, authentication and password validators.")
+
+
+def validate_phase_a(configuration):
+    """Shared entry-point gate; AI activation requires a separately reviewed release."""
+    enabled = configuration["AI_ENABLED"] if isinstance(configuration, Mapping) else configuration.AI_ENABLED
+    if enabled is not False:
+        raise ImproperlyConfigured("Phase A release requires AI_ENABLED=False.")
 
 
 def integer(environment, name, default, minimum=0, maximum=None):
@@ -166,6 +188,7 @@ def validate_production(configuration):
     validate_registration_configuration(configuration, production=production)
     if not production:
         return
+    validate_phase_a(configuration)
     if setting("DEBUG"):
         raise ImproperlyConfigured("DEBUG must be False in production.")
     key = setting("SECRET_KEY")

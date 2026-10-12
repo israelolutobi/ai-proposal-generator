@@ -77,17 +77,16 @@ class AIConfigurationTests(SimpleTestCase):
             with self.assertRaises(ImproperlyConfigured):
                 validate_ai_configuration({**POLICY, **changes})
 
-    def test_settings_and_deployment_validator_agree_without_database(self):
-        parsed = production.load_settings(production.environment(AI_ENABLED="true",
-            AI_GLOBAL_DAILY_CREDITS="12", AI_GLOBAL_WEEKLY_CREDITS="30"))
-        self.assertTrue(parsed["AI_ENABLED"])
-        with production.configured_production(AI_ENABLED="true", AI_GLOBAL_DAILY_CREDITS="12",
-                                             AI_GLOBAL_WEEKLY_CREDITS="30"):
-            output = io.StringIO()
-            with patch("proposal_ai.services.OpenAI") as sdk:
-                call_command("validate_deployment", stdout=output)
-            sdk.assert_not_called()
-            self.assertIn("AI_ENABLED=True", output.getvalue())
+    def test_phase_a_deployment_validator_rejects_ai_without_database(self):
+        with patch("proposal_ai.services.OpenAI") as sdk:
+            with self.assertRaises(ImproperlyConfigured):
+                production.load_settings(production.environment(AI_ENABLED="true",
+                    AI_GLOBAL_DAILY_CREDITS="12", AI_GLOBAL_WEEKLY_CREDITS="30"))
+            with production.configured_production(), override_settings(AI_ENABLED=True,
+                    AI_GLOBAL_DAILY_CREDITS=12, AI_GLOBAL_WEEKLY_CREDITS=30):
+                with self.assertRaises(ImproperlyConfigured):
+                    call_command("validate_deployment", stdout=io.StringIO())
+        sdk.assert_not_called()
 
     def test_configuration_errors_do_not_echo_supplied_values(self):
         marker = "SYNTHETIC_PRIVATE_CONFIGURATION"

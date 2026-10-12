@@ -1,5 +1,5 @@
 from .research_intelligence import build_research_context, ResearchUnavailable
-from django.db import DatabaseError
+from django.db import DatabaseError, IntegrityError
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.conf import settings
@@ -110,9 +110,13 @@ def register_user(request):
 
     form = RegistrationForm(request.POST if request.method == "POST" else None)
     if request.method == "POST" and form.is_valid():
-        user = form.save()
-        login(request, user)
-        return redirect("create_freelancer_profile")
+        try:
+            user = form.save()
+        except IntegrityError:
+            form.add_error(None, "An account with these details already exists.")
+        else:
+            login(request, user)
+            return redirect("create_freelancer_profile")
 
     return render(request, "register.html", {"form": form})
 

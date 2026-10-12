@@ -37,8 +37,8 @@ def start_web():
     # Compare with the saved host policy without logging environment values.
     host_policy = "\n".join(sorted(settings.ALLOWED_HOSTS)).encode("utf-8")
     print(f"Validated ALLOWED_HOSTS SHA256={sha256(host_policy).hexdigest()}", flush=True)
-    if settings.AI_ENABLED or settings.REGISTRATION_ENABLED:
-        raise ValueError("Controlled Beta startup requires AI and registration disabled.")
+    from mysite.configuration import validate_phase_a
+    validate_phase_a(settings)
     verify_database()
     call_command("validate_release")
     # No migrations/collection occur here. exec gives Gunicorn the platform's

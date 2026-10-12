@@ -4,7 +4,8 @@ This is an application runbook, not confirmation of any hosting capability.
 The Linux host, PostgreSQL/TLS, ingress, backups, restore process, draining,
 probe timing and log collection must be verified by the deployment operator.
 Production global AI thresholds remain **UNSELECTED** until separately approved.
-Do not enable public registration or seed hosted demo accounts.
+For public registration use the reviewed [Phase A release procedure](public_registration.md).
+Keep AI disabled and do not seed hosted demo accounts.
 
 ## Release sequence
 

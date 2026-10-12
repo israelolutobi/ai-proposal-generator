@@ -1,4 +1,4 @@
-"""One coordinated private-smoke release; never invoked by web workers."""
+"""One coordinated AI-disabled release; never invoked by web workers."""
 import os
 from pathlib import Path
 import sys
@@ -26,8 +26,8 @@ def run_release():
     from django.core.management import call_command
 
     call_command("validate_deployment")
-    if settings.AI_ENABLED or settings.REGISTRATION_ENABLED:
-        raise ReleaseError("Private smoke release requires AI and registration disabled.")
+    from mysite.configuration import validate_phase_a
+    validate_phase_a(settings)
     call_command("check", deploy=True)
     verify_database()
     call_command("migrate", interactive=False)

@@ -55,7 +55,8 @@ def main():
         environment = {
             "DJANGO_SETTINGS_MODULE": "mysite.settings", "PYTHON_DOTENV_DISABLED": "1",
             "APP_ENV": "production", "DEBUG": "False", "AI_ENABLED": "False",
-            "REGISTRATION_ENABLED": "False", "SECRET_KEY": signing_key, "DATABASE_URL": url,
+            "REGISTRATION_ENABLED": "False", "AUTH_RATE_LIMIT_ENABLED": "True",
+            "SECRET_KEY": signing_key, "DATABASE_URL": url,
             "ALLOWED_HOSTS": hostname, "CSRF_TRUSTED_ORIGINS": "", "PORT": "10000",
             "WEB_CONCURRENCY": "2", "TRUST_PROXY_HEADERS": "True",
             "SECURE_SSL_REDIRECT": "True", "SECURE_HSTS_SECONDS": "300",

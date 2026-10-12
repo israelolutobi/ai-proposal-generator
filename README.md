@@ -401,12 +401,13 @@ entitlement, email verification or public password-reset service is introduced.
 
 `APP_ENV` remains the authoritative environment mode. In development,
 `REGISTRATION_ENABLED` defaults to `True`; an explicit `False` closes signup for
-local testing. In production it defaults to `False`, and explicit `True` is a
-configuration error during controlled Beta. Values are case-insensitive and
+local testing. In production it defaults to `False`; explicit `True` is supported
+by the [Phase A release](docs/public_registration.md) with AI disabled and account
+safeguards enforced. Values are case-insensitive and
 trimmed, but blank or values other than `True`/`False` fail startup. Closed
 registration returns HTTP 403 for GET, HEAD and valid-CSRF POST, with a login
 link. Public signup links disappear. Existing active users can still log in and
-use their saved data. `validate_deployment` reports the effective closed policy
+use their saved data. `validate_deployment` reports the effective registration policy
 without inspecting users, connecting to the database or calling a provider.
 
 ### Provisioning and onboarding
@@ -511,3 +512,10 @@ This project is currently being developed as a portfolio project focused on appl
 ## Notes
 
 This project is intended as a portfolio and learning project. Sensitive configuration such as API keys and environment variables are excluded from version control.
+
+# Phase A public registration
+
+See [the public-registration release procedure](docs/public_registration.md) for
+the account audit, abuse limits, exact Render settings and remaining limitations.
+`REGISTRATION_ENABLED=True` is supported in production with `AI_ENABLED=False`
+and mandatory account safeguards. Both flags false preserve controlled Beta.

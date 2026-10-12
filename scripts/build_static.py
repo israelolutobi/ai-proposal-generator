@@ -17,7 +17,7 @@ def main():
     os.environ.update(
         DJANGO_SETTINGS_MODULE="mysite.settings", PYTHON_DOTENV_DISABLED="1",
         SECRET_KEY=secrets.token_urlsafe(64), APP_ENV="production", DEBUG="False",
-        AI_ENABLED="False", REGISTRATION_ENABLED="False",
+        AI_ENABLED="False", REGISTRATION_ENABLED="False", AUTH_RATE_LIMIT_ENABLED="True",
         DATABASE_URL="postgresql://static_build@127.0.0.1:1/static_build?sslmode=require",
         ALLOWED_HOSTS="static-build.invalid", CSRF_TRUSTED_ORIGINS="",
         SECURE_SSL_REDIRECT="True", SECURE_HSTS_SECONDS="300",

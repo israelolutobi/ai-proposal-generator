@@ -5,10 +5,11 @@ import re
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.core.validators import MaxLengthValidator, MinValueValidator, URLValidator
+from django.db import transaction
 
 from .models import (
     FreelancerProfile, JobPost, Proposal, ProposalOutcome,
-    ProposalUseConfirmation, WorkExperience,
+    ProposalUseConfirmation, RegisteredEmail, WorkExperience,
 )
 from .platform_config import PLATFORM_CONFIGS, normalize_platform_name
 from . import ai_limits
@@ -32,13 +33,21 @@ class RegistrationForm(UserCreationForm):
         self.fields["password2"].label = "Confirm Password"
 
     def clean_email(self):
-        email = self.cleaned_data["email"]
-        # This form check preserves the duplicate-email policy. Database-level
-        # case-insensitive uniqueness (including concurrent signups) is a
-        # separate future decision; Django's User.email is not unique.
-        if self._meta.model.objects.filter(email__iexact=email).exists():
+        email = self.cleaned_data["email"].strip().lower()
+        if (self._meta.model.objects.filter(email__iexact=email).exists()
+                or RegisteredEmail.objects.filter(email=email).exists()):
             raise forms.ValidationError("Email already exists.", code="duplicate_email")
         return email
+
+    def save(self, commit=True):
+        if not commit:
+            raise ValueError("Registration requires an atomic committed save.")
+        with transaction.atomic():
+            user = super().save(commit=True)
+            # Unique key arbitrates concurrent public signups. Legacy/admin
+            # accounts are checked above, without rewriting their records.
+            RegisteredEmail.objects.create(email=user.email, user=user)
+        return user
 
 
 class LoginForm(AuthenticationForm):

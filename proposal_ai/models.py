@@ -622,3 +622,15 @@ class ResearchTerm(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=("research_case", "token"), name="research_term_unique")]
+
+
+# Account-security state is shared by all workers through PostgreSQL.
+class AccountRateLimit(models.Model):
+    key = models.CharField(max_length=64, primary_key=True)
+    attempts = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(db_index=True)
+
+
+class RegisteredEmail(models.Model):
+    email = models.CharField(max_length=254, primary_key=True)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)

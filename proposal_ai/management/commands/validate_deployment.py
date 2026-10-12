@@ -2,7 +2,7 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from mysite.configuration import validate_production
+from mysite.configuration import validate_phase_a, validate_production
 from mysite.runtime import validate_runtime
 
 
@@ -15,8 +15,10 @@ class Command(BaseCommand):
         if settings.APP_ENV != "production":
             raise CommandError("Set APP_ENV=production before deployment validation.")
         validate_production(settings)
+        validate_phase_a(settings)
         validate_runtime(settings.DEPLOYMENT_RUNTIME)
-        self.stdout.write(f"REGISTRATION_ENABLED={settings.REGISTRATION_ENABLED}; controlled-Beta registration is closed.")
+        policy = "public registration is open" if settings.REGISTRATION_ENABLED else "controlled-Beta registration is closed"
+        self.stdout.write(f"REGISTRATION_ENABLED={settings.REGISTRATION_ENABLED}; {policy}.")
         self.stdout.write(f"AI_ENABLED={settings.AI_ENABLED}; global limits configured={settings.AI_GLOBAL_DAILY_CREDITS is not None}. This is local process configuration only.")
         self.stdout.write(self.style.SUCCESS("Production configuration is valid. No database or provider connection was made."))
         self.stdout.write("Confirm PostgreSQL TLS, ingress isolation/header rewriting, upstream timeout >=120s and shutdown draining with the deployment operator.")
