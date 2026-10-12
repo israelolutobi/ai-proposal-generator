@@ -572,6 +572,24 @@ def extract_job_features(request):
 
             "For all other unknown fields, use an empty string. "
 
+            "Strict JSON output requirements: "
+            "Return one JSON object containing all 15 requested keys. "
+            "Every non-budget field must contain a JSON string, never a "
+            "number, array, object, boolean, or null. "
+            "Represent skills_required as one comma-separated string, "
+            "not an array. "
+            "Represent proposal_count, interviewing_count, and invites_sent "
+            "as strings, even when they contain numbers. "
+            "For hourly_min, hourly_max, and fixed_budget, use a numeric "
+            "string when a reliable amount is known, otherwise an empty string. "
+            "Never use null for missing information. "
+            "Keep job_title within 255 characters. "
+            "Keep platform, budget_type, experience_level, project_duration, "
+            "hours_per_week, proposal_count, interviewing_count, and invites_sent "
+            "within 100 characters each. "
+            "Keep client_location within 255 characters. "
+            "Do not include Markdown formatting, code fences, or explanatory text. "
+
             "Job post text: "
             + raw_job_text
         )
