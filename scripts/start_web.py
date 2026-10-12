@@ -31,14 +31,14 @@ def render_database(environment):
 def start_web():
     from django.conf import settings
     from django.core.management import call_command
+    from mysite.configuration import validate_phase_b
     from scripts.release import verify_database
 
+    validate_phase_b(settings)
     call_command("validate_deployment")
     # Compare with the saved host policy without logging environment values.
     host_policy = "\n".join(sorted(settings.ALLOWED_HOSTS)).encode("utf-8")
     print(f"Validated ALLOWED_HOSTS SHA256={sha256(host_policy).hexdigest()}", flush=True)
-    from mysite.configuration import validate_phase_a
-    validate_phase_a(settings)
     verify_database()
     call_command("validate_release")
     # No migrations/collection occur here. exec gives Gunicorn the platform's

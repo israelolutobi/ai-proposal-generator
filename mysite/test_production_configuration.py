@@ -56,7 +56,8 @@ def production_overrides(**changes):
              "SECURE_SSL_REDIRECT", "SECURE_HSTS_SECONDS", "SECURE_HSTS_INCLUDE_SUBDOMAINS",
              "SECURE_HSTS_PRELOAD", "SECURE_PROXY_SSL_HEADER", "TRUST_PROXY_HEADERS",
               "DEPLOYMENT_RUNTIME", "AI_ENABLED", "AI_GLOBAL_DAILY_CREDITS", "AI_GLOBAL_WEEKLY_CREDITS",
-              "REGISTRATION_ENABLED", "AUTH_RATE_LIMIT_ENABLED", "MIDDLEWARE", "AUTH_PASSWORD_VALIDATORS")
+              "REGISTRATION_ENABLED", "AUTH_RATE_LIMIT_ENABLED", "MIDDLEWARE", "AUTH_PASSWORD_VALIDATORS",
+              "PHASE_B_AI_APPROVED")
     return {name: parsed[name] for name in names}
 
 
@@ -394,6 +395,67 @@ class RegistrationConfigurationTests(unittest.TestCase):
     def test_production_true_is_allowed_with_ai_disabled(self):
         self.assertTrue(self.parsed(True, REGISTRATION_ENABLED="True")["REGISTRATION_ENABLED"])
 
+    def test_production_registration_and_approved_ai_are_allowed(self):
+        parsed = self.parsed(
+            True,
+            REGISTRATION_ENABLED="True",
+            AI_ENABLED="True",
+            PHASE_B_AI_APPROVED="True",
+            AI_GLOBAL_DAILY_CREDITS="12",
+            AI_GLOBAL_WEEKLY_CREDITS="30",
+        )
+
+        self.assertTrue(parsed["REGISTRATION_ENABLED"])
+        self.assertTrue(parsed["AI_ENABLED"])
+        self.assertTrue(parsed["PHASE_B_AI_APPROVED"])
+        self.assertEqual(parsed["AI_GLOBAL_DAILY_CREDITS"], 12)
+        self.assertEqual(parsed["AI_GLOBAL_WEEKLY_CREDITS"], 30)
+
+        validate_production(parsed)
+
+
+    def test_production_ai_without_phase_b_approval_is_rejected(self):
+        with self.assertRaisesRegex(
+            ImproperlyConfigured,
+            "PHASE_B_AI_APPROVED",
+        ):
+            self.parsed(
+                True,
+                REGISTRATION_ENABLED="True",
+                AI_ENABLED="True",
+                PHASE_B_AI_APPROVED="False",
+                AI_GLOBAL_DAILY_CREDITS="12",
+                AI_GLOBAL_WEEKLY_CREDITS="30",
+            )
+
+
+    def test_production_approved_ai_without_quotas_is_rejected(self):
+        with self.assertRaisesRegex(
+            ImproperlyConfigured,
+            "AI_GLOBAL_DAILY_CREDITS and AI_GLOBAL_WEEKLY_CREDITS",
+        ):
+            self.parsed(
+                True,
+                REGISTRATION_ENABLED="True",
+                AI_ENABLED="True",
+                PHASE_B_AI_APPROVED="True",
+            ) 
+
+    def test_invalid_phase_b_approval_values_are_rejected(self):
+        for value in ("yes", "1", "enabled", "", "unexpected"):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(
+                    ImproperlyConfigured,
+                    "PHASE_B_AI_APPROVED",
+                ):
+                    self.parsed(
+                        True,
+                        AI_ENABLED="True",
+                        PHASE_B_AI_APPROVED=value,
+                        AI_GLOBAL_DAILY_CREDITS="12",
+                        AI_GLOBAL_WEEKLY_CREDITS="30",
+                    )
+                    
     def test_production_true_case_and_whitespace_is_allowed(self):
         self.assertTrue(self.parsed(True, REGISTRATION_ENABLED=" tRuE ")["REGISTRATION_ENABLED"])
 

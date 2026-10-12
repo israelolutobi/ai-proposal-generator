@@ -57,28 +57,52 @@ def boolean(environment, name, default):
 def validate_registration_configuration(configuration, production=False):
     enabled = (configuration["REGISTRATION_ENABLED"] if isinstance(configuration, Mapping)
                else configuration.REGISTRATION_ENABLED)
+
     if type(enabled) is not bool:
         raise ImproperlyConfigured("REGISTRATION_ENABLED must be True or False.")
+
     if production:
         def setting(name):
             return configuration[name] if isinstance(configuration, Mapping) else getattr(configuration, name)
-        if enabled and setting("AI_ENABLED") is not False:
-            raise ImproperlyConfigured("REGISTRATION_ENABLED requires AI_ENABLED=False for Phase A.")
+
         if (setting("AUTH_RATE_LIMIT_ENABLED") is not True
                 or "proposal_ai.account_security.AccountRateLimitMiddleware" not in setting("MIDDLEWARE")):
-            raise ImproperlyConfigured("Production requires AUTH_RATE_LIMIT_ENABLED=True and account rate-limit middleware.")
-        required = {"django.middleware.csrf.CsrfViewMiddleware", "django.contrib.auth.middleware.AuthenticationMiddleware",
-                    "django.contrib.sessions.middleware.SessionMiddleware"}
-        validators = {item.get("NAME") for item in setting("AUTH_PASSWORD_VALIDATORS")}
-        required_validators = {"django.contrib.auth.password_validation." + name for name in (
-            "UserAttributeSimilarityValidator", "MinimumLengthValidator", "CommonPasswordValidator", "NumericPasswordValidator"
-        )}
+            raise ImproperlyConfigured(
+                "Production requires AUTH_RATE_LIMIT_ENABLED=True and account rate-limit middleware."
+            )
+
+        required = {
+            "django.middleware.csrf.CsrfViewMiddleware",
+            "django.contrib.auth.middleware.AuthenticationMiddleware",
+            "django.contrib.sessions.middleware.SessionMiddleware",
+        }
+
+        validators = {
+            item.get("NAME")
+            for item in setting("AUTH_PASSWORD_VALIDATORS")
+        }
+
+        required_validators = {
+            "django.contrib.auth.password_validation." + name
+            for name in (
+                "UserAttributeSimilarityValidator",
+                "MinimumLengthValidator",
+                "CommonPasswordValidator",
+                "NumericPasswordValidator",
+            )
+        }
+
         middleware = setting("MIDDLEWARE")
         limiter = "proposal_ai.account_security.AccountRateLimitMiddleware"
-        if (not required.issubset(middleware) or not required_validators.issubset(validators)
-                or any(middleware.index(name) > middleware.index(limiter) for name in required)):
-            raise ImproperlyConfigured("Production account protection requires CSRF, sessions, authentication and password validators.")
 
+        if (
+            not required.issubset(middleware)
+            or not required_validators.issubset(validators)
+            or any(middleware.index(name) > middleware.index(limiter) for name in required)
+        ):
+            raise ImproperlyConfigured(
+                "Production account protection requires CSRF, sessions, authentication and password validators."
+            )
 
 def validate_phase_a(configuration):
     """Shared entry-point gate; AI activation requires a separately reviewed release."""
@@ -98,6 +122,24 @@ def integer(environment, name, default, minimum=0, maximum=None):
     if number < minimum or (maximum is not None and number > maximum):
         raise ImproperlyConfigured(f"{name} is outside the supported range.")
     return number
+
+def validate_phase_b(configuration):
+    """Require explicit approval and valid quotas before AI activation."""
+    def setting(name):
+        return configuration[name] if isinstance(configuration, Mapping) else getattr(configuration, name)
+
+    enabled = setting("AI_ENABLED")
+
+    if type(enabled) is not bool:
+        raise ImproperlyConfigured("AI_ENABLED must be True or False.")
+
+    if enabled:
+        if setting("PHASE_B_AI_APPROVED") is not True:
+            raise ImproperlyConfigured(
+                "AI activation requires explicit PHASE_B_AI_APPROVED=True."
+            )
+
+        validate_ai_configuration(configuration, production=True)
 
 
 def csv_values(value):
@@ -188,7 +230,9 @@ def validate_production(configuration):
     validate_registration_configuration(configuration, production=production)
     if not production:
         return
-    validate_phase_a(configuration)
+
+    validate_phase_b(configuration)
+
     if setting("DEBUG"):
         raise ImproperlyConfigured("DEBUG must be False in production.")
     key = setting("SECRET_KEY")

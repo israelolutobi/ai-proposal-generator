@@ -30,6 +30,9 @@ globals().update(ai_configuration(os.environ, production=IS_PRODUCTION))
 REGISTRATION_ENABLED = boolean(os.environ, "REGISTRATION_ENABLED", not IS_PRODUCTION)
 AUTH_RATE_LIMIT_ENABLED = boolean(os.environ, "AUTH_RATE_LIMIT_ENABLED", True)
 
+# Explicit release approval required before production AI can be activated.
+PHASE_B_AI_APPROVED = boolean(os.environ, "PHASE_B_AI_APPROVED", False)
+
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 if not SECRET_KEY or not SECRET_KEY.strip():

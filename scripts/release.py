@@ -1,4 +1,4 @@
-"""One coordinated AI-disabled release; never invoked by web workers."""
+"""Validated production release; never invoked by web workers."""
 import os
 from pathlib import Path
 import sys
@@ -24,10 +24,10 @@ def verify_database():
 def run_release():
     from django.conf import settings
     from django.core.management import call_command
+    from mysite.configuration import validate_phase_b
 
+    validate_phase_b(settings)
     call_command("validate_deployment")
-    from mysite.configuration import validate_phase_a
-    validate_phase_a(settings)
     call_command("check", deploy=True)
     verify_database()
     call_command("migrate", interactive=False)

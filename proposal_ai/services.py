@@ -1,5 +1,7 @@
 """The OpenAI boundary: validated values and scalar telemetry, never ORM writes."""
 from dataclasses import dataclass, field, fields, replace
+from contextlib import contextmanager
+from contextvars import ContextVar
 import logging
 import os
 import re
@@ -8,7 +10,7 @@ from json import JSONDecodeError
 
 import httpx
 from django.conf import settings
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ImproperlyConfigured, ValidationError
 from openai import (
     APIConnectionError, APIError, APIResponseValidationError, APIStatusError,
     APITimeoutError, AuthenticationError, BadRequestError, InternalServerError,
@@ -17,6 +19,7 @@ from openai import (
 )
 
 from . import ai_limits
+from mysite.configuration import validate_phase_b
 
 
 CHAT_MODEL = "gpt-5"
@@ -159,6 +162,49 @@ class AIInputError(AIError):
     user_message = "This AI request is too large or contains invalid text. Shorten the supplied context or select fewer experiences."
 
 
+class AIDispatchError(AIError):
+    category = "coordination"
+    user_message = "AI generation is temporarily unavailable."
+
+
+@dataclass
+class _DispatchPermit:
+    expected: AITelemetry
+    guard: object
+    used: bool = False
+    received_response: bool = False
+
+
+_dispatch_permit = ContextVar("proposalq_dispatch_permit", default=None)
+
+
+@contextmanager
+def dispatch_scope(expected, guard):
+    """One SDK invocation for a ledger dispatch; no database logic lives here."""
+    permit = _DispatchPermit(expected, guard)
+    token = _dispatch_permit.set(permit)
+    try:
+        yield permit
+    finally:
+        _dispatch_permit.reset(token)
+
+
+def _check_dispatch(telemetry, *, claim=False):
+    permit = _dispatch_permit.get()
+    if permit is None:
+        if settings.APP_ENV == "production":
+            raise AIDispatchError(telemetry)
+        return  # Isolated development service/SDK tests remain supported.
+    identity = ("provider", "api_style", "requested_model", "completion_token_cap")
+    if (permit.used or type(telemetry) is not AITelemetry
+            or any(getattr(telemetry, name) != getattr(permit.expected, name) for name in identity)):
+        # A second call must never refund work already dispatched by this scope.
+        raise AIDispatchError(telemetry)
+    if claim:
+        permit.used = True
+        permit.guard()
+
+
 class _DropProviderLogs(logging.Filter):
     def filter(self, record):
         return False
@@ -187,6 +233,11 @@ def check_configuration():
 def ensure_enabled():
     if getattr(settings, "AI_ENABLED", False) is not True:
         raise AIDisabledError()
+    if settings.APP_ENV == "production":
+        try:
+            validate_phase_b(settings)
+        except (ImproperlyConfigured, AttributeError, KeyError):
+            raise AIConfigurationError() from None
 
 
 def _create_client():
@@ -201,14 +252,20 @@ def _request(operation, telemetry=None):
     try:
         # Also protects the inactive helper. Never cancel/refund after SDK work begins.
         ensure_enabled()
+        _check_dispatch(telemetry)
         with _create_client() as client:
             if telemetry is None:  # Preserve the inactive legacy Responses helper.
                 ensure_enabled()
+                _check_dispatch(telemetry, claim=True)
                 return operation(client)
             ensure_enabled()
+            _check_dispatch(telemetry, claim=True)
             started = time.perf_counter_ns()
             try:
                 response = operation(client)
+                permit = _dispatch_permit.get()
+                if permit is not None:
+                    permit.received_response = True
             finally:
                 elapsed = max(0, (time.perf_counter_ns() - started) // 1_000_000)
                 telemetry = replace(telemetry, provider_latency_ms=elapsed)
