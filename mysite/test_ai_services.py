@@ -89,6 +89,7 @@ class AIServiceTests(SimpleTestCase):
         self.client.chat.completions.create.assert_called_once_with(
             model="gpt-5", messages=[{"role": "user", "content": "Exact extraction prompt"}],
             max_completion_tokens=8192,
+            response_format={"type": "json_object"},
         )
         self.client.responses.create.assert_not_called()
 

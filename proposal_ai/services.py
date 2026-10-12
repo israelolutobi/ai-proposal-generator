@@ -17,7 +17,11 @@ from openai import (
     NotFoundError, OpenAI, OpenAIError, PermissionDeniedError, RateLimitError,
     UnprocessableEntityError,
 )
-
+from openai import (
+    APITimeoutError, AuthenticationError, BadRequestError, InternalServerError,
+    NotFoundError, OpenAI, OpenAIError, PermissionDeniedError, RateLimitError,
+    UnprocessableEntityError,
+)
 from . import ai_limits
 from mysite.configuration import validate_phase_b
 
@@ -348,10 +352,19 @@ def _chat_text(messages, operation, output_maximum):
         ai_limits.check_request(messages, operation)
     except ValidationError:
         raise AIInputError(telemetry) from None
-    response, telemetry = _request(lambda client: client.chat.completions.create(
-        model=CHAT_MODEL, messages=messages,
-        max_completion_tokens=ai_limits.COMPLETION_TOKENS[operation],
-    ), telemetry)
+    request_options = {
+        "model": CHAT_MODEL,
+        "messages": messages,
+        "max_completion_tokens": ai_limits.COMPLETION_TOKENS[operation],
+    }
+
+    if operation == "extraction":
+        request_options["response_format"] = {"type": "json_object"}
+
+    response, telemetry = _request(
+        lambda client: client.chat.completions.create(**request_options),
+        telemetry,
+    )
     # Capture typed scalar evidence before rejecting incomplete/invalid content.
     telemetry = _response_telemetry(response, telemetry)
     try:

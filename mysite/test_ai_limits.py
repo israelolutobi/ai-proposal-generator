@@ -191,6 +191,21 @@ class ServiceBudgetTests(SimpleTestCase):
                 self.assertEqual(self.client.chat.completions.create.call_args.kwargs["max_completion_tokens"], expected)
                 self.assertNotIn("reasoning_effort", self.client.chat.completions.create.call_args.kwargs)
 
+    def test_json_mode_applies_only_to_extraction(self):
+        for operation in ("summary", "extraction", "proposal"):
+            with self.subTest(operation=operation):
+                self.call(operation, "Prompt")
+
+                options = self.client.chat.completions.create.call_args.kwargs
+
+                if operation == "extraction":
+                    self.assertEqual(
+                        options.get("response_format"),
+                        {"type": "json_object"},
+                    )
+                else:
+                    self.assertNotIn("response_format", options)
+
     def test_installed_sdk_serializes_each_cap_on_the_unchanged_endpoint(self):
         for operation, expected in (("summary", 2048), ("extraction", 8192), ("proposal", 6144)):
             seen = []
