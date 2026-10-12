@@ -519,3 +519,11 @@ See [the public-registration release procedure](docs/public_registration.md) for
 the account audit, abuse limits, exact Render settings and remaining limitations.
 `REGISTRATION_ENABLED=True` is supported in production with `AI_ENABLED=False`
 and mandatory account safeguards. Both flags false preserve controlled Beta.
+
+# Phase B controlled AI readiness
+
+See [the Phase B audit and activation procedure](docs/phase_b_ai_readiness.md).
+Production AI requires explicit `PHASE_B_AI_APPROVED=True`, a valid pair of
+global credit ceilings and a live ledger reservation for each SDK invocation.
+The default approval is False. Keep live AI disabled until the budget, audience,
+reviewed commit and deployment are explicitly approved.

@@ -70,8 +70,10 @@ def unavailable():
 
 
 def _require_enabled():
-    if getattr(settings, "AI_ENABLED", False) is not True:
-        raise ControlError(services.AIDisabledError.user_message, 503)
+    try:
+        services.ensure_enabled()
+    except services.AIConfigurationError as error:
+        raise ControlError(error.user_message, 503) from None
 
 
 def issue_nonce(user, operation, resource_id=None, intent=Intent.GENERATE):
@@ -340,6 +342,7 @@ def mark_dispatch(row, telemetry=None):
     try:
         owned = AIRequest.objects.get(pk=row.pk, user_id=row.user_id, nonce=row.nonce)
         ai_global.check_dispatch_bindings(owned)
+        moment = now()
         changed = _owned_live(row, moment).filter(lifecycle=Lifecycle.RESERVED, quota_state=Quota.RESERVED).update(
             lifecycle=Lifecycle.IN_FLIGHT, dispatch_started_at=moment,
             **_telemetry_fields(telemetry),
@@ -397,6 +400,19 @@ def record_telemetry(row, telemetry):
         raise unavailable() from None
 
 
+def _check_live_dispatch(row):
+    """Recheck after client construction/waits, immediately before SDK work."""
+    services.ensure_enabled()
+    try:
+        expiry = _owned_live(row, now()).filter(
+            lifecycle=Lifecycle.IN_FLIGHT, quota_state=Quota.RESERVED,
+        ).values_list("lease_expires_at", flat=True).first()
+    except DatabaseError:
+        raise unavailable() from None
+    if expiry is None or expiry <= now():
+        raise ControlError("This request expired before dispatch. Start a new generation.", 503)
+
+
 def call_provider(row, function):
     requested = services.request_telemetry(row.operation)
     try:
@@ -408,15 +424,21 @@ def call_provider(row, function):
         fail(row, Failure.LOCAL_CONFIGURATION, release=True, telemetry=requested)
         raise
     mark_dispatch(row, requested)
+    dispatch = None
     try:
-        result = function()
+        with services.dispatch_scope(requested, lambda: _check_live_dispatch(row)) as dispatch:
+            result = function()
         if type(result) is not services.AIServiceResult:
             raise services.AIResponseError()
     except services.AIError as error:
-        release = isinstance(error, (services.AIConfigurationError, services.AICapacityError, services.AIInputError))
+        release = ((dispatch is None or not dispatch.received_response)
+                   and isinstance(error, (services.AIConfigurationError, services.AICapacityError, services.AIInputError)))
         fail(row, error.category, release=release, telemetry=error.telemetry)
         if isinstance(error, services.AIDisabledError):
             raise ControlError(error.user_message, 503) from None
+        raise
+    except ControlError:
+        fail(row, Failure.COORDINATION)
         raise
     except Exception:
         fail(row, Failure.UNEXPECTED)

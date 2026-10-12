@@ -10,7 +10,7 @@ from django.db.migrations.exceptions import (
 )
 from django.db.migrations.executor import MigrationExecutor
 
-from mysite.configuration import validate_phase_a, validate_production
+from mysite.configuration import validate_phase_b, validate_production
 from mysite.runtime import validate_runtime
 
 
@@ -42,7 +42,7 @@ def check_configuration():
             raise ImproperlyConfigured()
         validate_production(settings)
         if settings.APP_ENV == "production":
-            validate_phase_a(settings)
+            validate_phase_b(settings)
         validate_runtime(settings.DEPLOYMENT_RUNTIME)
     except (ImproperlyConfigured, AttributeError, KeyError, TypeError, ValueError):
         raise OperationalFailure("configuration_invalid") from None

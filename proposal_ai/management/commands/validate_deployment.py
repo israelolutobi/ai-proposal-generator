@@ -2,7 +2,7 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from mysite.configuration import validate_phase_a, validate_production
+from mysite.configuration import validate_phase_b, validate_production
 from mysite.runtime import validate_runtime
 
 
@@ -15,7 +15,7 @@ class Command(BaseCommand):
         if settings.APP_ENV != "production":
             raise CommandError("Set APP_ENV=production before deployment validation.")
         validate_production(settings)
-        validate_phase_a(settings)
+        validate_phase_b(settings)
         validate_runtime(settings.DEPLOYMENT_RUNTIME)
         policy = "public registration is open" if settings.REGISTRATION_ENABLED else "controlled-Beta registration is closed"
         self.stdout.write(f"REGISTRATION_ENABLED={settings.REGISTRATION_ENABLED}; {policy}.")
