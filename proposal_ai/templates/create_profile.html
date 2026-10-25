@@ -5,7 +5,7 @@
 
 <head>
 
-    <title>{{ page_title }} - ProposalIQ</title>
+    <title>{{ page_title }} - ProposalQ</title>
 
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
@@ -152,7 +152,7 @@
                 ">
                     Don't feel like writing a professional bio?
                     Just add a few of your main skills or services below
-                    and ProposalIQ can create one for you.
+                    and ProposalQ can create one for you.
                     You can edit the result afterwards or skip this completely.
                 </p>
 
@@ -535,7 +535,7 @@ document.addEventListener(
                 skipButton.style.cursor = "not-allowed";
 
                 showStatus(
-                    "ProposalIQ is generating your profile summary. This can take a few moments. Please wait and avoid clicking Generate again."
+                    "ProposalQ is generating your profile summary. This can take a few moments. Please wait and avoid clicking Generate again."
                 );
 
 
@@ -601,7 +601,7 @@ document.addEventListener(
                     } catch {
 
                         throw new Error(
-                            "ProposalIQ received an unexpected response. Please try again."
+                            "ProposalQ received an unexpected response. Please try again."
                         );
 
                     }
