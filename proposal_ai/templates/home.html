@@ -60,6 +60,14 @@
     <!-- PENDING OUTCOME UPDATES -->
     <!-- ========================================================= -->
 
+    {% if subscription_usage %}
+    <div style="padding:16px 20px; border:1px solid #334155; border-radius:10px; margin-bottom:24px; background:#111c30;">
+        <strong>{{ subscription_usage.plan }} plan</strong> · {{ subscription_usage.used }} / {{ subscription_usage.limit }} proposals this month
+        {% if subscription_usage.pending %} · {{ subscription_usage.pending }} in progress{% endif %}
+        <a href="{% url 'pricing' %}" style="color:#74baff; margin-left:12px;">Pricing &amp; billing</a>
+    </div>
+    {% endif %}
+
     {% if pending_outcomes %}
 
         <div style="

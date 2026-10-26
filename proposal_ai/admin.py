@@ -1,7 +1,41 @@
 """Permission-controlled, inspection-only access to the AI request ledger."""
 from django.contrib import admin
 
-from .models import AIQuotaPeriod, AIRequest
+from .models import AIQuotaPeriod, AIRequest, BillingAccount, CheckoutAttempt, StripeEvent
+
+
+class BillingReadOnlyAdmin(admin.ModelAdmin):
+    actions = None
+
+    def get_readonly_fields(self, request, obj=None):
+        return tuple(field.name for field in self.model._meta.fields)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(BillingAccount)
+class BillingAccountAdmin(BillingReadOnlyAdmin):
+    list_display = ("id", "user_id", "status", "paid", "cancel_at_period_end", "period_end", "synced_at")
+    list_filter = ("status", "paid", "cancel_at_period_end")
+
+
+@admin.register(CheckoutAttempt)
+class CheckoutAttemptAdmin(BillingReadOnlyAdmin):
+    list_display = ("id", "account_id", "resolved", "created_at")
+    list_filter = ("resolved",)
+
+
+@admin.register(StripeEvent)
+class StripeEventAdmin(BillingReadOnlyAdmin):
+    list_display = ("event_id", "event_type", "outcome", "processed_at")
+    list_filter = ("event_type", "outcome")
 
 
 @admin.register(AIQuotaPeriod)

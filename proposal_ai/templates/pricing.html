@@ -1,0 +1,56 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Start with 3 free AI proposals each month. Upgrade to ProposalQ Pro for 50 proposals at £9.99 per month.">
+    <title>Pricing &amp; billing | ProposalQ</title>
+    <link rel="stylesheet" href="{% static 'css/pricing.css' %}">
+</head>
+<body>
+{% if user.is_authenticated %}{% include 'partials/navbar.html' %}{% else %}{% include 'partials/public_navbar.html' %}{% endif %}
+<main class="pricing-page">
+    <header class="pricing-hero">
+        <p class="eyebrow">MORE OPPORTUNITIES. YOUR VOICE.</p>
+        <h1>A plan for your next opportunity.</h1>
+        <p>Turn your experience into thoughtful proposals.<br>Start free, then make room for more.</p>
+        <span class="test-badge">Test mode · No real payments</span>
+    </header>
+    {% if billing_error %}<div class="notice error" role="alert">{{ billing_error }}</div>{% endif %}
+    {% if checkout_returned %}<div class="notice" role="status">Your checkout has returned. Pro activates after Stripe confirms payment. If your plan still shows Free, refresh this page in a moment. Returning here does not confirm a payment.</div>{% endif %}
+    {% if request.GET.checkout == 'cancelled' %}<div class="notice" role="status">Checkout was closed. Your plan has not changed. You can return to the same checkout by selecting Upgrade.</div>{% endif %}
+    {% if usage %}
+    <section class="usage-panel" aria-labelledby="usage-heading">
+        <div><p class="eyebrow">YOUR ACCOUNT</p><h2 id="usage-heading">{{ usage.plan }} plan</h2><p>{{ usage.used }} of {{ usage.limit }} proposals generated{% if usage.pending %} · {{ usage.pending }} in progress{% endif %}</p></div>
+        <div class="usage-detail"><label for="monthly-usage">{{ usage.remaining }} available this month</label><progress id="monthly-usage" max="100" value="{{ usage.percent }}">{{ usage.percent }}%</progress><p>Resets {{ usage.reset|date:'j M Y' }} at 00:00 UTC</p></div>
+    </section>
+    {% if billing_account.cancel_at_period_end and usage.plan == 'Pro' %}<div class="notice">Your subscription will end on {{ billing_account.period_end|date:'j M Y, H:i' }}. You keep Pro access until then and return to Free afterwards.</div>
+    {% elif billing_account.status == 'past_due' or billing_account.status == 'unpaid' or billing_account.status == 'incomplete' %}<div class="notice error">Your subscription needs a payment update. Your account currently has Free limits. Open Manage billing to review your payment.</div>
+    {% elif billing_account.status == 'conflict' %}<div class="notice error">More than one subscription was found. Open Manage billing and contact support to resolve this. Pro access is paused until it is resolved.</div>{% endif %}
+    {% endif %}
+    <div class="plan-grid">
+        <section class="plan-card" aria-labelledby="free-title">
+            <p class="eyebrow">A STRONG START</p><h2 id="free-title">Free</h2><p class="price">£0<span> / month</span></p><p class="plan-description">For exploring your next freelance opportunity.</p>
+            <ul><li><strong>3 AI-generated proposals</strong> each month</li><li>Proposals tailored to your profile</li><li>Job detail extraction</li><li>Save proposals and track outcomes</li><li>No payment card required</li></ul>
+            {% if user.is_authenticated %}<a class="button secondary" href="{% url 'dashboard' %}">{% if usage.plan == 'Free' %}Continue on Free{% else %}Go to dashboard{% endif %}</a>{% elif registration_enabled %}<a class="button secondary" href="{% url 'register' %}">Get started free</a>{% else %}<a class="button secondary" href="{% url 'login' %}">Log in to get started</a>{% endif %}
+        </section>
+        <section class="plan-card pro-card" aria-labelledby="pro-title">
+            <span class="plan-tag">ROOM TO GROW</span><p class="eyebrow">BUILD YOUR MOMENTUM</p><h2 id="pro-title">Pro</h2><p class="price">£9.99<span> / month</span></p><p class="plan-description">For freelancers making their next move.</p>
+            <ul><li><strong>50 AI-generated proposals</strong> each month</li><li>Everything included in Free</li><li>One simple monthly subscription</li><li>Manage payments securely with Stripe</li><li>Cancel renewal at any time</li></ul>
+            {% if not billing_enabled %}<button class="button" disabled>Test checkout coming soon</button>{% elif not user.is_authenticated %}<a class="button" href="{% url 'login' %}">Log in to upgrade</a>{% elif usage.plan == 'Pro' %}<form action="{% url 'billing_portal' %}" method="post">{% csrf_token %}<button class="button" type="submit">Manage Pro subscription</button></form>{% else %}<form action="{% url 'billing_checkout' %}" method="post">{% csrf_token %}<button class="button" type="submit">Upgrade to Pro · Test checkout</button></form>{% endif %}
+            <p class="card-note">£9.99 GBP billed monthly. No rollover.</p>
+        </section>
+    </div>
+    {% if can_manage and billing_enabled %}<section class="manage-panel"><div><h2>You're in control.</h2><p>Update your payment method, view invoices or cancel renewal in Stripe's secure billing portal.</p></div><form method="post" action="{% url 'billing_portal' %}">{% csrf_token %}<button class="button secondary" type="submit">Manage billing</button></form></section>{% endif %}
+    <section class="pricing-faq" aria-labelledby="faq-title">
+        <h2 id="faq-title">Clear plans. No surprises.</h2>
+        <details><summary>When does my allowance reset?</summary><p>Both plans reset at 00:00 UTC on the first day of each calendar month. Unused proposals do not roll over. Your Pro payment renews monthly from the date you subscribe; its billing date can differ from your allowance reset.</p></details>
+        <details><summary>What counts as a proposal?</summary><p>Each successfully saved AI proposal, including a regeneration, counts once. A request in progress temporarily reserves one place. Failed requests and replaying the same completed request do not use another monthly place. Profile summaries and job extraction do not use proposal places. Fair-use burst limits and service spending controls also apply.</p></details>
+        <details><summary>What happens when I upgrade or cancel?</summary><p>Upgrading raises your current month's allowance to 50, including proposals already generated. Cancelling stops the next renewal; Pro stays available until the paid period ends. You then return to Free with the same month's usage. Your saved proposals, profile and experience stay available.</p></details>
+        <details><summary>What if a payment fails?</summary><p>Pro access pauses while payment needs attention. You can keep using your account with Free limits and update your payment method in Manage billing. Pro returns when Stripe confirms an active, paid subscription.</p></details>
+    </section>
+    <footer>Built for your next opportunity. <a href="{% url 'public_home' %}">Back to ProposalQ</a></footer>
+</main>
+</body>
+</html>

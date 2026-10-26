@@ -19,7 +19,7 @@ from django.db.models import F, Sum
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare, salted_hmac
 
-from . import ai_global, services
+from . import ai_global, services, subscriptions
 from .models import AIRequest, JobPost, Proposal
 
 
@@ -242,6 +242,7 @@ def admit(user, operation, token, submitted_input, effective_input, resource_id=
                         quota_units=CREDITS[operation], admitted_at=moment,
                         lease_expires_at=moment + LEASE, job_post_id=resource_id,
                     )
+                    subscriptions.lock_account(user, operation)
                     moment = now()
                     periods = None
                     if configured[0] is not None:
@@ -255,6 +256,7 @@ def admit(user, operation, token, submitted_input, effective_input, resource_id=
                     row.save(update_fields=["admitted_at", "lease_expires_at"])
                     _require_enabled()
                     _check_user_limits(user, row, moment)
+                    subscriptions.check_admission(user, row, moment)
                     if periods is not None:
                         ai_global.reserve(row, periods, configured, moment)
                     _require_enabled()

@@ -513,6 +513,15 @@ This project is currently being developed as a portfolio project focused on appl
 
 This project is intended as a portfolio and learning project. Sensitive configuration such as API keys and environment variables are excluded from version control.
 
+# Free and Pro subscriptions (test mode)
+
+The subscription feature adds 3 Free / 50 Pro proposals per UTC calendar month
+and Stripe Checkout/Billing Portal for a £9.99 monthly Pro subscription. Billing
+defaults off and rejects live keys. Existing AI availability and spending gates
+remain separate. See [the subscription audit and setup guide](docs/subscriptions.md)
+for environment settings, signed webhooks, test acceptance, recovery and UK bank
+payout instructions. No production deployment or live payments are enabled.
+
 # Phase A public registration
 
 See [the public-registration release procedure](docs/public_registration.md) for

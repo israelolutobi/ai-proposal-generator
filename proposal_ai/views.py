@@ -26,7 +26,7 @@ from .models import (
     WorkExperience,
 )
 from .platform_config import get_platform_config
-from . import ai_control, ai_limits, services
+from . import ai_control, ai_limits, services, subscriptions
 
 
 def ai_form_nonce(request, operation, resource_id=None, *, fresh=False):
@@ -373,6 +373,7 @@ def generate_proposal(request):
     pending_outcomes = [p for p in proposals if p.is_submitted and not p.has_outcome]
     return render(request, "home.html", {
         "generated_proposal": None, "proposals": proposals,
+        "subscription_usage": subscriptions.usage(request.user),
         "pending_outcomes": pending_outcomes,
         "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION),
     })

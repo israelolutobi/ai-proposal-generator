@@ -1,0 +1,59 @@
+:root{color-scheme:dark;--bg:#0b1120;--panel:#111c30;--border:#293850;--muted:#bac7db;--blue:#1e90ff}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:#f5f8ff;font-family:Arial,sans-serif;line-height:1.6}
+a{color:#74baff}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid #a5d3ff;outline-offset:5px}
+.pricing-page{max-width:1080px;margin:auto;padding:64px 24px 24px}
+.pricing-hero{text-align:center;margin-bottom:42px}
+.eyebrow{color:#82bfff;font-size:.75rem;font-weight:700;letter-spacing:.16em;margin:0 0 12px}
+.pricing-hero h1{font-size:clamp(2.25rem,5vw,3.5rem);line-height:1.15;letter-spacing:-.04em;max-width:730px;margin:16px auto 24px}
+.pricing-hero>p:not(.eyebrow){color:var(--muted);font-size:1.15rem}
+.test-badge{display:inline-block;border:1px solid #4c6081;border-radius:30px;padding:5px 14px;color:#c2d5ef;font-size:.8rem;margin-top:10px}
+.plan-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin:36px 0}
+.plan-card{position:relative;border:1px solid var(--border);border-radius:18px;padding:34px;background:var(--panel);display:flex;flex-direction:column}
+.pro-card{border:2px solid var(--blue);background:linear-gradient(150deg,#14294a,#111c30 70%)}
+.plan-tag{position:absolute;right:24px;top:-14px;border-radius:20px;padding:4px 14px;font-size:.7rem;font-weight:700;letter-spacing:.08em;background:#1e90ff;color:#fff}
+.plan-card h2{font-size:1.8rem;margin:0}
+.price{font-size:3.1rem;font-weight:700;letter-spacing:-.04em;margin:14px 0}
+.price span{font-size:.95rem;font-weight:400;letter-spacing:0;color:var(--muted)}
+.plan-description{color:var(--muted);margin:0}
+.plan-card ul{list-style:none;padding:0;flex-grow:1;margin:24px 0 30px}
+.plan-card li{margin:12px 0;padding-left:25px;position:relative;color:#d7e3f5}
+.plan-card li:before{content:'✓';position:absolute;left:0;color:#77bcff}
+.button{display:block;border:1px solid #439fff;border-radius:9px;background:#1674cf;color:#fff;text-decoration:none;text-align:center;padding:12px 20px;font-size:.95rem;font-weight:700;cursor:pointer;min-height:48px;width:100%;line-height:1.4}
+.button:hover{background:#1e82e5}
+.secondary{background:#172b47;border-color:#47648b}
+.secondary:hover{background:#244061}
+.button:disabled{opacity:.6;cursor:default}
+.card-note{font-size:.8rem;color:var(--muted);text-align:center;margin:14px 0 0}
+.usage-panel,.manage-panel{display:flex;align-items:center;justify-content:space-between;gap:28px;background:#101e34;padding:24px 28px;border:1px solid var(--border);border-radius:14px}
+.usage-panel h2,.manage-panel h2{margin:0;font-size:1.3rem}
+.usage-panel p,.manage-panel p{color:var(--muted);font-size:.9rem;margin:4px 0}
+.usage-detail{min-width:260px}
+.usage-detail label{font-size:.9rem}
+progress{display:block;width:100%;height:9px;border:0;border-radius:8px;overflow:hidden;margin:10px 0;background:#293850}
+progress::-webkit-progress-bar{background:#293850}
+progress::-webkit-progress-value{background:#1e90ff}
+progress::-moz-progress-bar{background:#1e90ff}
+.notice{border:1px solid #43658d;background:#122c49;border-radius:10px;padding:16px 20px;margin:18px 0;color:#d6eaff}
+.notice.error{border-color:#bc6262;background:#382131;color:#ffe0e0}
+.manage-panel{margin:32px 0}
+.manage-panel form{min-width:175px}
+.pricing-faq{margin:64px auto 40px;max-width:800px}
+.pricing-faq h2{text-align:center;font-size:1.8rem;margin-bottom:30px}
+.pricing-faq details{border-bottom:1px solid var(--border);padding:18px 0}
+.pricing-faq summary{font-weight:700;cursor:pointer}
+.pricing-faq p{color:var(--muted);font-size:.95rem}
+footer{text-align:center;border-top:1px solid var(--border);padding:24px 0;font-size:.8rem;color:var(--muted)}
+footer a{margin-left:10px}
+
+@media(max-width:700px){.pricing-page{padding:40px 18px 20px}
+.plan-grid{grid-template-columns:1fr;gap:30px}
+.plan-card{padding:28px}
+.usage-panel,.manage-panel{align-items:stretch;flex-direction:column;padding:22px;gap:18px}
+.usage-detail{min-width:0}
+.pricing-faq{margin-top:42px}
+body>div:first-of-type{flex-wrap:wrap;gap:16px}
+body>div:first-of-type>div:last-child{flex-wrap:wrap;gap:14px!important}
+}

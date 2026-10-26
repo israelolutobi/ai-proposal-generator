@@ -1,9 +1,15 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from . import views
+from . import billing_views
 
 
 urlpatterns = [
+    path("pricing/", billing_views.pricing, name="pricing"),
+    path("billing/checkout/", billing_views.checkout, name="billing_checkout"),
+    path("billing/portal/", billing_views.portal, name="billing_portal"),
+    path("billing/return/", billing_views.checkout_return, name="billing_return"),
+    path("billing/webhook/", billing_views.webhook, name="stripe_webhook"),
     path("", views.public_home, name="public_home"),
 
     path("register/", views.register_user, name="register"),

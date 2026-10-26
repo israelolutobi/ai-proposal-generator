@@ -14,6 +14,7 @@ from mysite.configuration import (
 )
 from mysite.runtime import gunicorn_configuration
 from mysite.operational_logging import production_logging
+from mysite.billing_configuration import billing_configuration
 
 
 load_dotenv()
@@ -26,6 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 APP_ENV = environment_mode(os.environ)
 IS_PRODUCTION = APP_ENV == "production"
+globals().update(billing_configuration(os.environ, production=IS_PRODUCTION))
 globals().update(ai_configuration(os.environ, production=IS_PRODUCTION))
 REGISTRATION_ENABLED = boolean(os.environ, "REGISTRATION_ENABLED", not IS_PRODUCTION)
 AUTH_RATE_LIMIT_ENABLED = boolean(os.environ, "AUTH_RATE_LIMIT_ENABLED", True)

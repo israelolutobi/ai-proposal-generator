@@ -90,7 +90,8 @@ def main():
         raise TestConfigurationError("The network-blocking test runner must remain active.")
     labels = ["mysite.postgres_admission_tests", "mysite.postgres_concurrency_tests",
               "mysite.postgres_global_exposure_tests", "mysite.postgres_research_tests", "mysite.postgres_account_tests",
-              "mysite.test_research_intelligence", "mysite.test_release_operations", "mysite.postgres_phase_b_tests"]
+              "mysite.test_research_intelligence", "mysite.test_release_operations",
+              "mysite.postgres_billing_tests"]
     call_command("test", *labels, verbosity=2, interactive=False)
     return 0
 

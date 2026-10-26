@@ -1,6 +1,46 @@
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+import uuid
+
+
+class BillingAccount(models.Model):
+    """One test-mode Stripe customer per user; contains no card/bank details."""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    identity = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    stripe_customer_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    stripe_subscription_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    status = models.CharField(max_length=32, default="none")
+    price_id = models.CharField(max_length=255, blank=True)
+    period_start = models.DateTimeField(null=True, blank=True)
+    period_end = models.DateTimeField(null=True, blank=True)
+    paid = models.BooleanField(default=False)
+    cancel_at_period_end = models.BooleanField(default=False)
+    synced_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class CheckoutAttempt(models.Model):
+    """Persisted before calling Stripe so an uncertain create has a stable key."""
+    account = models.ForeignKey(BillingAccount, on_delete=models.PROTECT)
+    identity = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    stripe_session_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=("account",), condition=models.Q(resolved=False), name="billing_one_open_checkout",
+        )]
+
+
+class StripeEvent(models.Model):
+    """Deduplication receipt, committed atomically with the subscription update."""
+    event_id = models.CharField(max_length=255, unique=True)
+    event_type = models.CharField(max_length=100)
+    outcome = models.CharField(max_length=16)
+    processed_at = models.DateTimeField(auto_now_add=True)
 
 
 class AIQuotaPeriod(models.Model):
