@@ -321,7 +321,7 @@ class BillingFlowTests(TestCase):
         self.assertEqual(params["customer"], "cus_owned")
         self.assertEqual(params["line_items"], [{"price": "price_pro", "quantity": 1}])
         self.assertEqual(params["success_url"], "https://proposalq.example/billing/return/")
-        self.assertEqual(params["payment_method_types"], ["card"])
+        self.assertNotIn("payment_method_types", params)
         self.assertFalse(params["allow_promotion_codes"])
         self.account.refresh_from_db()
         self.assertFalse(self.account.paid)
@@ -465,6 +465,26 @@ class BillingFlowTests(TestCase):
         billing.process_event(resource(event))
         self.account.refresh_from_db()
         self.assertEqual(self.account.status, "past_due")
+
+    def test_stripe_cancel_at_period_end_timestamp_is_recognised(self):
+        row = subscription(self.account)
+        period_end = row["items"]["data"][0]["current_period_end"]
+
+        row["cancel_at_period_end"] = False
+        row["cancel_at"] = period_end
+        self.api.v1.subscriptions.list.return_value = page([row])
+
+        billing.process_event(self.event("customer.subscription.updated"))
+        self.account.refresh_from_db()
+
+        self.assertEqual(self.account.status, "active")
+        self.assertTrue(self.account.paid)
+        self.assertTrue(self.account.cancel_at_period_end)
+        self.assertEqual(
+            self.account.period_end,
+            datetime.fromtimestamp(period_end, tz=dt_timezone.utc),
+        )
+        self.assertTrue(subscriptions.is_pro(self.account, NOW))
 
     def test_duplicate_event_processed_once(self):
         self.current_subscription()

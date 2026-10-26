@@ -1,3 +1,4 @@
+
 """Stripe test-mode boundary. No client-supplied customer, price or return URLs."""
 from datetime import datetime, timedelta, timezone as dt_timezone
 from urllib.parse import urlsplit
@@ -139,7 +140,6 @@ def checkout(user):
                 "mode": "subscription", "customer": account.stripe_customer_id,
                 "client_reference_id": str(account.identity),
                 "line_items": [{"price": settings.STRIPE_PRO_PRICE_ID, "quantity": 1}],
-                "payment_method_types": ["card"],
                 "subscription_data": {"metadata": {"proposalq_account": str(account.identity)}},
                 "metadata": {"proposalq_attempt": str(attempt.identity)},
                 "success_url": settings.BILLING_BASE_URL + reverse("billing_return"),
@@ -198,8 +198,29 @@ def synchronize(api, account):
         row = ongoing[0] if ongoing else max(rows, key=lambda value: value.get("created", 0))
         account.stripe_subscription_id = row["id"]
         account.status = row.get("status", "unknown")
-        account.cancel_at_period_end = row.get("cancel_at_period_end") is True
+
+        # Recognise both Stripe cancellation representations:
+        # - cancel_at_period_end=True
+        # - cancel_at set to the subscription's period-end timestamp
+        # Keep the flag False for an already terminated subscription.
         items = (row.get("items") or {}).get("data") or []
+        scheduled_at = _timestamp(row.get("cancel_at"))
+        period_end = (
+            _timestamp(items[0].get("current_period_end"))
+            if len(items) == 1 else None
+        )
+        account.cancel_at_period_end = (
+            row.get("status") not in TERMINAL
+            and (
+                row.get("cancel_at_period_end") is True
+                or (
+                    scheduled_at is not None
+                    and period_end is not None
+                    and scheduled_at == period_end
+                )
+            )
+        )
+
         if len(items) == 1 and not (row.get("items") or {}).get("has_more"):
             item = items[0]
             price = item.get("price") or {}
