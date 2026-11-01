@@ -34,6 +34,23 @@ def billing_configuration(environment, *, production=False):
 
     values["STRIPE_API_VERSION"] = API_VERSION
 
+    # Checkout stays restricted unless public access is explicitly enabled.
+    values["STRIPE_CHECKOUT_RESTRICTED"] = boolean(
+        environment, "STRIPE_CHECKOUT_RESTRICTED", True
+    )
+
+    raw_ids = environment.get("STRIPE_CHECKOUT_ALLOWED_USER_IDS", "").strip()
+    ids = [item.strip() for item in raw_ids.split(",") if item.strip()]
+
+    if any(not item.isdecimal() or int(item) <= 0 for item in ids):
+        raise ImproperlyConfigured(
+            "STRIPE_CHECKOUT_ALLOWED_USER_IDS must contain positive integer IDs."
+        )
+
+    values["STRIPE_CHECKOUT_ALLOWED_USER_IDS"] = frozenset(
+        int(item) for item in ids
+    )
+
     key = values["STRIPE_SECRET_KEY"]
 
     # Standard and restricted Stripe API keys are supported.

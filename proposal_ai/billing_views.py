@@ -24,6 +24,13 @@ def _pricing(request, *, error=None, status=200, returned=False):
         account = current["account"]
         context.update(usage=current, billing_account=account,
                        can_manage=bool(account and account.stripe_customer_id and account.status != "customer_deleted"))
+    context["checkout_allowed"] = (
+        not settings.STRIPE_CHECKOUT_RESTRICTED
+        or (
+            request.user.is_authenticated
+            and request.user.pk in settings.STRIPE_CHECKOUT_ALLOWED_USER_IDS
+        )
+    )
     return render(request, "pricing.html", context, status=status)
 
 
@@ -47,6 +54,10 @@ def _action(request, function):
 @require_POST
 @sensitive_variables()
 def checkout(request):
+    if settings.STRIPE_CHECKOUT_RESTRICTED:
+        allowed_ids = settings.STRIPE_CHECKOUT_ALLOWED_USER_IDS
+        if request.user.pk not in allowed_ids:
+            return HttpResponse("Checkout is not currently available.", status=403)
     return _action(request, billing.checkout)
 
 

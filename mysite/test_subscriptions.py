@@ -34,6 +34,8 @@ CONFIG = {
     "STRIPE_WEBHOOK_SECRET": "whsec_synthetic_only", "STRIPE_PRO_PRICE_ID": "price_pro",
     "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_test", "STRIPE_API_VERSION": API_VERSION,
     "BILLING_BASE_URL": "https://proposalq.example", "ALLOWED_HOSTS": ["testserver"],
+    "STRIPE_CHECKOUT_RESTRICTED": False,
+    "STRIPE_CHECKOUT_ALLOWED_USER_IDS": frozenset(),
     "STORAGES": {"default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
                  "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"}},
 }
@@ -70,9 +72,51 @@ def subscription(account, **changes):
 
 class BillingConfigurationTests(SimpleTestCase):
     def environment(self, **changes):
-        env = {name: str(value) for name, value in CONFIG.items() if name not in ("STORAGES", "ALLOWED_HOSTS")}
+        env = {
+            name: str(value)
+            for name, value in CONFIG.items()
+            if name not in (
+                "STORAGES",
+                "ALLOWED_HOSTS",
+                "STRIPE_CHECKOUT_ALLOWED_USER_IDS",
+            )
+        }
         env.update(changes)
         return env
+
+    def test_checkout_restricted_by_default(self):
+        result = billing_configuration({})
+        self.assertTrue(result["STRIPE_CHECKOUT_RESTRICTED"])
+        self.assertEqual(
+            result["STRIPE_CHECKOUT_ALLOWED_USER_IDS"],
+            frozenset(),
+        )
+
+    def test_checkout_allowlist_accepts_positive_user_ids(self):
+        result = billing_configuration({
+            "STRIPE_CHECKOUT_RESTRICTED": "True",
+            "STRIPE_CHECKOUT_ALLOWED_USER_IDS": "12, 34",
+        })
+        self.assertEqual(
+            result["STRIPE_CHECKOUT_ALLOWED_USER_IDS"],
+            frozenset({12, 34}),
+        )
+
+    def test_checkout_allowlist_rejects_invalid_user_ids(self):
+        for value in ("abc", "-1", "0", "12,abc", "1.5"):
+            with self.subTest(value=value):
+                with self.assertRaises(ImproperlyConfigured):
+                    billing_configuration({
+                        "STRIPE_CHECKOUT_ALLOWED_USER_IDS": value,
+                    })
+
+    def test_checkout_restriction_flag_is_strict(self):
+        for value in ("", "1", "yes"):
+            with self.subTest(value=value):
+                with self.assertRaises(ImproperlyConfigured):
+                    billing_configuration({
+                        "STRIPE_CHECKOUT_RESTRICTED": value,
+                    })
 
     def test_disabled_by_default_without_credentials(self):
         self.assertFalse(billing_configuration({})["BILLING_ENABLED"])
@@ -746,6 +790,86 @@ class BillingViewTests(TestCase):
             response = self.client.post(reverse("billing_checkout"), {"customer": "cus_other", "price": "price_other", "return_url": "https://evil.test"})
         self.assertEqual(response.status_code, 302)
         checkout.assert_called_once_with(self.user)
+
+    def test_restricted_checkout_blocks_unauthorised_user(self):
+        self.client.force_login(self.user)
+        with override_settings(
+            STRIPE_CHECKOUT_RESTRICTED=True,
+            STRIPE_CHECKOUT_ALLOWED_USER_IDS=frozenset(),
+        ):
+            with patch("proposal_ai.billing.checkout") as checkout:
+                response = self.client.post(reverse("billing_checkout"))
+        self.assertEqual(response.status_code, 403)
+        checkout.assert_not_called()
+
+    def test_restricted_checkout_allows_authorised_user(self):
+        self.client.force_login(self.user)
+        with override_settings(
+            STRIPE_CHECKOUT_RESTRICTED=True,
+            STRIPE_CHECKOUT_ALLOWED_USER_IDS=frozenset({self.user.pk}),
+        ):
+            with patch(
+                "proposal_ai.billing.checkout",
+                return_value="https://checkout.stripe.com/c/pay/test",
+            ) as checkout:
+                response = self.client.post(reverse("billing_checkout"))
+        self.assertEqual(response.status_code, 302)
+        checkout.assert_called_once_with(self.user)
+
+    def test_restricted_pricing_hides_upgrade_for_unauthorised_user(self):
+        self.client.force_login(self.user)
+        with override_settings(
+            STRIPE_CHECKOUT_RESTRICTED=True,
+            STRIPE_CHECKOUT_ALLOWED_USER_IDS=frozenset(),
+        ):
+            response = self.client.get(reverse("pricing"))
+        self.assertContains(response, "Subscriptions coming soon")
+        self.assertNotContains(response, 'action="' + reverse("billing_checkout") + '"')
+
+    def test_restricted_pricing_shows_upgrade_for_authorised_user(self):
+        self.client.force_login(self.user)
+        with override_settings(
+            STRIPE_CHECKOUT_RESTRICTED=True,
+            STRIPE_CHECKOUT_ALLOWED_USER_IDS=frozenset({self.user.pk}),
+        ):
+            response = self.client.get(reverse("pricing"))
+        self.assertContains(response, "Upgrade to Pro")
+        self.assertContains(response, reverse("billing_checkout"))
+
+    def test_public_checkout_requires_login_on_pricing_page(self):
+        with override_settings(
+            STRIPE_CHECKOUT_RESTRICTED=False,
+        ):
+            response = self.client.get(reverse("pricing"))
+
+        self.assertContains(response, "Log in to upgrade")
+        self.assertNotContains(
+            response,
+            'action="' + reverse("billing_checkout") + '"',
+        )
+
+    def test_existing_pro_user_can_manage_when_checkout_restricted(self):
+        self.client.force_login(self.user)
+
+        with override_settings(
+            STRIPE_CHECKOUT_RESTRICTED=True,
+            STRIPE_CHECKOUT_ALLOWED_USER_IDS=frozenset(),
+        ):
+            with patch(
+                "proposal_ai.billing_views.subscriptions.usage",
+                return_value={
+                    "plan": "Pro",
+                    "account": None,
+                },
+            ):
+                response = self.client.get(reverse("pricing"))
+
+        self.assertContains(response, "Manage Pro subscription")
+        self.assertContains(response, reverse("billing_portal"))
+        self.assertNotContains(
+            response,
+            'action="' + reverse("billing_checkout") + '"',
+        )
 
     def test_checkout_return_cannot_activate_subscription(self):
         self.client.force_login(self.user)
