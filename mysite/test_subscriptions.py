@@ -82,10 +82,32 @@ class BillingConfigurationTests(SimpleTestCase):
         self.assertTrue(result["BILLING_ENABLED"])
         self.assertEqual(result["STRIPE_API_VERSION"], API_VERSION)
 
-    def test_live_restricted_and_unknown_keys_rejected_even_disabled(self):
-        for key in ("sk_live_forbidden", "rk_live_forbidden", "rk_test_unsupported", "arbitrary"):
-            with self.subTest(key_type=key.split("_")[0]), self.assertRaises(ImproperlyConfigured):
-                billing_configuration({"STRIPE_SECRET_KEY": key})
+    def test_wrong_mode_and_unknown_keys_rejected_even_disabled(self):
+        for mode, keys in (
+            ("test", ("sk_live_forbidden", "rk_live_forbidden", "arbitrary")),
+            ("live", ("sk_test_forbidden", "rk_test_forbidden", "arbitrary")),
+        ):
+            for key in keys:
+                with self.subTest(mode=mode, key=key):
+                    with self.assertRaises(ImproperlyConfigured):
+                        billing_configuration({"STRIPE_MODE": mode, "STRIPE_SECRET_KEY": key})
+
+    def test_restricted_keys_accepted_in_matching_mode(self):
+        for mode in ("test", "live"):
+            with self.subTest(mode=mode):
+                key = f"rk_{mode}_synthetic_only"
+                env = self.environment(STRIPE_MODE=mode, STRIPE_SECRET_KEY=key)
+                result = billing_configuration(env, production=True)
+                self.assertTrue(result["BILLING_ENABLED"])
+                self.assertEqual(result["STRIPE_MODE"], mode)
+                self.assertEqual(result["STRIPE_SECRET_KEY"], key)
+
+    def test_incomplete_restricted_keys_rejected_when_enabled(self):
+        for mode in ("test", "live"):
+            with self.subTest(mode=mode):
+                env = self.environment(STRIPE_MODE=mode, STRIPE_SECRET_KEY=f"rk_{mode}_")
+                with self.assertRaises(ImproperlyConfigured):
+                    billing_configuration(env)
 
     def test_missing_configuration_rejected_without_leaking_secrets(self):
         for name in ("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_PRO_PRICE_ID", "STRIPE_PORTAL_CONFIGURATION_ID"):
@@ -802,6 +824,24 @@ class StripeSdkBoundaryTests(SimpleTestCase):
                 with self.assertRaises(billing.BillingError):
                     billing.client()
                 constructor.assert_not_called()
+
+    def test_restricted_test_key_constructs_sdk_client(self):
+        with override_settings(STRIPE_SECRET_KEY="rk_test_synthetic_only"):
+            with patch("stripe.StripeClient") as constructor, patch("stripe.RequestsClient") as http:
+                billing.client()
+        self.assertEqual(constructor.call_args.args, ("rk_test_synthetic_only",))
+        self.assertEqual(constructor.call_args.kwargs["stripe_version"], API_VERSION)
+        self.assertEqual(constructor.call_args.kwargs["max_network_retries"], 0)
+        http.assert_called_once_with(timeout=8)
+
+    def test_restricted_live_key_constructs_sdk_client(self):
+        with override_settings(STRIPE_MODE="live", STRIPE_SECRET_KEY="rk_live_synthetic_only"):
+            with patch("stripe.StripeClient") as constructor, patch("stripe.RequestsClient") as http:
+                billing.client()
+        self.assertEqual(constructor.call_args.args, ("rk_live_synthetic_only",))
+        self.assertEqual(constructor.call_args.kwargs["stripe_version"], API_VERSION)
+        self.assertEqual(constructor.call_args.kwargs["max_network_retries"], 0)
+        http.assert_called_once_with(timeout=8)
 
     def test_sdk_resource_conversion_preserves_nested_values(self):
         self.assertEqual(billing.require_test(resource(PRICE)), PRICE)

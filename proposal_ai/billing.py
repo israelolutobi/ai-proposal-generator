@@ -1,3 +1,4 @@
+
 """Stripe billing boundary with strict test/live isolation and server-owned parameters."""
 from datetime import datetime, timedelta, timezone as dt_timezone
 from urllib.parse import urlsplit
@@ -50,10 +51,33 @@ def _require_account_mode(account):
 def client():
     mode = _mode()
     key = getattr(settings, "STRIPE_SECRET_KEY", "")
-    if not settings.BILLING_ENABLED or not isinstance(key, str) or not key.startswith(f"sk_{mode}_"):
-        raise BillingError("Billing is not available yet. Your current account remains available.")
-    return stripe.StripeClient(settings.STRIPE_SECRET_KEY, stripe_version=settings.STRIPE_API_VERSION,
-                               max_network_retries=0, http_client=stripe.RequestsClient(timeout=8))
+
+    # Accept standard and restricted Stripe API keys, but never
+    # allow a key from a different Stripe environment.
+    allowed_prefixes = (
+        f"sk_{mode}_",
+        f"rk_{mode}_",
+    )
+
+    valid_key = (
+        isinstance(key, str)
+        and any(
+            key.startswith(prefix) and len(key) > len(prefix)
+            for prefix in allowed_prefixes
+        )
+    )
+
+    if not settings.BILLING_ENABLED or not valid_key:
+        raise BillingError(
+            "Billing is not available yet. Your current account remains available."
+        )
+
+    return stripe.StripeClient(
+        key,
+        stripe_version=settings.STRIPE_API_VERSION,
+        max_network_retries=0,
+        http_client=stripe.RequestsClient(timeout=8),
+    )
 
 
 def identifier(value):
