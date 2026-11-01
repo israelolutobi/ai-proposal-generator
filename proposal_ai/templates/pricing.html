@@ -15,7 +15,7 @@
         <p class="eyebrow">MORE OPPORTUNITIES. YOUR VOICE.</p>
         <h1>A plan for your next opportunity.</h1>
         <p>Turn your experience into thoughtful proposals.<br>Start free, then make room for more.</p>
-        <span class="test-badge">Test mode · No real payments</span>
+
     </header>
     {% if billing_error %}<div class="notice error" role="alert">{{ billing_error }}</div>{% endif %}
     {% if checkout_returned %}<div class="notice" role="status">Your checkout has returned. Pro activates after Stripe confirms payment. If your plan still shows Free, refresh this page in a moment. Returning here does not confirm a payment.</div>{% endif %}
@@ -38,7 +38,7 @@
         <section class="plan-card pro-card" aria-labelledby="pro-title">
             <span class="plan-tag">ROOM TO GROW</span><p class="eyebrow">BUILD YOUR MOMENTUM</p><h2 id="pro-title">Pro</h2><p class="price">£9.99<span> / month</span></p><p class="plan-description">For freelancers making their next move.</p>
             <ul><li><strong>50 AI-generated proposals</strong> each month</li><li>Everything included in Free</li><li>One simple monthly subscription</li><li>Manage payments securely with Stripe</li><li>Cancel renewal at any time</li></ul>
-            {% if not billing_enabled %}<button class="button" disabled>Test checkout coming soon</button>{% elif not user.is_authenticated %}<a class="button" href="{% url 'login' %}">Log in to upgrade</a>{% elif usage.plan == 'Pro' %}<form action="{% url 'billing_portal' %}" method="post">{% csrf_token %}<button class="button" type="submit">Manage Pro subscription</button></form>{% else %}<form action="{% url 'billing_checkout' %}" method="post">{% csrf_token %}<button class="button" type="submit">Upgrade to Pro · Test checkout</button></form>{% endif %}
+            {% if not billing_enabled %}<button class="button" disabled>Subscriptions coming soon</button>{% elif not user.is_authenticated %}<a class="button" href="{% url 'login' %}">Log in to upgrade</a>{% elif usage.plan == 'Pro' %}<form action="{% url 'billing_portal' %}" method="post">{% csrf_token %}<button class="button" type="submit">Manage Pro subscription</button></form>{% else %}<form action="{% url 'billing_checkout' %}" method="post">{% csrf_token %}<button class="button" type="submit">Upgrade to Pro · £9.99/month</button></form>{% endif %}
             <p class="card-note">£9.99 GBP billed monthly. No rollover.</p>
         </section>
     </div>

@@ -723,7 +723,7 @@ class BillingViewTests(TestCase):
     def test_billing_disabled_hides_checkout_and_does_not_call_stripe(self):
         with override_settings(BILLING_ENABLED=False):
             response = self.client.get(reverse("pricing"))
-        self.assertContains(response, "Test checkout coming soon")
+        self.assertContains(response, "Subscriptions coming soon")
 
     def test_login_required_for_billing_actions_and_return(self):
         for name in ("billing_checkout", "billing_portal", "billing_return"):
