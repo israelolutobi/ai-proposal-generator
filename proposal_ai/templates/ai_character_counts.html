@@ -1,0 +1,18 @@
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("[data-ai-max]").forEach(function (input) {
+        const counter = document.createElement("p");
+        counter.style.cssText = "color:#94a3b8;font-size:13px;margin-top:6px;";
+        input.insertAdjacentElement("afterend", counter);
+        const update = function () {
+            const current = Array.from(input.value.trim()).length;
+            const maximum = Number(input.dataset.aiMax);
+            counter.textContent = current.toLocaleString() + " / " + maximum.toLocaleString()
+                + " characters. Server validation is authoritative.";
+            counter.style.color = current > maximum ? "#fca5a5" : "#94a3b8";
+        };
+        input.addEventListener("input", update);
+        update();
+    });
+});
+</script>

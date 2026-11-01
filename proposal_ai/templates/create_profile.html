@@ -5,7 +5,7 @@
 
 <head>
 
-    <title>{{ page_title }} - ProposalIQ</title>
+    <title>{{ page_title }} - ProposalQ</title>
 
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 
@@ -48,9 +48,19 @@
         </p>
 
 
+        {% if form.errors %}
+            <div role="alert" style="color:#ef4444;">
+                {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+                {% for field in form %}
+                    {% for error in field.errors %}<p>{{ field.label }}: {{ error }}</p>{% endfor %}
+                {% endfor %}
+            </div>
+        {% endif %}
+
         <form method="POST">
 
             {% csrf_token %}
+            {% include "ai_request_identity.html" with ai_nonce=summary_nonce %}
 
             <input
                 type="hidden"
@@ -75,7 +85,8 @@
                 type="text"
                 id="professional_title"
                 name="professional_title"
-                value="{{ profile.professional_title|default:'' }}"
+                value="{{ form.professional_title.value|default_if_none:'' }}"
+                data-ai-max="{{ form.professional_title.field.max_length }}"
                 placeholder="e.g. Python Backend Developer"
                 required
                 style="
@@ -141,7 +152,7 @@
                 ">
                     Don't feel like writing a professional bio?
                     Just add a few of your main skills or services below
-                    and ProposalIQ can create one for you.
+                    and ProposalQ can create one for you.
                     You can edit the result afterwards or skip this completely.
                 </p>
 
@@ -162,6 +173,8 @@
                     type="text"
                     id="key_skills"
                     name="key_skills"
+                    data-ai-max="{{ summary_skills_maximum }}"
+                    value="{{ key_skills }}"
                     placeholder="e.g. Python, Django, APIs, PostgreSQL"
                     autocomplete="off"
                     style="
@@ -279,7 +292,7 @@
                         font-size:15px;
                         line-height:1.5;
                     "
-                >{{ profile.profile_summary|default:'' }}</textarea>
+                >{{ form.profile_summary.value|default_if_none:'' }}</textarea>
 
                 <p style="
                     color:#94a3b8;
@@ -321,41 +334,9 @@
                 "
             >
 
-                <option
-                    value="professional"
-                    {% if profile.preferred_tone == "professional" %}
-                        selected
-                    {% endif %}
-                >
-                    Professional
-                </option>
-
-                <option
-                    value="friendly"
-                    {% if profile.preferred_tone == "friendly" %}
-                        selected
-                    {% endif %}
-                >
-                    Friendly
-                </option>
-
-                <option
-                    value="confident"
-                    {% if profile.preferred_tone == "confident" %}
-                        selected
-                    {% endif %}
-                >
-                    Confident
-                </option>
-
-                <option
-                    value="technical"
-                    {% if profile.preferred_tone == "technical" %}
-                        selected
-                    {% endif %}
-                >
-                    Technical
-                </option>
+                {% for value, label in form.preferred_tone.field.choices %}
+                    <option value="{{ value }}" {% if form.preferred_tone.value == value %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
 
             </select>
 
@@ -454,6 +435,21 @@ document.addEventListener(
 
 
         let summaryGenerationInProgress = false;
+        const summaryNonce = document.querySelector('input[name="ai_nonce"]');
+        const initialSummaryButtonText = generateButton.textContent;
+        window.addEventListener("pageshow", () => {
+            summaryGenerationInProgress = false;
+            generateButton.disabled = false;
+            skipButton.disabled = false;
+            generateButton.setAttribute("aria-busy", "false");
+            generateButton.style.opacity = "1";
+            generateButton.style.cursor = "pointer";
+            skipButton.style.opacity = "1";
+            skipButton.style.cursor = "pointer";
+            generateButton.textContent = generateButton.dataset.regenerate === "true"
+                ? "Generate Summary Again" : initialSummaryButtonText;
+            // Keep the same nonce: navigation must not bypass server replay checks.
+        });
 
 
         function showStatus(message, isError = false) {
@@ -524,6 +520,9 @@ document.addEventListener(
                     generateButton.textContent;
 
                 summaryGenerationInProgress = true;
+                generateButton.setAttribute("aria-busy", "true");
+                statusElement.setAttribute("role", "status");
+                statusElement.setAttribute("aria-live", "polite");
 
                 generateButton.disabled = true;
                 generateButton.style.opacity = "0.65";
@@ -536,12 +535,13 @@ document.addEventListener(
                 skipButton.style.cursor = "not-allowed";
 
                 showStatus(
-                    "ProposalIQ is generating your profile summary. This can take a few moments. Please wait and avoid clicking Generate again."
+                    "ProposalQ is generating your profile summary. This can take a few moments. Please wait and avoid clicking Generate again."
                 );
 
 
                 const requestBody =
                     new URLSearchParams();
+                requestBody.append("ai_nonce", summaryNonce.value);
 
 
                 requestBody.append(
@@ -588,6 +588,11 @@ document.addEventListener(
 
 
                     let data;
+                    const nextNonce = response.headers.get("X-ProposalQ-Next-Nonce");
+                    if (nextNonce) {
+                        summaryNonce.value = nextNonce;
+                        generateButton.dataset.regenerate = "true";
+                    }
 
                     try {
 
@@ -596,7 +601,7 @@ document.addEventListener(
                     } catch {
 
                         throw new Error(
-                            "ProposalIQ received an unexpected response. Please try again."
+                            "ProposalQ received an unexpected response. Please try again."
                         );
 
                     }
@@ -644,12 +649,13 @@ document.addEventListener(
                 } finally {
 
                     summaryGenerationInProgress = false;
+                    generateButton.setAttribute("aria-busy", "false");
 
                     generateButton.disabled = false;
                     generateButton.style.opacity = "1";
                     generateButton.style.cursor = "pointer";
                     generateButton.textContent =
-                        originalButtonText;
+                        generateButton.dataset.regenerate === "true" ? "Generate Summary Again" : originalButtonText;
 
                     skipButton.disabled = false;
                     skipButton.style.opacity = "1";
@@ -687,6 +693,7 @@ document.addEventListener(
 </script>
 
 
+{% include "ai_character_counts.html" %}
 </body>
 
 </html>

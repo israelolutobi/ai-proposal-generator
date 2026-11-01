@@ -4,7 +4,7 @@
 {% load static %}
 
 <head>
-    <title>Register - ProposalIQ</title>
+    <title>Register - ProposalQ</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 
@@ -26,6 +26,8 @@
     border:1px solid #1e293b;
 ">
 
+    {% if registration_enabled %}
+
     <h2 style="
         margin-top:0;
         font-size:32px;
@@ -33,23 +35,32 @@
         Create your account
     </h2>
 
-    {% if error_message %}
-
-        <p style="color:#ef4444;">
-            {{ error_message }}
-        </p>
-
+    {% if form.errors %}
+        <div role="alert" style="color:#ef4444;">
+            {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+            {% endfor %}
+            {% for field in form %}
+                {% for error in field.errors %}
+                    <p>{{ field.label }}: {{ error }}</p>
+                {% endfor %}
+            {% endfor %}
+        </div>
     {% endif %}
 
     <form method="POST">
 
         {% csrf_token %}
 
-        <label>Username</label><br>
+        <label for="id_username">Username</label><br>
 
         <input
             type="text"
             name="username"
+            id="id_username"
+            value="{{ form.username.value|default_if_none:'' }}"
+            maxlength="{{ form.username.field.max_length }}"
+            autocomplete="username"
             required
             style="
                 width:100%;
@@ -60,11 +71,15 @@
             "
         ><br>
 
-        <label>Email</label><br>
+        <label for="id_email">Email</label><br>
 
         <input
             type="email"
             name="email"
+            id="id_email"
+            value="{{ form.email.value|default_if_none:'' }}"
+            maxlength="{{ form.email.field.max_length }}"
+            autocomplete="email"
             required
             style="
                 width:100%;
@@ -75,11 +90,13 @@
             "
         ><br>
 
-        <label>Password</label><br>
+        <label for="id_password1">Password</label><br>
 
         <input
             type="password"
-            name="password"
+            name="password1"
+            id="id_password1"
+            autocomplete="new-password"
             required
             style="
                 width:100%;
@@ -90,11 +107,13 @@
             "
         ><br>
 
-        <label>Confirm Password</label><br>
+        <label for="id_password2">Confirm Password</label><br>
 
         <input
             type="password"
-            name="confirm_password"
+            name="password2"
+            id="id_password2"
+            autocomplete="new-password"
             required
             style="
                 width:100%;
@@ -124,6 +143,13 @@
 
     </form>
 
+    {% else %}
+
+    <h2>Beta access</h2>
+    <p>Beta registration is currently closed.</p>
+
+    {% endif %}
+
     <p style="
         text-align:center;
         margin-top:25px;
@@ -132,7 +158,7 @@
 
         Already have an account?
 
-        <a href="/login/"
+        <a href="{% url 'login' %}"
            style="
                 color:#1e90ff;
                 text-decoration:none;

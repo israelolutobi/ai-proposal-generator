@@ -5,7 +5,7 @@
 
 <head>
 
-    <title>Dashboard - ProposalIQ</title>
+    <title>Dashboard - ProposalQ</title>
 
     <link
         rel="stylesheet"
@@ -39,7 +39,7 @@
         font-size:44px;
         margin-bottom:10px;
     ">
-        ProposalIQ Dashboard
+        ProposalQ Dashboard
     </h1>
 
 
@@ -49,7 +49,7 @@
         line-height:1.6;
         margin-bottom:35px;
     ">
-        Paste a freelance opportunity, let ProposalIQ extract the key
+        Paste a freelance opportunity, let ProposalQ extract the key
         details, confirm them, and generate the appropriate application
         content for that platform.
     </p>
@@ -59,6 +59,14 @@
     <!-- ========================================================= -->
     <!-- PENDING OUTCOME UPDATES -->
     <!-- ========================================================= -->
+
+    {% if subscription_usage %}
+    <div style="padding:16px 20px; border:1px solid #334155; border-radius:10px; margin-bottom:24px; background:#111c30;">
+        <strong>{{ subscription_usage.plan }} plan</strong> · {{ subscription_usage.used }} / {{ subscription_usage.limit }} proposals this month
+        {% if subscription_usage.pending %} · {{ subscription_usage.pending }} in progress{% endif %}
+        <a href="{% url 'pricing' %}" style="color:#74baff; margin-left:12px;">Pricing &amp; billing</a>
+    </div>
+    {% endif %}
 
     {% if pending_outcomes %}
 
@@ -118,7 +126,7 @@
                             ">
                                 Platform:
                                 <strong style="color:#cbd5e1;">
-                                    {{ proposal.job_post.platform|default:"Not specified" }}
+                                    {{ proposal.display_platform|default:"Not specified" }}
                                 </strong>
                             </p>
 
@@ -140,7 +148,7 @@
                                 margin-top:0;
                             ">
                                 Submitted:
-                                {{ proposal.used_at }}
+                                {{ proposal.submitted_at|default:"Not recorded" }}
                             </p>
 
                         </div>
@@ -198,7 +206,7 @@
             margin-bottom:30px;
         ">
             Copy the full job or opportunity text and paste it below.
-            ProposalIQ will identify the platform, job requirements,
+            ProposalQ will identify the platform, job requirements,
             skills, budget and other useful details before generating
             platform-appropriate application content.
         </p>
@@ -211,6 +219,7 @@
         >
 
             {% csrf_token %}
+            {% include "ai_request_identity.html" %}
 
 
             <label
@@ -281,7 +290,7 @@
                 </strong>
 
                 <div style="margin-top:6px;">
-                    ProposalIQ is extracting the opportunity details.
+                    ProposalQ is extracting the opportunity details.
                     This can take a few moments. Please keep this page open
                     and do not click the button again or refresh the page.
                 </div>
@@ -319,7 +328,7 @@
             line-height:1.6;
             margin-bottom:30px;
         ">
-            ProposalIQ adapts the terminology and generated content
+            ProposalQ adapts the terminology and generated content
             according to the platform used for each opportunity.
         </p>
 
@@ -367,7 +376,7 @@
                                 Platform:
 
                                 <strong style="color:#cbd5e1;">
-                                    {{ proposal.job_post.platform|default:"Not specified" }}
+                                    {{ proposal.display_platform|default:"Not specified" }}
                                 </strong>
 
                             </p>
@@ -516,7 +525,7 @@
                             </button>
 
 
-                            {% if proposal.used_by_user %}
+                            {% if proposal.is_submitted %}
 
                                 <span style="
                                     background-color:#163624;
@@ -528,6 +537,9 @@
                                 ">
                                     ✓ {{ proposal.submitted_label }}
                                 </span>
+
+                                <a href="{% url 'confirm_use_proposal' proposal.id %}" style="color:#60a5fa;padding:12px 18px;">Edit Submission</a>
+                                <a href="{% url 'update_outcome' proposal.id %}" style="color:#60a5fa;padding:12px 18px;">{% if proposal.has_outcome %}Edit Outcome{% else %}Update Outcome{% endif %}</a>
 
                             {% else %}
 

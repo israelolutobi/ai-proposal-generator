@@ -1,17 +1,22 @@
-import json
-import logging
-import os
-
-from django.conf import settings
-from django.contrib.auth import authenticate, login, logout
+from .research_intelligence import build_research_context, ResearchUnavailable
+from django.db import DatabaseError, IntegrityError
+from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.models import User
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
+from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.utils import timezone
-from django.views.decorators.http import require_POST
-from openai import OpenAI
+from django.views.decorators.debug import sensitive_post_parameters
+from django.views.decorators.http import require_http_methods, require_POST
 
+from .forms import (
+    FreelancerProfileForm, JobExtractionForm, JobPasteForm, ProfileSummaryGenerationForm,
+    ProposalGenerationForm,
+    LoginForm, OUTCOME_STATUS_CHOICES, ProposalOutcomeForm, RegistrationForm,
+    SubmissionConfirmationForm, WorkExperienceForm,
+)
 from .models import (
     FreelancerProfile,
     JobPost,
@@ -21,29 +26,41 @@ from .models import (
     WorkExperience,
 )
 from .platform_config import get_platform_config
+from . import ai_control, ai_limits, services, subscriptions
 
 
-logger = logging.getLogger(__name__)
+def ai_form_nonce(request, operation, resource_id=None, *, fresh=False):
+    if not fresh and request.method == "POST" and request.POST.get("ai_nonce"):
+        return request.POST["ai_nonce"]
+    intent = ai_control.Intent.REGENERATE if fresh or request.GET.get("regenerate") == "1" else ai_control.Intent.GENERATE
+    return ai_control.issue_nonce(request.user, operation, resource_id, intent)
 
 
-def get_openai_client():
-    """
-    Create the OpenAI client only when an AI-powered action is requested.
+def ai_control_response(response, error):
+    if error.retry_after is not None:
+        response["Retry-After"] = str(error.retry_after)
+    return response
 
-    This prevents Django from crashing at startup if the local API key has not
-    been loaded yet, while still failing clearly when an AI feature is used.
-    """
-    api_key = getattr(settings, "OPENAI_API_KEY", None) or os.getenv(
-        "OPENAI_API_KEY"
+
+def has_submission(proposal, confirmation=None):
+    """Accept existing submission evidence without rewriting legacy records."""
+    if confirmation is None:
+        confirmation = getattr(proposal, "proposaluseconfirmation", None)
+    return bool(
+        confirmation or proposal.used_by_user or proposal.used_at
+        or proposal.status in {"submitted", "used"}
     )
 
-    if not api_key:
-        raise RuntimeError(
-            "OPENAI_API_KEY is not configured. "
-            "Check your local .env file or deployment environment variables."
-        )
 
-    return OpenAI(api_key=api_key)
+def safe_submission_url(confirmation):
+    """Do not render unsafe URLs saved by the old unvalidated submission view."""
+    url = confirmation.job_url if confirmation else ""
+    if url:
+        try:
+            URLValidator(schemes=["http", "https"])(url)
+        except ValidationError:
+            return ""
+    return url or ""
 
 
 def add_platform_display_metadata(proposal):
@@ -62,85 +79,57 @@ def add_platform_display_metadata(proposal):
         Unknown platform:
             Application / Application Message
     """
-    config = get_platform_config(
-        proposal.job_post.platform if proposal.job_post else ""
+    confirmation = getattr(proposal, "proposaluseconfirmation", None)
+    original_platform = proposal.job_post.platform if proposal.job_post else ""
+    proposal.display_platform = (
+        confirmation.platform if confirmation and confirmation.platform else original_platform
     )
+    config = get_platform_config(proposal.display_platform)
+    # The generated text still belongs to its original opportunity/platform.
+    generated_config = get_platform_config(original_platform)
 
     proposal.platform_key = config["key"]
     proposal.application_label = config["application_label"]
-    proposal.content_label = config["content_label"]
-    proposal.generated_heading = config["generated_heading"]
-    proposal.copy_button_label = config["copy_button_label"]
+    proposal.content_label = generated_config["content_label"]
+    proposal.generated_heading = generated_config["generated_heading"]
+    proposal.copy_button_label = generated_config["copy_button_label"]
     proposal.submit_button_label = config["submit_button_label"]
     proposal.submitted_label = config["submitted_label"]
+    proposal.is_submitted = has_submission(proposal, confirmation)
+    proposal.submitted_at = proposal.used_at or (confirmation.confirmed_at if confirmation else None)
+    proposal.has_outcome = getattr(proposal, "proposaloutcome", None) is not None
 
     return proposal
 
 
+@sensitive_post_parameters("password1", "password2")
+@require_http_methods(["GET", "HEAD", "POST"])
 def register_user(request):
-    error_message = None
+    if settings.REGISTRATION_ENABLED is not True:
+        return render(request, "register.html", status=403)
 
-    if request.method == "POST":
-        username = request.POST.get("username")
-        email = request.POST.get("email")
-        password = request.POST.get("password")
-        confirm_password = request.POST.get("confirm_password")
-
-        if password != confirm_password:
-            error_message = "Passwords do not match."
-
-        elif User.objects.filter(username=username).exists():
-            error_message = "Username already exists."
-
-        elif User.objects.filter(email=email).exists():
-            error_message = "Email already exists."
-
+    form = RegistrationForm(request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        try:
+            user = form.save()
+        except IntegrityError:
+            form.add_error(None, "An account with these details already exists.")
         else:
-            user = User.objects.create_user(
-                username=username,
-                email=email,
-                password=password,
-            )
-
             login(request, user)
-
             return redirect("create_freelancer_profile")
 
-    return render(
-        request,
-        "register.html",
-        {
-            "error_message": error_message,
-        },
-    )
+    return render(request, "register.html", {"form": form})
 
 
+@sensitive_post_parameters("password")
+@require_http_methods(["GET", "HEAD", "POST"])
 def login_user(request):
-    error_message = None
+    form = LoginForm(request, data=request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        login(request, form.get_user())
+        return redirect("dashboard")
 
-    if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
-
-        user = authenticate(
-            request,
-            username=username,
-            password=password,
-        )
-
-        if user is not None:
-            login(request, user)
-            return redirect("dashboard")
-
-        error_message = "Invalid username or password."
-
-    return render(
-        request,
-        "login.html",
-        {
-            "error_message": error_message,
-        },
-    )
+    return render(request, "login.html", {"form": form})
 
 
 def logout_user(request):
@@ -156,23 +145,20 @@ def public_home(request):
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def add_work_experience(request):
-    if request.method == "POST":
-        WorkExperience.objects.create(
-            user=request.user,
-            job_title=request.POST.get("job_title"),
-            company_or_project=request.POST.get("company_or_project"),
-            tasks=request.POST.get("tasks"),
-            skills_used=request.POST.get("skills_used"),
-            experience_depth=request.POST.get("experience_depth"),
-        )
+    form = WorkExperienceForm(request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        experience = form.save(commit=False)
+        experience.user = request.user
+        experience.save()
 
         if "add_another" in request.POST:
             return redirect("add_work_experience")
 
         return redirect("my_experiences")
 
-    return render(request, "add_experience.html")
+    return render(request, "add_experience.html", {"form": form})
 
 
 @login_required
@@ -191,6 +177,7 @@ def my_experiences(request):
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def edit_work_experience(request, experience_id):
     experience = get_object_or_404(
         WorkExperience,
@@ -198,18 +185,11 @@ def edit_work_experience(request, experience_id):
         user=request.user,
     )
 
-    if request.method == "POST":
-        experience.job_title = request.POST.get("job_title")
-        experience.company_or_project = request.POST.get(
-            "company_or_project"
-        )
-        experience.tasks = request.POST.get("tasks")
-        experience.skills_used = request.POST.get("skills_used")
-        experience.experience_depth = request.POST.get(
-            "experience_depth"
-        )
-
-        experience.save()
+    form = WorkExperienceForm(
+        request.POST if request.method == "POST" else None, instance=experience
+    )
+    if request.method == "POST" and form.is_valid():
+        form.save()
 
         return redirect("my_experiences")
 
@@ -218,11 +198,13 @@ def edit_work_experience(request, experience_id):
         "edit_experience.html",
         {
             "experience": experience,
+            "form": form,
         },
     )
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def create_freelancer_profile(request):
     """
     Create or update the freelancer profile.
@@ -255,28 +237,13 @@ def create_freelancer_profile(request):
         )
         button_text = "Create Profile"
 
-    if request.method == "POST":
-        professional_title = request.POST.get(
-            "professional_title", ""
-        ).strip()
-
-        profile_summary = request.POST.get(
-            "profile_summary", ""
-        ).strip()
-
-        preferred_tone = (
-            request.POST.get("preferred_tone", "").strip()
-            or "professional"
-        )
-
-        FreelancerProfile.objects.update_or_create(
-            user=request.user,
-            defaults={
-                "professional_title": professional_title,
-                "profile_summary": profile_summary,
-                "preferred_tone": preferred_tone,
-            },
-        )
+    form = FreelancerProfileForm(
+        request.POST if request.method == "POST" else None, instance=profile
+    )
+    if request.method == "POST" and form.is_valid():
+        profile = form.save(commit=False)
+        profile.user = request.user
+        profile.save()
 
         if next_page == "my_experiences":
             return redirect("my_experiences")
@@ -288,6 +255,10 @@ def create_freelancer_profile(request):
         "create_profile.html",
         {
             "profile": profile,
+            "form": form,
+            "key_skills": request.POST.get("key_skills", "") if request.method == "POST" else "",
+            "summary_skills_maximum": ai_limits.SUMMARY_SKILLS_CHARACTERS,
+            "summary_nonce": ai_form_nonce(request, ai_control.Operation.PROFILE_SUMMARY),
             "next_page": next_page,
             "page_title": page_title,
             "page_description": page_description,
@@ -305,35 +276,19 @@ def generate_profile_summary(request):
     Nothing is saved here. The generated text is returned to the browser so
     the user can review or edit it before submitting the normal profile form.
     """
-    professional_title = request.POST.get(
-        "professional_title", ""
-    ).strip()
-
-    key_skills = request.POST.get(
-        "key_skills", ""
-    ).strip()
-
-    if not professional_title:
-        return JsonResponse(
-            {
-                "error": (
-                    "Please enter your professional title "
-                    "before generating a summary."
-                )
-            },
-            status=400,
-        )
-
-    if not key_skills:
-        return JsonResponse(
-            {
-                "error": (
-                    "Add a few key skills or services first. "
-                    "For example: Python, Django, APIs, PostgreSQL."
-                )
-            },
-            status=400,
-        )
+    form = ProfileSummaryGenerationForm(request.POST)
+    if not form.is_valid():
+        try:
+            ai_control.reject_invalid_replay(request.user, ai_control.Operation.PROFILE_SUMMARY, request.POST.get("ai_nonce", ""))
+        except ai_control.ControlError as error:
+            response = ai_control_response(JsonResponse({"error": error.user_message}, status=error.status), error)
+            response["X-ProposalQ-Next-Nonce"] = ai_form_nonce(request, ai_control.Operation.PROFILE_SUMMARY, fresh=True)
+            return response
+        return JsonResponse({"error": " ".join(
+            f"{form.fields[name].label}: {' '.join(errors)}" for name, errors in form.errors.items()
+        )}, status=400)
+    professional_title = form.cleaned_data["professional_title"]
+    key_skills = form.cleaned_data["key_skills"]
 
     prompt = f"""
 Write a concise professional freelancer profile summary using ONLY the
@@ -360,193 +315,117 @@ Rules:
 - Return ONLY the profile summary with no heading or commentary.
 """.strip()
 
+    admitted = None
     try:
-        client = get_openai_client()
-
-        response = client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-        )
-
-        summary = (
-            response.choices[0].message.content or ""
-        ).strip()
-
-        if not summary:
-            raise RuntimeError(
-                "The AI returned an empty profile summary."
-            )
+        ai_limits.check_request([{"role": "user", "content": prompt}], "summary")
+        admitted = ai_control.admit(request.user, ai_control.Operation.PROFILE_SUMMARY,
+                                    request.POST.get("ai_nonce", ""), form.cleaned_data, prompt)
+        if admitted.replay:
+            raise ai_control.ControlError("The summary request completed, but its text is not stored. Generate a new summary explicitly.")
+        result = ai_control.call_provider(admitted.request, lambda: services.generate_profile_summary(prompt))
+        summary = result.value
 
         summary = summary.replace("—", "-")
 
-        return JsonResponse(
+        ai_control.succeed(admitted.request)
+        response = JsonResponse(
             {
                 "summary": summary,
             }
         )
+        response["X-ProposalQ-Next-Nonce"] = ai_form_nonce(request, ai_control.Operation.PROFILE_SUMMARY, fresh=True)
+        return response
 
-    except Exception:
-        logger.exception(
-            "Failed to generate freelancer profile summary."
-        )
+    except ai_control.ControlError as error:
+        response = ai_control_response(JsonResponse({"error": error.user_message, **error.metadata}, status=error.status), error)
+        # The next click is an explicit fresh generation, never an automatic retry.
+        response["X-ProposalQ-Next-Nonce"] = ai_form_nonce(request, ai_control.Operation.PROFILE_SUMMARY, fresh=True)
+        return response
+    except ValidationError:
+        return JsonResponse({"error": services.AIInputError.user_message}, status=400)
 
-        return JsonResponse(
+    except services.AIError as error:
+        response = JsonResponse(
             {
                 "error": (
-                    "ProposalIQ couldn't generate the summary right now. "
-                    "You can try again or skip this step."
+                    error.user_message
                 )
             },
             status=500,
         )
+        response["X-ProposalQ-Next-Nonce"] = ai_form_nonce(request, ai_control.Operation.PROFILE_SUMMARY, fresh=True)
+        return response
 
 
 @login_required
+@require_http_methods(["GET", "HEAD"])
 def generate_proposal(request):
-    """
-    Dashboard view.
-
-    Proposal remains the legacy Django model name, but ProposalIQ now treats
-    it as the broader application record. Each record is enriched with
-    platform-aware labels for use in the templates.
-    """
-    generated_proposal = None
-
+    """Display generated content and actual submission details separately."""
+    if not FreelancerProfile.objects.filter(user=request.user).exists():
+        return redirect("create_freelancer_profile")
     proposals = list(
-        Proposal.objects.filter(
-            user=request.user
-        )
-        .select_related("job_post")
+        Proposal.objects.filter(user=request.user)
+        .select_related("job_post", "proposaluseconfirmation", "proposaloutcome")
         .order_by("-created_at")
     )
-
     for proposal in proposals:
         add_platform_display_metadata(proposal)
-
-    profile = FreelancerProfile.objects.filter(
-        user=request.user
-    ).first()
-
-    if not profile:
-        return redirect("create_freelancer_profile")
-
-    pending_outcomes = []
-
-    submitted_proposals = (
-        Proposal.objects.filter(
-            user=request.user,
-            used_by_user=True,
-        )
-        .select_related("job_post")
-        .order_by("-created_at")
-    )
-
-    for proposal in submitted_proposals:
-        outcome_exists = ProposalOutcome.objects.filter(
-            proposal=proposal
-        ).exists()
-
-        if not outcome_exists:
-            add_platform_display_metadata(proposal)
-            pending_outcomes.append(proposal)
-
-    return render(
-        request,
-        "home.html",
-        {
-            "generated_proposal": generated_proposal,
-            "proposals": proposals,
-            "pending_outcomes": pending_outcomes,
-        },
-    )
+    pending_outcomes = [p for p in proposals if p.is_submitted and not p.has_outcome]
+    return render(request, "home.html", {
+        "generated_proposal": None, "proposals": proposals,
+        "subscription_usage": subscriptions.usage(request.user),
+        "pending_outcomes": pending_outcomes,
+        "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION),
+    })
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def confirm_use_proposal(request, proposal_id):
-    """
-    Confirm that an application was submitted/sent.
-
-    The legacy function and model names are retained for compatibility, but
-    new records now use the platform-neutral status "submitted" rather than
-    "used".
-    """
     proposal = get_object_or_404(
-        Proposal.objects.select_related("job_post"),
-        id=proposal_id,
-        user=request.user,
+        Proposal.objects.select_related("job_post"), id=proposal_id, user=request.user,
     )
-
-    platform_value = (
-        proposal.job_post.platform
-        if proposal.job_post
-        else ""
-    )
-    platform_config = get_platform_config(platform_value)
-
+    confirmation = getattr(proposal, "proposaluseconfirmation", None)
+    initial = {} if confirmation else {
+        "platform": proposal.job_post.platform,
+        "submitted_proposal_text": proposal.final_text,
+    }
+    form = SubmissionConfirmationForm(instance=confirmation, initial=initial)
     if request.method == "POST":
-        submitted_platform = (
-            request.POST.get("platform", "").strip()
-            or platform_value
-            or ""
-        )
+        # Serialise updates to the same Proposal before loading its one-to-one
+        # records. Only local validation and database writes occur here.
+        with transaction.atomic():
+            proposal = get_object_or_404(
+                Proposal.objects.select_for_update().select_related("job_post"),
+                id=proposal_id, user=request.user,
+            )
+            confirmation = ProposalUseConfirmation.objects.filter(proposal=proposal).first()
+            form = SubmissionConfirmationForm(request.POST, instance=confirmation)
+            if form.is_valid():
+                confirmation = form.save(commit=False)
+                confirmation.proposal = proposal
+                confirmation.save()
+                outcome = ProposalOutcome.objects.filter(proposal=proposal).first()
+                valid_outcomes = dict(OUTCOME_STATUS_CHOICES)
+                proposal.used_by_user = True
+                proposal.used_at = proposal.used_at or confirmation.confirmed_at
+                # The model explicitly retains outcome statuses. Preserve its
+                # dashboard mirror when editing a submission with an outcome.
+                proposal.status = (
+                    outcome.status if outcome and outcome.status in valid_outcomes
+                    else proposal.status if proposal.status in valid_outcomes else "submitted"
+                )
+                proposal.save(update_fields=["used_by_user", "used_at", "status"])
+                return redirect("dashboard")
+    platform_config = get_platform_config(form["platform"].value())
+    return render(request, "confirm_use_proposal.html", {
+        "proposal": proposal, "form": form, "use_confirmation": confirmation,
+        "platform_config": platform_config,
+        "application_label": platform_config["application_label"],
+        "content_label": platform_config["content_label"],
+        "submit_button_label": platform_config["submit_button_label"],
+    })
 
-        platform_config = get_platform_config(
-            submitted_platform
-        )
-
-        ProposalUseConfirmation.objects.update_or_create(
-            proposal=proposal,
-            defaults={
-                "platform": submitted_platform,
-                "client_name": request.POST.get("client_name"),
-                "job_url": request.POST.get("job_url"),
-                "submitted_proposal_text": request.POST.get(
-                    "submitted_proposal_text"
-                ),
-                "notes": request.POST.get("notes"),
-            },
-        )
-
-        # Legacy Boolean/timestamp retained for backwards compatibility.
-        proposal.used_by_user = True
-        proposal.status = "submitted"
-        proposal.used_at = timezone.now()
-
-        # Keep the stored content type aligned with the actual platform
-        # confirmed by the user at submission time.
-        proposal.content_type = platform_config["content_type"]
-
-        proposal.save(
-            update_fields=[
-                "used_by_user",
-                "status",
-                "used_at",
-                "content_type",
-            ]
-        )
-
-        return redirect("dashboard")
-
-    return render(
-        request,
-        "confirm_use_proposal.html",
-        {
-            "proposal": proposal,
-            "platform_config": platform_config,
-            "application_label": platform_config[
-                "application_label"
-            ],
-            "content_label": platform_config["content_label"],
-            "submit_button_label": platform_config[
-                "submit_button_label"
-            ],
-        },
-    )
 
 
 def validate_job_text(raw_text):
@@ -610,11 +489,11 @@ def validate_job_text(raw_text):
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def extract_job_features(request):
-    if request.method == "POST":
-        raw_job_text = request.POST.get(
-            "raw_job_text", ""
-        ).strip()
+    form = JobPasteForm(request.POST if request.method == "POST" else None)
+    if request.method == "POST" and form.is_valid():
+        raw_job_text = form.cleaned_data["raw_job_text"]
 
         validation_score, validation_issues = validate_job_text(
             raw_job_text
@@ -628,9 +507,10 @@ def extract_job_features(request):
                 request,
                 "extract_job_features.html",
                 {
-                    "raw_job_text": raw_job_text,
+                    "form": form,
                     "validation_score": validation_score,
                     "validation_issues": validation_issues,
+                    "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION),
                 },
             )
 
@@ -693,146 +573,109 @@ def extract_job_features(request):
 
             "For all other unknown fields, use an empty string. "
 
+            "Strict JSON output requirements: "
+            "Return one JSON object containing all 15 requested keys. "
+            "Every non-budget field must contain a JSON string, never a "
+            "number, array, object, boolean, or null. "
+            "Represent skills_required as one comma-separated string, "
+            "not an array. "
+            "Represent proposal_count, interviewing_count, and invites_sent "
+            "as strings, even when they contain numbers. "
+            "For hourly_min, hourly_max, and fixed_budget, use a numeric "
+            "string when a reliable amount is known, otherwise an empty string. "
+            "Never use null for missing information. "
+            "Keep job_title within 255 characters. "
+            "Keep platform, budget_type, experience_level, project_duration, "
+            "hours_per_week, proposal_count, interviewing_count, and invites_sent "
+            "within 100 characters each. "
+            "Keep client_location within 255 characters. "
+            "Do not include Markdown formatting, code fences, or explanatory text. "
+
             "Job post text: "
             + raw_job_text
         )
 
-        client = get_openai_client()
+        admitted = None
+        try:
+            ai_limits.check_request([{"role": "user", "content": prompt}], "extraction")
+            admitted = ai_control.admit(request.user, ai_control.Operation.JOB_EXTRACTION,
+                                        request.POST.get("ai_nonce", ""), form.cleaned_data, prompt)
+            if admitted.replay:
+                if admitted.request.job_post_id and JobPost.objects.filter(pk=admitted.request.job_post_id, user=request.user).exists():
+                    return redirect("confirm_job_features", job_post_id=admitted.request.job_post_id)
+                raise ai_control.ControlError("The previous job result is no longer available. Start a new extraction.")
+            result = ai_control.call_provider(admitted.request, lambda: services.extract_job_details(prompt))
+            extraction_form = JobExtractionForm.from_json(result.value)
+        except ai_control.ControlError as error:
+            form.add_error(None, error.user_message)
+            return ai_control_response(render(request, "extract_job_features.html", {
+                "form": form, "validation_score": None, "ai_allowance": error.metadata,
+                "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION, fresh=True),
+                "ai_regeneration": True,
+            }, status=error.status), error)
+        except (services.AIError, ValidationError) as error:
+            if isinstance(error, ValidationError) and admitted and not admitted.replay:
+                # Service failures are already finalized. Invalid extracted JSON
+                # is a paid response failure and must also consume its allowance.
+                try:
+                    ai_control.fail(admitted.request, ai_control.Failure.INVALID_RESPONSE)
+                except ai_control.ControlError as coordination_error:
+                    form.add_error(None, coordination_error.user_message)
+                    return render(request, "extract_job_features.html", {
+                        "form": form, "validation_score": None,
+                        "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION, fresh=True),
+                        "ai_regeneration": True,
+                    }, status=coordination_error.status)
+            # Never show/log raw provider output, exception text or credentials.
+            form.add_error(None, "We couldn't extract valid job details. Please try again.")
+            return render(request, "extract_job_features.html", {
+                "form": form,
+                "validation_score": validation_score if validation_score < 50 else None,
+                "validation_issues": validation_issues,
+                "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION, fresh=admitted is not None),
+                "ai_regeneration": admitted is not None,
+            })
 
-        response = client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-        )
-
-        extracted_text = (
-            response.choices[0].message.content
-            or ""
-        ).strip()
-
-        # ---------------------------------------------------------
-        # PARSE AI RESPONSE
-        # ---------------------------------------------------------
+        job_post = extraction_form.save(commit=False)
+        job_post.user = request.user
+        job_post.raw_job_text = raw_job_text
+        job_post.confirmed_by_user = False
+        def persist_job():
+            job_post.save()
+            return job_post
 
         try:
-            extracted_data = json.loads(
-                extracted_text
-            )
-
-        except json.JSONDecodeError:
-            extracted_data = {}
-
-        # ---------------------------------------------------------
-        # CREATE JOB / OPPORTUNITY RECORD
-        # ---------------------------------------------------------
-
-        job_post = JobPost.objects.create(
-            user=request.user,
-
-            raw_job_text=raw_job_text,
-
-            platform=extracted_data.get(
-                "platform",
-                "",
-            ),
-
-            job_title=(
-                extracted_data.get(
-                    "job_title",
-                    "Untitled Job",
-                )
-                or "Untitled Job"
-            ),
-
-            job_description=extracted_data.get(
-                "job_description",
-                raw_job_text,
-            ),
-
-            budget_type=extracted_data.get(
-                "budget_type",
-                "",
-            ),
-
-            hourly_min=(
-                extracted_data.get(
-                    "hourly_min"
-                )
-                or None
-            ),
-
-            hourly_max=(
-                extracted_data.get(
-                    "hourly_max"
-                )
-                or None
-            ),
-
-            fixed_budget=(
-                extracted_data.get(
-                    "fixed_budget"
-                )
-                or None
-            ),
-
-            experience_level=extracted_data.get(
-                "experience_level",
-                "",
-            ),
-
-            project_duration=extracted_data.get(
-                "project_duration",
-                "",
-            ),
-
-            hours_per_week=extracted_data.get(
-                "hours_per_week",
-                "",
-            ),
-
-            skills_required=extracted_data.get(
-                "skills_required",
-                "",
-            ),
-
-            client_location=extracted_data.get(
-                "client_location",
-                "",
-            ),
-
-            proposal_count=extracted_data.get(
-                "proposal_count",
-                "",
-            ),
-
-            interviewing_count=extracted_data.get(
-                "interviewing_count",
-                "",
-            ),
-
-            invites_sent=extracted_data.get(
-                "invites_sent",
-                "",
-            ),
-
-            confirmed_by_user=False,
-        )
+            ai_control.succeed(admitted.request, persist_job)
+        except ai_control.ControlError as error:
+            form.add_error(None, error.user_message)
+            return ai_control_response(render(request, "extract_job_features.html", {
+                "form": form, "validation_score": None,
+                "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION, fresh=True),
+                "ai_regeneration": True,
+            }, status=error.status), error)
 
         return redirect(
             "confirm_job_features",
             job_post_id=job_post.id,
         )
 
-    return render(
-        request,
-        "extract_job_features.html",
-    )
+    if request.method == "POST" and not form.is_valid():
+        try:
+            ai_control.reject_invalid_replay(request.user, ai_control.Operation.JOB_EXTRACTION, request.POST.get("ai_nonce", ""))
+        except ai_control.ControlError as error:
+            form.add_error(None, error.user_message)
+            return ai_control_response(render(request, "extract_job_features.html", {
+                "form": form, "validation_score": None,
+                "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION, fresh=True),
+                "ai_regeneration": True,
+            }, status=error.status), error)
+    return render(request, "extract_job_features.html", {
+        "form": form, "validation_score": None,
+        "ai_nonce": ai_form_nonce(request, ai_control.Operation.JOB_EXTRACTION),
+    })
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def confirm_job_features(request, job_post_id):
     """
     Confirm extracted job information and generate the appropriate written
@@ -857,84 +700,23 @@ def confirm_job_features(request, job_post_id):
     if not profile:
         return redirect("create_freelancer_profile")
 
-    if request.method == "POST":
-
-        # ---------------------------------------------------------
-        # SAVE USER-CONFIRMED JOB DETAILS
-        # ---------------------------------------------------------
-
-        job_post.platform = request.POST.get(
-            "platform"
-        )
-
-        job_post.job_title = (
-            request.POST.get("job_title")
-            or "Untitled Job"
-        )
-
-        job_post.job_description = request.POST.get(
-            "job_description"
-        )
-
-        job_post.budget_type = request.POST.get(
-            "budget_type"
-        )
-
-        job_post.hourly_min = (
-            request.POST.get("hourly_min")
-            or None
-        )
-
-        job_post.hourly_max = (
-            request.POST.get("hourly_max")
-            or None
-        )
-
-        # Fixed-price budget stated by the client/job post.
-        #
-        # This is deliberately separate from hourly_min/hourly_max
-        # and does NOT represent the freelancer's own bid.
-        job_post.fixed_budget = (
-            request.POST.get("fixed_budget")
-            or None
-        )
-
-        job_post.experience_level = request.POST.get(
-            "experience_level"
-        )
-
-        job_post.project_duration = request.POST.get(
-            "project_duration"
-        )
-
-        job_post.hours_per_week = request.POST.get(
-            "hours_per_week"
-        )
-
-        job_post.skills_required = request.POST.get(
-            "skills_required"
-        )
-
-        job_post.client_location = request.POST.get(
-            "client_location"
-        )
-
-        job_post.proposal_count = request.POST.get(
-            "proposal_count"
-        )
-
-        job_post.interviewing_count = request.POST.get(
-            "interviewing_count"
-        )
-
-        job_post.invites_sent = request.POST.get(
-            "invites_sent"
-        )
-
-        job_post.confirmed_by_user = True
-
-        job_post.save()
-
+    response_status = 200
+    control_error = None
+    admitted = None
+    form = ProposalGenerationForm(
+        request.POST if request.method == "POST" else None, instance=job_post,
+        user=request.user, profile=profile,
+    )
+    if request.method == "POST" and not form.is_valid():
+        try:
+            ai_control.reject_invalid_replay(request.user, ai_control.Operation.PROPOSAL_GENERATION,
+                                             request.POST.get("ai_nonce", ""), job_post.pk)
+        except ai_control.ControlError as error:
+            form.add_error(None, error.user_message)
+            response_status = error.status
+            control_error = error
+    if request.method == "POST" and form.is_valid():
+        job_post = form.save(commit=False)
 
         # ---------------------------------------------------------
         # DETERMINE PLATFORM-SPECIFIC APPLICATION TERMINOLOGY
@@ -978,13 +760,13 @@ def confirm_job_features(request, job_post_id):
 
         profile_context = (
             f"Professional Title: "
-            f"{profile.professional_title or ''}\n"
+            f"{(profile.professional_title or '').strip()}\n"
 
             f"Profile Summary: "
             f"{profile_summary}\n"
 
             f"Preferred Tone: "
-            f"{profile.preferred_tone or 'professional'}"
+            f"{(profile.preferred_tone or '').strip() or 'professional'}"
         )
 
 
@@ -992,49 +774,7 @@ def confirm_job_features(request, job_post_id):
         # BUILD WORK EXPERIENCE CONTEXT
         # ---------------------------------------------------------
 
-        experiences = WorkExperience.objects.filter(
-            user=request.user
-        ).order_by("-created_at")
-
-        if experiences.exists():
-
-            experience_blocks = []
-
-            for index, experience in enumerate(
-                experiences,
-                start=1,
-            ):
-
-                experience_blocks.append(
-                    (
-                        f"Experience {index}:\n"
-
-                        f"Role / Project Title: "
-                        f"{experience.job_title or ''}\n"
-
-                        f"Company / Project: "
-                        f"{experience.company_or_project or ''}\n"
-
-                        f"Relevant Tasks / Responsibilities: "
-                        f"{experience.tasks or ''}\n"
-
-                        f"Skills Used: "
-                        f"{experience.skills_used or ''}\n"
-
-                        f"Experience Depth: "
-                        f"{experience.experience_depth or ''}"
-                    )
-                )
-
-            experience_context = "\n\n".join(
-                experience_blocks
-            )
-
-        else:
-
-            experience_context = (
-                "No detailed work experiences were provided."
-            )
+        experience_context = ai_limits.experience_context(form.cleaned_data["selected_experiences"])
 
 
         # ---------------------------------------------------------
@@ -1270,56 +1010,78 @@ CONFIRMED JOB DETAILS
         # GENERATE PLATFORM-APPROPRIATE WRITTEN CONTENT
         # ---------------------------------------------------------
 
-        client = get_openai_client()
+        try:
+            ai_limits.check_characters(profile_context, ai_limits.PROFILE_CONTEXT_CHARACTERS, "Formatted profile context", stored=True, normalize=False)
+            ai_limits.check_characters(job_context, ai_limits.JOB_CONTEXT_CHARACTERS, "Formatted job context", normalize=False)
+            # Retrieve from the current snapshot BEFORE budget validation/admission.
+            # The exact enriched input is fingerprinted and sent unchanged.
+            research = build_research_context(job_post)
+            application_context += "\n\n" + research.text
+            messages = [{"role": "system", "content": proposal_writing_instructions},
+                        {"role": "user", "content": application_context}]
+            ai_limits.check_request(messages, "proposal")
+            admitted = ai_control.admit(request.user, ai_control.Operation.PROPOSAL_GENERATION,
+                                        request.POST.get("ai_nonce", ""), form.cleaned_data, messages, job_post.pk)
+            if admitted.replay:
+                return redirect("dashboard")
+            result = ai_control.call_provider(admitted.request, lambda: services.generate_proposal(
+                proposal_writing_instructions, application_context,
+            ))
+            generated_content = result.value
+        except (ResearchUnavailable, DatabaseError):
+            form.add_error(None, ResearchUnavailable.user_message)
+            response_status = 503
+        except ai_control.ControlError as error:
+            form.add_error(None, error.user_message)
+            response_status = error.status
+            control_error = error
+        except ValidationError as error:
+            form.add_error(None, error)
+        except services.AIError as error:
+            form.add_error(None, error.user_message)
+        else:
 
-        response = client.chat.completions.create(
-            model="gpt-5",
-            messages=[
-                {
-                    "role": "system",
-                    "content": proposal_writing_instructions,
-                },
-                {
-                    "role": "user",
-                    "content": application_context,
-                },
-            ],
-        )
 
-        generated_content = (
-            response.choices[0].message.content
-            or ""
-        ).strip()
+            # Hard safeguard in case the model still emits an em dash.
+
+            generated_content = generated_content.replace(
+                "—",
+                "-"
+            )
 
 
-        # Hard safeguard in case the model still emits an em dash.
+            # ---------------------------------------------------------
+            # SAVE THE BROADER APPLICATION RECORD
+            # ---------------------------------------------------------
+            #
+            # Proposal remains the legacy model name for now.
+            #
+            # final_text stores the platform-specific written component.
+            #
+            # content_type tells ProposalIQ what that text represents.
+            # ---------------------------------------------------------
 
-        generated_content = generated_content.replace(
-            "—",
-            "-"
-        )
+            # Keep the external request outside the transaction. Only validated
+            # details are used; the confirmed job and Proposal persist together.
+            def persist_proposal():
+                job_post.confirmed_by_user = True
+                job_post.save()
+                return Proposal.objects.create(
+                    user=request.user,
+                    job_post=job_post,
+                    final_text=generated_content,
+                    content_type=content_type,
+                    status="generated",
+                )
 
-
-        # ---------------------------------------------------------
-        # SAVE THE BROADER APPLICATION RECORD
-        # ---------------------------------------------------------
-        #
-        # Proposal remains the legacy model name for now.
-        #
-        # final_text stores the platform-specific written component.
-        #
-        # content_type tells ProposalIQ what that text represents.
-        # ---------------------------------------------------------
-
-        Proposal.objects.create(
-            user=request.user,
-            job_post=job_post,
-            final_text=generated_content,
-            content_type=content_type,
-            status="generated",
-        )
-
-        return redirect("dashboard")
+            try:
+                ai_control.succeed(admitted.request, persist_proposal)
+            except ai_control.ControlError as error:
+                form.add_error(None, error.user_message)
+                response_status = error.status
+                control_error = error
+            else:
+                return redirect("dashboard")
 
 
     # -------------------------------------------------------------
@@ -1334,11 +1096,15 @@ CONFIRMED JOB DETAILS
         job_post.platform
     )
 
-    return render(
+    response = render(
         request,
         "confirm_job_features.html",
         {
             "job_post": job_post,
+            "form": form,
+            "ai_nonce": ai_form_nonce(request, ai_control.Operation.PROPOSAL_GENERATION, job_post.pk, fresh=admitted is not None or control_error is not None),
+            "ai_regeneration": admitted is not None or request.GET.get("regenerate") == "1" or control_error is not None,
+            "ai_allowance": control_error.metadata if control_error else {},
 
             "platform_config": platform_config,
 
@@ -1353,65 +1119,54 @@ CONFIRMED JOB DETAILS
             "generated_heading": platform_config[
                 "generated_heading"
             ],
-        },
+        }, status=response_status,
     )
+    return ai_control_response(response, control_error) if control_error else response
 
 
 @login_required
+@require_http_methods(["GET", "HEAD", "POST"])
 def update_outcome(request, proposal_id):
     proposal = get_object_or_404(
-        Proposal.objects.select_related("job_post"),
-        id=proposal_id,
-        user=request.user,
+        Proposal.objects.select_related("job_post"), id=proposal_id, user=request.user,
     )
-
-    platform_config = get_platform_config(
-        proposal.job_post.platform
-        if proposal.job_post
-        else ""
+    confirmation = getattr(proposal, "proposaluseconfirmation", None)
+    if not has_submission(proposal, confirmation):
+        return redirect("confirm_use_proposal", proposal_id=proposal.pk)
+    outcome = getattr(proposal, "proposaloutcome", None)
+    initial = (
+        {"outcome_status": proposal.status}
+        if not outcome and proposal.status in dict(OUTCOME_STATUS_CHOICES) else {}
     )
-
-    use_confirmation = (
-        ProposalUseConfirmation.objects.filter(
-            proposal=proposal
-        ).first()
-    )
-
+    form = ProposalOutcomeForm(instance=outcome, initial=initial)
     if request.method == "POST":
-        outcome_status = request.POST.get(
-            "outcome_status"
-        )
-        notes = request.POST.get("notes")
-
-        ProposalOutcome.objects.update_or_create(
-            proposal=proposal,
-            defaults={
-                "status": outcome_status,
-                "notes": notes,
-            },
-        )
-
-        proposal.status = outcome_status
-        proposal.save(
-            update_fields=[
-                "status",
-            ]
-        )
-
-        return redirect("dashboard")
-
-    return render(
-        request,
-        "update_outcome.html",
-        {
-            "proposal": proposal,
-            "use_confirmation": use_confirmation,
-            "platform_config": platform_config,
-            "application_label": platform_config[
-                "application_label"
-            ],
-            "content_label": platform_config[
-                "content_label"
-            ],
-        },
-    )
+        with transaction.atomic():
+            proposal = get_object_or_404(
+                Proposal.objects.select_for_update().select_related("job_post"),
+                id=proposal_id, user=request.user,
+            )
+            confirmation = ProposalUseConfirmation.objects.filter(proposal=proposal).first()
+            if not has_submission(proposal, confirmation):
+                return redirect("confirm_use_proposal", proposal_id=proposal.pk)
+            outcome = ProposalOutcome.objects.filter(proposal=proposal).first()
+            form = ProposalOutcomeForm(request.POST, instance=outcome)
+            if form.is_valid():
+                outcome = form.save(commit=False)
+                outcome.proposal = proposal
+                outcome.save()
+                # Preserve the existing declared status mirror for compatibility;
+                # the validated Outcome record remains the source of this value.
+                proposal.status = outcome.status
+                proposal.used_by_user = True
+                proposal.used_at = proposal.used_at or (confirmation.confirmed_at if confirmation else None)
+                proposal.save(update_fields=["status", "used_by_user", "used_at"])
+                return redirect("dashboard")
+    add_platform_display_metadata(proposal)
+    platform_config = get_platform_config(proposal.display_platform)
+    return render(request, "update_outcome.html", {
+        "proposal": proposal, "form": form, "use_confirmation": confirmation,
+        "safe_job_url": safe_submission_url(confirmation),
+        "platform_config": platform_config,
+        "application_label": platform_config["application_label"],
+        "content_label": platform_config["content_label"],
+    })

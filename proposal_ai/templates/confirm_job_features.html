@@ -6,7 +6,7 @@
 <head>
 
     <title>
-        Confirm Opportunity Details - ProposalIQ
+        Confirm Opportunity Details - ProposalQ
     </title>
 
     <link
@@ -59,7 +59,7 @@
             line-height:1.6;
             margin-bottom:30px;
         ">
-            ProposalIQ extracted these details from the opportunity.
+            ProposalQ extracted these details from the opportunity.
             Review and correct anything that looks inaccurate before
             generating your application content.
         </p>
@@ -128,7 +128,7 @@
                         font-size:13px;
                         margin-bottom:5px;
                     ">
-                        ProposalIQ will generate
+                        ProposalQ will generate
                     </span>
 
                     <strong
@@ -156,7 +156,7 @@
                     font-size:14px;
                 "
             >
-                ProposalIQ adapts what it generates according to the
+                ProposalQ adapts what it generates according to the
                 platform. The overall application and its written content
                 may use different names.
             </p>
@@ -169,9 +169,19 @@
         <!-- CONFIRMATION FORM -->
         <!-- ===================================================== -->
 
+        {% if form.errors %}
+            <div role="alert" style="color:#ef4444;">
+                {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+                {% for field in form %}
+                    {% for error in field.errors %}<p>{{ field.label }}: {{ error }}</p>{% endfor %}
+                {% endfor %}
+            </div>
+        {% endif %}
+
         <form method="POST" id="confirm-job-form">
 
             {% csrf_token %}
+            {% include "ai_request_identity.html" %}
 
 
             <!-- PLATFORM -->
@@ -187,7 +197,8 @@
                 type="text"
                 id="platform"
                 name="platform"
-                value="{{ job_post.platform|default:'' }}"
+                value="{{ form.platform.value|default_if_none:'' }}"
+                data-ai-max="{{ form.platform.field.max_length }}"
                 placeholder="e.g. Upwork, Freelancer, PeoplePerHour"
                 style="
                     box-sizing:border-box;
@@ -207,7 +218,7 @@
                 margin-top:0;
                 margin-bottom:25px;
             ">
-                Correct this if ProposalIQ identified the wrong platform.
+                Correct this if ProposalQ identified the wrong platform.
                 The platform affects the type of content generated.
             </p>
 
@@ -226,7 +237,9 @@
                 type="text"
                 id="job_title"
                 name="job_title"
-                value="{{ job_post.job_title|default:'' }}"
+                value="{{ form.job_title.value|default_if_none:'' }}"
+                data-ai-max="{{ form.job_title.field.max_length }}"
+                required
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -253,6 +266,8 @@
             <textarea
                 id="job_description"
                 name="job_description"
+                data-ai-max="{{ form.job_description.field.max_length }}"
+                required
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -266,7 +281,7 @@
                     font-size:15px;
                     line-height:1.5;
                 "
-            >{{ job_post.job_description|default:'' }}</textarea>
+            >{{ form.job_description.value|default_if_none:'' }}</textarea>
 
 
 
@@ -317,7 +332,8 @@
                     type="text"
                     id="budget_type"
                     name="budget_type"
-                    value="{{ job_post.budget_type|default:'' }}"
+                    value="{{ form.budget_type.value|default_if_none:'' }}"
+                    data-ai-max="{{ form.budget_type.field.max_length }}"
                     placeholder="e.g. Hourly or Fixed Price"
                     style="
                         box-sizing:border-box;
@@ -337,7 +353,7 @@
                     margin-top:0;
                     margin-bottom:22px;
                 ">
-                    Correct this if ProposalIQ identified the budget type
+                    Correct this if ProposalQ identified the budget type
                     incorrectly.
                 </p>
 
@@ -363,7 +379,7 @@
                         min="0"
                         id="fixed_budget"
                         name="fixed_budget"
-                        value="{{ job_post.fixed_budget|default:'' }}"
+                        value="{{ form.fixed_budget.value|default_if_none:'' }}"
                         placeholder="e.g. 500.00"
                         style="
                             box-sizing:border-box;
@@ -419,7 +435,7 @@
                             min="0"
                             id="hourly_min"
                             name="hourly_min"
-                            value="{{ job_post.hourly_min|default:'' }}"
+                            value="{{ form.hourly_min.value|default_if_none:'' }}"
                             placeholder="e.g. 25.00"
                             style="
                                 box-sizing:border-box;
@@ -450,7 +466,7 @@
                             min="0"
                             id="hourly_max"
                             name="hourly_max"
-                            value="{{ job_post.hourly_max|default:'' }}"
+                            value="{{ form.hourly_max.value|default_if_none:'' }}"
                             placeholder="e.g. 50.00"
                             style="
                                 box-sizing:border-box;
@@ -484,7 +500,8 @@
                 type="text"
                 id="experience_level"
                 name="experience_level"
-                value="{{ job_post.experience_level|default:'' }}"
+                value="{{ form.experience_level.value|default_if_none:'' }}"
+                data-ai-max="{{ form.experience_level.field.max_length }}"
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -512,7 +529,8 @@
                 type="text"
                 id="project_duration"
                 name="project_duration"
-                value="{{ job_post.project_duration|default:'' }}"
+                value="{{ form.project_duration.value|default_if_none:'' }}"
+                data-ai-max="{{ form.project_duration.field.max_length }}"
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -540,7 +558,8 @@
                 type="text"
                 id="hours_per_week"
                 name="hours_per_week"
-                value="{{ job_post.hours_per_week|default:'' }}"
+                value="{{ form.hours_per_week.value|default_if_none:'' }}"
+                data-ai-max="{{ form.hours_per_week.field.max_length }}"
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -567,6 +586,7 @@
             <textarea
                 id="skills_required"
                 name="skills_required"
+                data-ai-max="{{ form.skills_required.field.max_length }}"
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -580,7 +600,7 @@
                     font-size:15px;
                     line-height:1.5;
                 "
-            >{{ job_post.skills_required|default:'' }}</textarea>
+            >{{ form.skills_required.value|default_if_none:'' }}</textarea>
 
 
 
@@ -597,7 +617,8 @@
                 type="text"
                 id="client_location"
                 name="client_location"
-                value="{{ job_post.client_location|default:'' }}"
+                value="{{ form.client_location.value|default_if_none:'' }}"
+                data-ai-max="{{ form.client_location.field.max_length }}"
                 style="
                     box-sizing:border-box;
                     width:100%;
@@ -653,7 +674,8 @@
                             type="text"
                             id="proposal_count"
                             name="proposal_count"
-                            value="{{ job_post.proposal_count|default:'' }}"
+                            value="{{ form.proposal_count.value|default_if_none:'' }}"
+                            data-ai-max="{{ form.proposal_count.field.max_length }}"
                             style="
                                 box-sizing:border-box;
                                 width:100%;
@@ -681,7 +703,8 @@
                             type="text"
                             id="interviewing_count"
                             name="interviewing_count"
-                            value="{{ job_post.interviewing_count|default:'' }}"
+                            value="{{ form.interviewing_count.value|default_if_none:'' }}"
+                            data-ai-max="{{ form.interviewing_count.field.max_length }}"
                             style="
                                 box-sizing:border-box;
                                 width:100%;
@@ -709,7 +732,8 @@
                             type="text"
                             id="invites_sent"
                             name="invites_sent"
-                            value="{{ job_post.invites_sent|default:'' }}"
+                            value="{{ form.invites_sent.value|default_if_none:'' }}"
+                            data-ai-max="{{ form.invites_sent.field.max_length }}"
                             style="
                                 box-sizing:border-box;
                                 width:100%;
@@ -732,6 +756,17 @@
             <!-- ================================================= -->
             <!-- ACTIONS -->
             <!-- ================================================= -->
+
+            <fieldset style="border:1px solid #334155; border-radius:12px; padding:20px; margin-bottom:25px; color:#cbd5e1;">
+                <legend style="font-weight:bold;">{{ form.selected_experiences.label }}</legend>
+                <p>{{ form.selected_experiences.help_text }}</p>
+                <input type="hidden" name="experience_selection_submitted" value="1">
+                {{ form.selected_experiences }}
+                {% if not form.selected_experiences.field.queryset.exists %}
+                    <p>No work experiences are stored. Your profile will be used, as before.</p>
+                {% endif %}
+                <p>Unchecked records are excluded from this request and remain stored. A selection with no records uses your profile alone.</p>
+            </fieldset>
 
             <div style="
                 display:flex;
@@ -797,7 +832,7 @@
                 "
             >
                 <strong style="color:white;">
-                    ProposalIQ is generating your application content...
+                    ProposalQ is generating your application content...
                 </strong>
 
                 <div style="margin-top:6px;">
@@ -1266,6 +1301,7 @@ document.addEventListener(
 </script>
 
 
+{% include "ai_character_counts.html" %}
 </body>
 
 </html>

@@ -11,7 +11,7 @@
 
     <!-- Logo -->
 
-    <a href="{% url 'dashboard' %}"
+    <a href="{% url 'public_home' %}"
        style="
             display:flex;
             align-items:center;
@@ -30,7 +30,7 @@
             margin:0;
             color:white;
         ">
-            Proposal<span style="color:#1e90ff;">IQ</span>
+            Proposal<span style="color:#1e90ff;">Q</span>
         </h1>
 
     </a>
@@ -73,6 +73,14 @@
             Profile
 
         </a>
+
+        <a href="{% url 'pricing' %}" style="color:white; text-decoration:none;">Pricing &amp; billing</a>
+
+        {% if user.is_authenticated %}
+        <a href="{% url 'password_change' %}" style="color:white; text-decoration:none;">
+            Change password
+        </a>
+        {% endif %}
 
         <form
             method="POST"

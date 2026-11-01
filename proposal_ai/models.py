@@ -1,5 +1,199 @@
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
+import uuid
+
+
+class BillingAccount(models.Model):
+    """One Stripe billing account per user per mode; no card/bank details."""
+
+    class StripeMode(models.TextChoices):
+        TEST = "test", "Test"
+        LIVE = "live", "Live"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="billing_accounts",
+    )
+    stripe_mode = models.CharField(
+        max_length=4,
+        choices=StripeMode.choices,
+        default=StripeMode.TEST,
+    )
+    identity = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    stripe_customer_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    stripe_subscription_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    status = models.CharField(max_length=32, default="none")
+    price_id = models.CharField(max_length=255, blank=True)
+    period_start = models.DateTimeField(null=True, blank=True)
+    period_end = models.DateTimeField(null=True, blank=True)
+    paid = models.BooleanField(default=False)
+    cancel_at_period_end = models.BooleanField(default=False)
+    synced_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user", "stripe_mode"),
+                name="billing_unique_user_stripe_mode",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(stripe_mode__in=("test", "live")),
+                name="billing_valid_stripe_mode",
+            ),
+        ]
+
+
+class CheckoutAttempt(models.Model):
+    """Persisted before calling Stripe so an uncertain create has a stable key."""
+    account = models.ForeignKey(BillingAccount, on_delete=models.PROTECT)
+    identity = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    stripe_session_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(
+            fields=("account",), condition=models.Q(resolved=False), name="billing_one_open_checkout",
+        )]
+
+
+class StripeEvent(models.Model):
+    """Deduplication receipt, committed atomically with the subscription update."""
+    event_id = models.CharField(max_length=255, unique=True)
+    event_type = models.CharField(max_length=100)
+    outcome = models.CharField(max_length=16)
+    processed_at = models.DateTimeField(auto_now_add=True)
+
+
+class AIQuotaPeriod(models.Model):
+    """Durable product-credit accounting; period dates are UTC, not browser dates."""
+    class Kind(models.TextChoices):
+        DAILY = "daily", "Daily"
+        WEEKLY = "weekly", "Weekly"
+
+    kind = models.CharField(max_length=6, choices=Kind.choices, editable=False)
+    period_start = models.DateField(editable=False)
+    credit_limit = models.BigIntegerField(null=True, blank=True, editable=False)
+    reserved_credits = models.BigIntegerField(default=0, editable=False)
+    consumed_credits = models.BigIntegerField(default=0, editable=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("kind", "period_start"), name="ai_quota_period_unique"),
+            models.CheckConstraint(condition=models.Q(kind__in=("daily", "weekly")), name="ai_quota_period_kind"),
+            models.CheckConstraint(condition=models.Q(reserved_credits__gte=0), name="ai_quota_reserved_nonnegative"),
+            models.CheckConstraint(condition=models.Q(consumed_credits__gte=0), name="ai_quota_consumed_nonnegative"),
+            models.CheckConstraint(condition=models.Q(credit_limit__isnull=True) | models.Q(credit_limit__gte=0), name="ai_quota_limit_nonnegative"),
+        ]
+
+    def __str__(self):
+        return f"{self.kind}: {self.period_start} UTC"
+
+
+class AIRequest(models.Model):
+    """Payload-free request ledger; allowances are not provider cost estimates."""
+
+    class Operation(models.TextChoices):
+        PROFILE_SUMMARY = "profile_summary", "Profile summary"
+        JOB_EXTRACTION = "job_extraction", "Job extraction"
+        PROPOSAL_GENERATION = "proposal_generation", "Proposal generation"
+
+    class Intent(models.TextChoices):
+        GENERATE = "generate", "Generate"
+        REGENERATE = "regenerate", "Regenerate"
+
+    class Lifecycle(models.TextChoices):
+        RESERVED = "reserved", "Reserved"
+        IN_FLIGHT = "in_flight", "In flight"
+        SUCCEEDED = "succeeded", "Succeeded"
+        FAILED = "failed", "Failed"
+        UNCERTAIN = "uncertain", "Uncertain"
+
+    class Quota(models.TextChoices):
+        RESERVED = "reserved", "Reserved"
+        CONSUMED = "consumed", "Consumed"
+        RELEASED = "released", "Released"
+
+    class Failure(models.TextChoices):
+        AI_DISABLED = "ai_disabled", "AI disabled before provider execution"
+        LOCAL_CONFIGURATION = "local_configuration", "Local configuration"
+        CONFIGURATION = "configuration", "Provider configuration rejection"
+        AUTHENTICATION = "authentication", "Provider authentication rejection"
+        CAPACITY = "capacity", "Provider capacity rejection"
+        INVALID_REQUEST = "invalid_request", "Provider request rejection"
+        INPUT_LIMIT = "input_limit", "Input validation"
+        TIMEOUT = "timeout", "Timeout"
+        CONNECTION = "connection", "Connection"
+        TEMPORARY = "temporary", "Temporary failure"
+        INVALID_RESPONSE = "invalid_response", "Invalid response"
+        INCOMPLETE_RESPONSE = "incomplete_response", "Incomplete response"
+        OVERSIZED_RESPONSE = "oversized_response", "Oversized response"
+        PERSISTENCE = "persistence", "Persistence failure"
+        COORDINATION = "coordination", "Coordination failure"
+        STALE = "stale", "Expired request"
+        UNEXPECTED = "unexpected", "Unexpected failure"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    operation = models.CharField(max_length=24, choices=Operation.choices)
+    nonce = models.UUIDField()
+    intent = models.CharField(max_length=12, choices=Intent.choices)
+    submitted_fingerprint = models.CharField(max_length=64)
+    effective_fingerprint = models.CharField(max_length=64)
+    lifecycle = models.CharField(max_length=12, choices=Lifecycle.choices, default=Lifecycle.RESERVED)
+    quota_state = models.CharField(max_length=8, choices=Quota.choices, default=Quota.RESERVED)
+    quota_units = models.PositiveSmallIntegerField(editable=False)
+    admitted_at = models.DateTimeField(default=timezone.now, editable=False)
+    dispatch_started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    lease_expires_at = models.DateTimeField()
+    failure_category = models.CharField(max_length=24, choices=Failure.choices, blank=True)
+    job_post = models.ForeignKey("JobPost", null=True, blank=True, on_delete=models.SET_NULL)
+    proposal = models.ForeignKey("Proposal", null=True, blank=True, on_delete=models.SET_NULL)
+    global_day_period = models.ForeignKey(AIQuotaPeriod, null=True, blank=True, editable=False,
+                                         on_delete=models.PROTECT, related_name="daily_requests")
+    global_week_period = models.ForeignKey(AIQuotaPeriod, null=True, blank=True, editable=False,
+                                          on_delete=models.PROTECT, related_name="weekly_requests")
+
+    # Provider evidence is independent of quota units and future monetary estimates.
+    # NULL means unknown; zero is reserved for an actual reported/measured zero.
+    provider = models.CharField(max_length=24, null=True, blank=True)
+    api_style = models.CharField(max_length=24, null=True, blank=True)
+    requested_model = models.CharField(max_length=200, null=True, blank=True)
+    response_model = models.CharField(max_length=200, null=True, blank=True)
+    input_tokens = models.PositiveBigIntegerField(null=True, blank=True)
+    completion_tokens = models.PositiveBigIntegerField(null=True, blank=True)
+    reasoning_tokens = models.PositiveBigIntegerField(null=True, blank=True)
+    cached_input_tokens = models.PositiveBigIntegerField(null=True, blank=True)
+    total_tokens = models.PositiveBigIntegerField(null=True, blank=True)
+    provider_latency_ms = models.PositiveBigIntegerField(null=True, blank=True)
+    service_tier = models.CharField(max_length=16, null=True, blank=True)
+    completion_token_cap = models.PositiveBigIntegerField(null=True, blank=True)
+    finish_reason = models.CharField(max_length=16, null=True, blank=True)
+    response_text_characters = models.PositiveBigIntegerField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("user", "nonce"), name="ai_request_user_nonce_unique"),
+            models.UniqueConstraint(
+                fields=("user",), condition=models.Q(lifecycle__in=("reserved", "in_flight")),
+                name="ai_request_one_active_user",
+            ),
+            models.CheckConstraint(
+                condition=(models.Q(operation="profile_summary", quota_units=1)
+                           | models.Q(operation="job_extraction", quota_units=2)
+                           | models.Q(operation="proposal_generation", quota_units=3)),
+                name="ai_request_operation_units",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("user", "admitted_at"), name="ai_request_user_admitted"),
+            models.Index(fields=("user", "operation", "dispatch_started_at"), name="ai_request_user_burst"),
+            models.Index(fields=("lifecycle", "lease_expires_at"), name="ai_request_stale"),
+        ]
 
 
 class FreelancerProfile(models.Model):
@@ -396,3 +590,113 @@ class ProposalUseConfirmation(models.Model):
             f"Submission confirmation for "
             f"{self.proposal}"
         )
+
+
+class ResearchDataset(models.Model):
+    """Immutable imported research snapshot. Raw workbook text is not served to users."""
+    source_name = models.CharField(max_length=255)
+    source_sha256 = models.CharField(max_length=64, unique=True)
+    imported_at = models.DateTimeField(auto_now_add=True)
+    case_count = models.PositiveIntegerField(default=0)
+    active = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ("-imported_at",)
+        constraints = [models.UniqueConstraint(fields=("active",), condition=models.Q(active=True), name="research_one_active")]
+
+    def __str__(self):
+        return f"{self.source_name} ({self.case_count} cases)"
+
+
+class ResearchCase(models.Model):
+    dataset = models.ForeignKey(ResearchDataset, on_delete=models.CASCADE, related_name="cases")
+    case_key = models.CharField(max_length=64)
+    participant_key = models.CharField(max_length=64, blank=True)
+    round_label = models.CharField(max_length=100, blank=True)
+    case_type = models.CharField(max_length=50, blank=True)
+    outcome = models.CharField(max_length=100, blank=True)
+    application_route = models.CharField(max_length=100, blank=True)
+    client_relationship = models.CharField(max_length=100, blank=True)
+    domain_niche = models.TextField(blank=True)
+    job_title = models.TextField(blank=True)
+    budget_type = models.CharField(max_length=100, blank=True)
+    budget_low = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    budget_high = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    submitted_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    final_rate = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    currency = models.CharField(max_length=16, blank=True)
+    competition_timing = models.TextField(blank=True)
+    record_status = models.CharField(max_length=100, blank=True)
+    job_core_problem = models.TextField(blank=True)
+    primary_stack_domain = models.TextField(blank=True)
+    required_skills = models.TextField(blank=True)
+    explicit_instructions = models.TextField(blank=True)
+    scope_complexity = models.CharField(max_length=100, blank=True)
+    risk_signals = models.TextField(blank=True)
+    observable_fit_signals = models.TextField(blank=True)
+    opening_approach = models.TextField(blank=True)
+    experience_evidence = models.TextField(blank=True)
+    direct_job_match_evidence = models.TextField(blank=True)
+    solution_approach = models.TextField(blank=True)
+    tools_stack = models.TextField(blank=True)
+    instruction_coverage = models.TextField(blank=True)
+    strong_features = models.TextField(blank=True)
+    observable_gaps = models.TextField(blank=True)
+    outcome_confounds = models.TextField(blank=True)
+    source_fidelity = models.CharField(max_length=150, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("dataset", "case_key"), name="research_case_dataset_key_unique")]
+        indexes = [
+            models.Index(fields=("dataset", "outcome"), name="research_case_outcome"),
+            models.Index(fields=("dataset", "case_key"), name="research_case_key"),
+        ]
+
+    def __str__(self):
+        return f"{self.case_key}: {self.job_title[:80]}"
+
+
+class ResearchRequirement(models.Model):
+    research_case = models.ForeignKey(ResearchCase, on_delete=models.CASCADE, related_name="requirements")
+    requirement = models.TextField()
+    importance = models.CharField(max_length=100, blank=True)
+    proposal_evidence = models.TextField(blank=True)
+    coverage = models.CharField(max_length=50, blank=True)
+    interpretation_note = models.TextField(blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("research_case", "coverage"), name="research_req_coverage")]
+
+
+class ResearchNote(models.Model):
+    dataset = models.ForeignKey(ResearchDataset, on_delete=models.CASCADE, related_name="notes")
+    case_key = models.CharField(max_length=64, blank=True)
+    note_type = models.CharField(max_length=50, blank=True)
+    observation = models.TextField()
+    why_it_matters = models.TextField(blank=True)
+    confidence = models.CharField(max_length=50, blank=True)
+    do_not_overclaim = models.TextField(blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=("dataset", "case_key"), name="research_note_case")]
+
+
+
+class ResearchTerm(models.Model):
+    research_case = models.ForeignKey(ResearchCase, on_delete=models.CASCADE, related_name="terms")
+    token = models.CharField(max_length=64, db_index=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=("research_case", "token"), name="research_term_unique")]
+
+
+# Account-security state is shared by all workers through PostgreSQL.
+class AccountRateLimit(models.Model):
+    key = models.CharField(max_length=64, primary_key=True)
+    attempts = models.PositiveIntegerField(default=0)
+    expires_at = models.DateTimeField(db_index=True)
+
+
+class RegisteredEmail(models.Model):
+    email = models.CharField(max_length=254, primary_key=True)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
