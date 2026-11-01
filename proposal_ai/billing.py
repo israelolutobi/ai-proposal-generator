@@ -1,5 +1,4 @@
-
-"""Stripe test-mode boundary. No client-supplied customer, price or return URLs."""
+"""Stripe billing boundary with strict test/live isolation and server-owned parameters."""
 from datetime import datetime, timedelta, timezone as dt_timezone
 from urllib.parse import urlsplit
 
@@ -31,9 +30,28 @@ class BillingError(Exception):
         super().__init__(message)
 
 
+def _mode():
+    mode = getattr(settings, "STRIPE_MODE", "test")
+    if mode not in ("test", "live"):
+        raise BillingError("Billing mode is not configured correctly.")
+    return mode
+
+
+def _live():
+    return _mode() == "live"
+
+
+def _require_account_mode(account):
+    if account.stripe_mode != _mode():
+        raise BillingError("This billing account belongs to a different Stripe environment.", 409)
+    return account
+
+
 def client():
-    if not settings.BILLING_ENABLED or not settings.STRIPE_SECRET_KEY.startswith("sk_test_"):
-        raise BillingError("Test billing is not available yet. Your current account remains available.")
+    mode = _mode()
+    key = getattr(settings, "STRIPE_SECRET_KEY", "")
+    if not settings.BILLING_ENABLED or not isinstance(key, str) or not key.startswith(f"sk_{mode}_"):
+        raise BillingError("Billing is not available yet. Your current account remains available.")
     return stripe.StripeClient(settings.STRIPE_SECRET_KEY, stripe_version=settings.STRIPE_API_VERSION,
                                max_network_retries=0, http_client=stripe.RequestsClient(timeout=8))
 
@@ -42,11 +60,16 @@ def identifier(value):
     return value.get("id") if isinstance(value, dict) else value
 
 
-def require_test(obj):
+def require_mode(obj):
     obj = data(obj)
-    if not isinstance(obj, dict) or obj.get("livemode") is not False:
+    if not isinstance(obj, dict) or obj.get("livemode") is not _live():
         raise BillingError()
     return obj
+
+
+def require_test(obj):
+    """Backwards-compatible name; validates the currently configured mode."""
+    return require_mode(obj)
 
 
 def data(obj):
@@ -63,7 +86,7 @@ def hosted_url(value, host):
 
 def valid_price(price):
     recurring = price.get("recurring") or {}
-    return (price.get("id") == settings.STRIPE_PRO_PRICE_ID and price.get("livemode") is False
+    return (price.get("id") == settings.STRIPE_PRO_PRICE_ID and price.get("livemode") is _live()
             and price.get("currency") == "gbp" and price.get("unit_amount") == 999
             and price.get("billing_scheme") == "per_unit" and not price.get("transform_quantity")
             and recurring.get("interval") == "month" and recurring.get("interval_count") == 1
@@ -71,17 +94,17 @@ def valid_price(price):
 
 
 def validate_catalog(api):
-    price = require_test(api.v1.prices.retrieve(settings.STRIPE_PRO_PRICE_ID))
+    price = require_mode(api.v1.prices.retrieve(settings.STRIPE_PRO_PRICE_ID))
     if not valid_price(price) or not price.get("active") or price.get("tax_behavior") != "inclusive":
-        raise BillingError("The Pro test price is not configured correctly. Please contact support.")
-    portal = require_test(api.v1.billing_portal.configurations.retrieve(settings.STRIPE_PORTAL_CONFIGURATION_ID))
+        raise BillingError("The Pro price is not configured correctly. Please contact support.")
+    portal = require_mode(api.v1.billing_portal.configurations.retrieve(settings.STRIPE_PORTAL_CONFIGURATION_ID))
     features = portal.get("features") or {}
     cancel = features.get("subscription_cancel") or {}
     if (not portal.get("active") or cancel.get("enabled") is not True or cancel.get("mode") != "at_period_end"
             or (features.get("subscription_update") or {}).get("enabled") is True
             or (features.get("payment_method_update") or {}).get("enabled") is not True
             or (features.get("invoice_history") or {}).get("enabled") is not True):
-        raise BillingError("The test billing portal is not configured correctly. Please contact support.")
+        raise BillingError("The billing portal is not configured correctly. Please contact support.")
 
 
 def _lock(account_id):
@@ -91,9 +114,10 @@ def _lock(account_id):
 
 
 def _subscriptions(api, account):
+    _require_account_mode(account)
     result = api.v1.subscriptions.list({"customer": account.stripe_customer_id, "status": "all", "limit": 100,
                                         "expand": ["data.latest_invoice"]})
-    rows = [require_test(row) for row in result.auto_paging_iter()]
+    rows = [require_mode(row) for row in result.auto_paging_iter()]
     for row in rows:
         if identifier(row.get("customer")) != account.stripe_customer_id:
             raise BillingError()
@@ -104,13 +128,13 @@ def checkout(user):
     api = client()
     # Persist identities BEFORE remote mutations. A rollback or timeout cannot
     # invent a fresh idempotency key on the next request.
-    account, _ = BillingAccount.objects.get_or_create(user=user)
+    account, _ = BillingAccount.objects.get_or_create(user=user, stripe_mode=_mode())
     with transaction.atomic():
         account = _lock(account.pk)
         if account.status == "customer_deleted":
             raise BillingError("This billing account needs support before another checkout.", 409)
         if not account.stripe_customer_id:
-            customer = require_test(api.v1.customers.create(
+            customer = require_mode(api.v1.customers.create(
                 {"metadata": {"proposalq_account": str(account.identity)}},
                 options={"idempotency_key": f"proposalq-customer-{account.identity}"},
             ))
@@ -146,7 +170,7 @@ def checkout(user):
                 "cancel_url": settings.BILLING_BASE_URL + reverse("pricing") + "?checkout=cancelled",
                 "allow_promotion_codes": False, "automatic_tax": {"enabled": False},
             }, options={"idempotency_key": f"proposalq-checkout-{attempt.identity}"})
-        session = require_test(session)
+        session = require_mode(session)
         if (identifier(session.get("customer")) != account.stripe_customer_id or session.get("mode") != "subscription"
                 or (session.get("metadata") or {}).get("proposalq_attempt") != str(attempt.identity)):
             raise BillingError()
@@ -165,9 +189,10 @@ def checkout(user):
 
 def portal(user):
     api = client()
-    account = BillingAccount.objects.filter(user=user).first()
+    account = BillingAccount.objects.filter(user=user, stripe_mode=_mode()).first()
     if not account or not account.stripe_customer_id or account.status == "customer_deleted":
         raise BillingError("There is no billing account to manage yet.", 409)
+    _require_account_mode(account)
     session = api.v1.billing_portal.sessions.create({
         "customer": account.stripe_customer_id, "configuration": settings.STRIPE_PORTAL_CONFIGURATION_ID,
         "return_url": settings.BILLING_BASE_URL + reverse("pricing"),
@@ -183,6 +208,7 @@ def _timestamp(value):
 
 def synchronize(api, account):
     """Fetch current Stripe state UNDER account lock; old events cannot roll back it."""
+    _require_account_mode(account)
     rows = [row for row in _subscriptions(api, account)
             if (row.get("metadata") or {}).get("proposalq_account") == str(account.identity)]
     ongoing = [row for row in rows if row.get("status") not in TERMINAL]
@@ -230,7 +256,7 @@ def synchronize(api, account):
             account.period_end = _timestamp(item.get("current_period_end"))
             account.paid = bool(valid_price(price) and item.get("quantity") == 1
                                 and not row.get("pause_collection") and isinstance(invoice, dict)
-                                and invoice.get("status") == "paid" and invoice.get("livemode") is False
+                                and invoice.get("status") == "paid" and invoice.get("livemode") is _live()
                                 and identifier(invoice.get("customer")) == account.stripe_customer_id)
     account.synced_at = timezone.now()
     account.save()
@@ -238,7 +264,7 @@ def synchronize(api, account):
 
 
 def process_event(event):
-    event = require_test(event)
+    event = require_mode(event)
     event_id, event_type = event.get("id"), event.get("type")
     if not isinstance(event_id, str) or not event_id.startswith("evt_") or len(event_id) > 255:
         raise ValueError("Invalid event identity.")
@@ -248,15 +274,18 @@ def process_event(event):
         return
     if event_type not in EVENT_TYPES:
         return
-    obj = event["data"]["object"]
+    payload = event.get("data")
+    if not isinstance(payload, dict):
+        raise BillingError()
+    obj = require_mode(payload.get("object"))
     customer_id = obj.get("id") if event_type == "customer.deleted" else identifier(obj.get("customer"))
-    account_id = BillingAccount.objects.filter(stripe_customer_id=customer_id).values_list("pk", flat=True).first() if customer_id else None
+    account_id = BillingAccount.objects.filter(stripe_customer_id=customer_id, stripe_mode=_mode()).values_list("pk", flat=True).first() if customer_id else None
     with transaction.atomic():
         account = _lock(account_id) if account_id else None
         if StripeEvent.objects.filter(event_id=event_id).exists():
             return
         if account:
-            require_test(obj)
+            _require_account_mode(account)
             if event_type == "customer.deleted":
                 account.paid = False
                 account.status = "customer_deleted"
@@ -271,12 +300,12 @@ def process_event(event):
 
 
 def reconcile(account_id):
-    """Operator recovery using authenticated test Stripe API, never browser data."""
+    """Operator recovery using the configured Stripe API, never browser data."""
     api = client()
     with transaction.atomic():
-        account = _lock(account_id)
+        account = _require_account_mode(_lock(account_id))
         if not account.stripe_customer_id or account.status == "customer_deleted":
-            raise BillingError("This account has no recoverable Stripe test customer.", 409)
+            raise BillingError("This account has no recoverable Stripe customer.", 409)
         synchronize(api, account)
         attempts = CheckoutAttempt.objects.filter(account=account, resolved=False)
         for attempt in attempts:
@@ -286,7 +315,7 @@ def reconcile(account_id):
             if len(matches) > 1:
                 raise BillingError("Multiple sessions require manual review in Stripe.", 409)
             if matches:
-                session = require_test(matches[0])
+                session = require_mode(matches[0])
                 attempt.stripe_session_id = session["id"]
                 attempt.resolved = session.get("status") in ("complete", "expired")
                 attempt.save(update_fields=["stripe_session_id", "resolved"])

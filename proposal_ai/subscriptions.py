@@ -1,3 +1,4 @@
+
 """Monthly proposal allowances reuse the durable, replay-protected AI ledger."""
 from datetime import timezone as dt_timezone
 import math
@@ -19,15 +20,27 @@ def month_bounds(moment):
 
 
 def is_pro(account, moment):
-    return bool(account and settings.BILLING_ENABLED and account.status == "active" and account.paid
-                and account.price_id == settings.STRIPE_PRO_PRICE_ID
-                and account.period_start and account.period_start <= moment
-                and account.period_end and moment < account.period_end)
+    return bool(
+        account
+        and settings.BILLING_ENABLED
+        and account.stripe_mode == settings.STRIPE_MODE
+        and account.status == "active"
+        and account.paid
+        and account.price_id == settings.STRIPE_PRO_PRICE_ID
+        and account.period_start
+        and account.period_start <= moment
+        and account.period_end
+        and moment < account.period_end
+    )
 
 
 def usage(user, moment=None):
     moment = moment or timezone.now()
-    account = BillingAccount.objects.filter(user=user).first()
+    account = BillingAccount.objects.filter(
+        user=user,
+        stripe_mode=settings.STRIPE_MODE,
+    ).first()
+
     start, end = month_bounds(moment)
     rows = AIRequest.objects.filter(user=user, operation=AIRequest.Operation.PROPOSAL_GENERATION,
                                     admitted_at__gte=start, admitted_at__lt=end)
@@ -60,4 +73,7 @@ def lock_account(user, operation):
     if operation == AIRequest.Operation.PROPOSAL_GENERATION:
         # Acquired before global locks and the final admission timestamp, so
         # waiting for a webhook across a month boundary cannot use an old month.
-        BillingAccount.objects.select_for_update().filter(user=user).first()
+        BillingAccount.objects.select_for_update().filter(
+            user=user,
+            stripe_mode=settings.STRIPE_MODE,
+        ).first()

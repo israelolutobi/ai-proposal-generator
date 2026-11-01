@@ -5,8 +5,22 @@ import uuid
 
 
 class BillingAccount(models.Model):
-    """One test-mode Stripe customer per user; contains no card/bank details."""
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    """One Stripe billing account per user per mode; no card/bank details."""
+
+    class StripeMode(models.TextChoices):
+        TEST = "test", "Test"
+        LIVE = "live", "Live"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="billing_accounts",
+    )
+    stripe_mode = models.CharField(
+        max_length=4,
+        choices=StripeMode.choices,
+        default=StripeMode.TEST,
+    )
     identity = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     stripe_customer_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
     stripe_subscription_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
@@ -19,6 +33,18 @@ class BillingAccount(models.Model):
     synced_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("user", "stripe_mode"),
+                name="billing_unique_user_stripe_mode",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(stripe_mode__in=("test", "live")),
+                name="billing_valid_stripe_mode",
+            ),
+        ]
 
 
 class CheckoutAttempt(models.Model):

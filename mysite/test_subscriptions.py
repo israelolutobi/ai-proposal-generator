@@ -29,6 +29,7 @@ from proposal_ai.models import AIRequest, BillingAccount, CheckoutAttempt, Strip
 
 NOW = datetime(2026, 10, 15, 12, tzinfo=dt_timezone.utc)
 CONFIG = {
+    "STRIPE_MODE": "test",
     "BILLING_ENABLED": True, "STRIPE_SECRET_KEY": "sk_test_synthetic_only",
     "STRIPE_WEBHOOK_SECRET": "whsec_synthetic_only", "STRIPE_PRO_PRICE_ID": "price_pro",
     "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_test", "STRIPE_API_VERSION": API_VERSION,
@@ -111,6 +112,42 @@ class BillingConfigurationTests(SimpleTestCase):
         self.assertEqual(billing_configuration(env)["BILLING_BASE_URL"], "http://127.0.0.1:8000")
         with self.assertRaises(ImproperlyConfigured):
             billing_configuration(env, production=True)
+
+
+    def test_live_configuration_accepted(self):
+        env = self.environment(
+            STRIPE_MODE="live",
+            STRIPE_SECRET_KEY="sk_live_synthetic_only",
+        )
+        result = billing_configuration(env, production=True)
+        self.assertEqual(result["STRIPE_MODE"], "live")
+        self.assertTrue(result["BILLING_ENABLED"])
+
+    def test_live_key_rejected_in_test_mode(self):
+        env = self.environment(
+            STRIPE_MODE="test",
+            STRIPE_SECRET_KEY="sk_live_synthetic_only",
+        )
+        with self.assertRaises(ImproperlyConfigured):
+            billing_configuration(env)
+
+    def test_test_key_rejected_in_live_mode(self):
+        env = self.environment(
+            STRIPE_MODE="live",
+            STRIPE_SECRET_KEY="sk_test_synthetic_only",
+        )
+        with self.assertRaises(ImproperlyConfigured):
+            billing_configuration(env)
+
+    def test_invalid_stripe_modes_rejected(self):
+        for mode in ("production", "sandbox", "invalid", ""):
+            with self.subTest(mode=mode):
+                with self.assertRaises(ImproperlyConfigured):
+                    billing_configuration({"STRIPE_MODE": mode})
+
+    def test_stripe_mode_defaults_to_test(self):
+        result = billing_configuration({})
+        self.assertEqual(result["STRIPE_MODE"], "test")
 
 
 @override_settings(**CONFIG)
@@ -777,3 +814,221 @@ class StripeSdkBoundaryTests(SimpleTestCase):
             self.assertFalse(registered.has_change_permission(None))
             self.assertFalse(registered.has_delete_permission(None))
             self.assertIsNone(registered.actions)
+
+
+# These tests use synthetic live-mode objects only. No Stripe network calls occur.
+LIVE_CONFIG = {
+    **CONFIG,
+    "STRIPE_MODE": "live",
+    "STRIPE_SECRET_KEY": "sk_live_synthetic_only",
+    "STRIPE_PRO_PRICE_ID": "price_live_pro",
+    "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_live",
+}
+LIVE_PRICE = {**deepcopy(PRICE), "id": "price_live_pro", "livemode": True}
+LIVE_PORTAL = {**deepcopy(PORTAL), "id": "bpc_live", "livemode": True}
+
+
+@override_settings(**LIVE_CONFIG)
+class LiveModeBillingTests(TestCase):
+    """Exercise the live-mode boundary with mocked Stripe responses only."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username="live-billing-owner")
+        self.api = Mock()
+        self.api.v1.subscriptions.list.return_value = page([])
+        self.api.v1.prices.retrieve.return_value = resource(LIVE_PRICE)
+        self.api.v1.billing_portal.configurations.retrieve.return_value = resource(LIVE_PORTAL)
+        self.api.v1.billing_portal.sessions.create.return_value = resource(
+            {"url": "https://billing.stripe.com/p/live"}
+        )
+        self.api.v1.checkout.sessions.create.side_effect = self.checkout_session
+        self.client_patch = patch("proposal_ai.billing.client", return_value=self.api)
+        self.client_patch.start()
+        self.addCleanup(self.client_patch.stop)
+
+    def checkout_session(self, params, options):
+        return resource({
+            "id": "cs_live_synthetic", "object": "checkout.session",
+            "livemode": True, "customer": params["customer"],
+            "mode": "subscription", "status": "open",
+            "metadata": params["metadata"],
+            "url": "https://checkout.stripe.com/c/pay/live",
+        })
+
+    def make_event(self, customer_id, *, live=True, event_type="customer.subscription.updated"):
+        return {
+            "id": "evt_" + uuid.uuid4().hex,
+            "object": "event", "livemode": live, "type": event_type,
+            "data": {"object": {
+                "id": "sub_live_synthetic", "customer": customer_id, "livemode": live,
+            }},
+        }
+
+    def live_subscription(self, account, **changes):
+        row = subscription(account)
+        row["livemode"] = True
+        row["latest_invoice"]["livemode"] = True
+        row["latest_invoice"]["id"] = "in_live_synthetic"
+        row["items"]["data"][0]["price"] = deepcopy(LIVE_PRICE)
+        row.update(changes)
+        return row
+
+    def test_live_checkout_creates_separate_account_and_uses_live_price(self):
+        test_account = BillingAccount.objects.create(
+            user=self.user, stripe_mode="test", stripe_customer_id="cus_test_synthetic"
+        )
+        self.api.v1.customers.create.return_value = resource(
+            {"id": "cus_live_synthetic", "livemode": True}
+        )
+        url = billing.checkout(self.user)
+        self.assertEqual(url, "https://checkout.stripe.com/c/pay/live")
+        live_account = BillingAccount.objects.get(user=self.user, stripe_mode="live")
+        self.assertNotEqual(live_account.pk, test_account.pk)
+        self.assertEqual(live_account.stripe_customer_id, "cus_live_synthetic")
+        self.assertEqual(
+            BillingAccount.objects.get(pk=test_account.pk).stripe_customer_id,
+            "cus_test_synthetic",
+        )
+        params = self.api.v1.checkout.sessions.create.call_args.args[0]
+        self.assertEqual(params["customer"], "cus_live_synthetic")
+        self.assertEqual(
+            params["line_items"], [{"price": "price_live_pro", "quantity": 1}]
+        )
+        self.assertEqual(params["client_reference_id"], str(live_account.identity))
+        self.assertEqual(CheckoutAttempt.objects.get().account_id, live_account.pk)
+        self.assertFalse(live_account.paid)
+
+    def test_live_checkout_rejects_test_catalog(self):
+        BillingAccount.objects.create(
+            user=self.user, stripe_mode="live", stripe_customer_id="cus_live_synthetic"
+        )
+        self.api.v1.prices.retrieve.return_value = resource(PRICE)
+        with self.assertRaises(billing.BillingError):
+            billing.checkout(self.user)
+        self.api.v1.checkout.sessions.create.assert_not_called()
+
+    def test_live_checkout_rejects_test_session(self):
+        BillingAccount.objects.create(
+            user=self.user, stripe_mode="live", stripe_customer_id="cus_live_synthetic"
+        )
+        self.api.v1.checkout.sessions.create.side_effect = lambda params, options: resource({
+            "id": "cs_test_wrong", "object": "checkout.session",
+            "livemode": False, "customer": params["customer"],
+            "mode": "subscription", "status": "open",
+            "metadata": params["metadata"],
+            "url": "https://checkout.stripe.com/c/pay/test",
+        })
+        with self.assertRaises(billing.BillingError):
+            billing.checkout(self.user)
+        self.assertFalse(BillingAccount.objects.get(user=self.user, stripe_mode="live").paid)
+
+    def test_live_portal_never_uses_test_customer(self):
+        BillingAccount.objects.create(
+            user=self.user, stripe_mode="test", stripe_customer_id="cus_test_synthetic"
+        )
+        with self.assertRaises(billing.BillingError):
+            billing.portal(self.user)
+        self.api.v1.billing_portal.sessions.create.assert_not_called()
+
+        BillingAccount.objects.create(
+            user=self.user, stripe_mode="live", stripe_customer_id="cus_live_synthetic"
+        )
+        self.assertEqual(billing.portal(self.user), "https://billing.stripe.com/p/live")
+        params = self.api.v1.billing_portal.sessions.create.call_args.args[0]
+        self.assertEqual(params["customer"], "cus_live_synthetic")
+        self.assertEqual(params["configuration"], "bpc_live")
+
+    def test_live_event_rejects_test_event_and_test_payload(self):
+        account = BillingAccount.objects.create(
+            user=self.user, stripe_mode="live", stripe_customer_id="cus_live_synthetic"
+        )
+        wrong_event = self.make_event(account.stripe_customer_id, live=False)
+        with self.assertRaises(billing.BillingError):
+            billing.process_event(wrong_event)
+
+        wrong_object = self.make_event(account.stripe_customer_id)
+        wrong_object["data"]["object"]["livemode"] = False
+        with self.assertRaises(billing.BillingError):
+            billing.process_event(wrong_object)
+
+        self.assertFalse(StripeEvent.objects.exists())
+        self.api.v1.subscriptions.list.assert_not_called()
+
+    def test_live_event_does_not_mutate_test_account(self):
+        test_account = BillingAccount.objects.create(
+            user=self.user, stripe_mode="test", stripe_customer_id="cus_test_synthetic",
+            status="active", paid=True, price_id="price_pro",
+            period_start=NOW - timedelta(days=5),
+            period_end=NOW + timedelta(days=25),
+        )
+        billing.process_event(self.make_event("cus_test_synthetic"))
+        test_account.refresh_from_db()
+        self.assertTrue(test_account.paid)
+        self.assertEqual(test_account.status, "active")
+        self.assertEqual(StripeEvent.objects.get().outcome, "ignored")
+        self.api.v1.subscriptions.list.assert_not_called()
+
+    def test_live_paid_subscription_grants_pro_only_in_live_mode(self):
+        account = BillingAccount.objects.create(
+            user=self.user, stripe_mode="live", stripe_customer_id="cus_live_synthetic"
+        )
+        self.api.v1.subscriptions.list.return_value = page(
+            [self.live_subscription(account)]
+        )
+        billing.process_event(self.make_event(account.stripe_customer_id))
+        account.refresh_from_db()
+        self.assertTrue(account.paid)
+        self.assertEqual(account.price_id, "price_live_pro")
+        self.assertTrue(subscriptions.is_pro(account, NOW))
+        self.assertEqual(subscriptions.usage(self.user, NOW)["plan"], "Pro")
+
+        with override_settings(**CONFIG):
+            self.assertFalse(subscriptions.is_pro(account, NOW))
+            self.assertEqual(subscriptions.usage(self.user, NOW)["plan"], "Free")
+
+    def test_live_subscription_rejects_test_invoice_and_price(self):
+        account = BillingAccount.objects.create(
+            user=self.user, stripe_mode="live", stripe_customer_id="cus_live_synthetic"
+        )
+        for kind in ("invoice", "price"):
+            row = self.live_subscription(account)
+            if kind == "invoice":
+                row["latest_invoice"]["livemode"] = False
+            else:
+                row["items"]["data"][0]["price"]["livemode"] = False
+            self.api.v1.subscriptions.list.return_value = page([row])
+            billing.process_event(self.make_event(account.stripe_customer_id))
+            account.refresh_from_db()
+            self.assertFalse(account.paid, kind)
+            self.assertFalse(subscriptions.is_pro(account, NOW), kind)
+
+    def test_reconciliation_rejects_other_mode_account(self):
+        test_account = BillingAccount.objects.create(
+            user=self.user, stripe_mode="test", stripe_customer_id="cus_test_synthetic"
+        )
+        with self.assertRaises(billing.BillingError):
+            billing.reconcile(test_account.pk)
+        self.api.v1.subscriptions.list.assert_not_called()
+
+
+@override_settings(**LIVE_CONFIG)
+class LiveModeSdkBoundaryTests(SimpleTestCase):
+    def test_live_client_uses_live_key_without_network(self):
+        with patch("stripe.StripeClient") as constructor, patch("stripe.RequestsClient") as http:
+            billing.client()
+        self.assertEqual(constructor.call_args.args, ("sk_live_synthetic_only",))
+        self.assertEqual(constructor.call_args.kwargs["stripe_version"], API_VERSION)
+        self.assertEqual(constructor.call_args.kwargs["max_network_retries"], 0)
+        http.assert_called_once_with(timeout=8)
+
+    def test_test_key_cannot_construct_live_client(self):
+        with override_settings(STRIPE_SECRET_KEY="sk_test_synthetic_only"):
+            with patch("stripe.StripeClient") as constructor:
+                with self.assertRaises(billing.BillingError):
+                    billing.client()
+                constructor.assert_not_called()
+
+    def test_mode_validation_rejects_wrong_mode_objects(self):
+        self.assertEqual(billing.require_mode(resource(LIVE_PRICE)), LIVE_PRICE)
+        with self.assertRaises(billing.BillingError):
+            billing.require_mode(resource(PRICE))
