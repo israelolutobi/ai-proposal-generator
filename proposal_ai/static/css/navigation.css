@@ -1,0 +1,408 @@
+/* ProposalQ shared navigation */
+
+/* =====================================================
+   ProposalQ — Responsive Public Navigation
+   ===================================================== */
+
+.pq-public-navbar {
+    background: #05070d;
+    border-bottom: 1px solid #1e293b;
+    position: relative;
+    z-index: 100;
+}
+
+.pq-public-navbar-inner {
+    box-sizing: border-box;
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+}
+
+.pq-public-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    text-decoration: none;
+}
+
+.pq-public-brand img {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.pq-public-brand-name {
+    color: #ffffff;
+    font-size: 30px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+.pq-public-brand-name span {
+    color: #1e90ff;
+}
+
+.pq-public-desktop-nav {
+    display: flex;
+    align-items: center;
+    gap: 28px;
+}
+
+.pq-public-desktop-nav a,
+.pq-public-mobile-menu nav a {
+    color: #f1f5f9;
+    text-decoration: none;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.pq-public-desktop-nav a:hover,
+.pq-public-mobile-menu nav a:hover {
+    color: #93c5fd;
+}
+
+.pq-public-navbar a:focus-visible,
+.pq-public-mobile-menu summary:focus-visible {
+    outline: 3px solid #60a5fa;
+    outline-offset: 4px;
+    border-radius: 5px;
+}
+
+.pq-public-navbar .pq-public-register {
+    background: #1e90ff;
+    color: #ffffff;
+    padding: 11px 19px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.pq-public-navbar .pq-public-register:hover {
+    background: #1674d1;
+    color: #ffffff;
+}
+
+.pq-public-mobile-menu {
+    display: none;
+}
+
+@media (max-width: 760px) {
+    .pq-public-navbar-inner {
+        padding: 12px 16px;
+        gap: 12px;
+    }
+
+    .pq-public-brand img {
+        width: 38px;
+        height: 38px;
+    }
+
+    .pq-public-brand-name {
+        font-size: clamp(19px, 5vw, 25px);
+        letter-spacing: 0;
+    }
+
+    .pq-public-desktop-nav {
+        display: none;
+    }
+
+    .pq-public-mobile-menu {
+        display: block;
+        position: relative;
+    }
+
+    .pq-public-mobile-menu summary {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-height: 44px;
+        min-width: 44px;
+        padding: 8px 12px;
+        color: #ffffff;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        cursor: pointer;
+        list-style: none;
+        font-size: 14px;
+        font-weight: 600;
+    }
+
+    .pq-public-mobile-menu summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .pq-public-menu-icon {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .pq-public-menu-icon span {
+        display: block;
+        width: 19px;
+        height: 2px;
+        background: #ffffff;
+        border-radius: 2px;
+    }
+
+    .pq-public-mobile-menu nav {
+        position: absolute;
+        top: calc(100% + 12px);
+        right: 0;
+        width: min(280px, calc(100vw - 32px));
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        background: #0e192b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        box-shadow: 0 18px 35px rgba(0,0,0,.35);
+    }
+
+    .pq-public-mobile-menu nav a {
+        display: block;
+        padding: 12px;
+        min-height: 44px;
+        border-radius: 7px;
+    }
+
+    .pq-public-mobile-menu nav a:hover {
+        background: #1d3557;
+    }
+
+    .pq-public-mobile-menu nav .pq-public-register {
+        margin-top: 5px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pq-public-navbar *,
+    .pq-public-navbar *::before,
+    .pq-public-navbar *::after {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+/* ProposalQ Mobile Navigation — Aligned Disclosure */
+
+@media (max-width: 760px) {
+
+    .pq-public-navbar-inner {
+        display: block;
+        position: relative;
+        width: 100%;
+    }
+
+    .pq-public-brand {
+        display: inline-flex;
+        align-items: center;
+        max-width: calc(100% - 125px);
+        min-height: 48px;
+        min-width: 0;
+    }
+
+    .pq-public-mobile-menu,
+    .pq-public-mobile-menu[open] {
+        display: block;
+        position: static;
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+    }
+
+    .pq-public-mobile-menu summary,
+    .pq-public-mobile-menu[open] summary {
+        position: absolute;
+        top: 0;
+        right: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: auto;
+        min-height: 48px;
+        margin: 0;
+        z-index: 2;
+    }
+
+    .pq-public-mobile-menu nav,
+    .pq-public-mobile-menu[open] nav {
+        position: static;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        margin: 12px 0 0;
+        box-sizing: border-box;
+        box-shadow: none;
+    }
+
+    .pq-public-mobile-menu:not([open]) nav {
+        display: none;
+    }
+}
+
+/* ProposalQ — Authenticated Navigation */
+
+.pq-auth-navbar .pq-public-navbar-inner {
+    max-width: 1440px;
+}
+
+.pq-auth-navbar .pq-public-desktop-nav {
+    gap: clamp(10px, 1.5vw, 24px);
+}
+
+.pq-auth-navbar .pq-public-desktop-nav a {
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.pq-auth-navbar .pq-public-desktop-nav form {
+    margin: 0;
+}
+
+.pq-auth-logout {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 18px;
+    border: 0;
+    border-radius: 8px;
+    background: #dc2626;
+    color: #ffffff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.pq-auth-logout:hover {
+    background: #b91c1c;
+}
+
+.pq-auth-logout:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 4px;
+}
+
+@media (max-width: 1100px) {
+    .pq-auth-navbar .pq-public-desktop-nav {
+        display: none;
+    }
+
+    .pq-auth-navbar .pq-public-navbar-inner {
+        display: block;
+        position: relative;
+        width: 100%;
+    }
+
+    .pq-auth-navbar .pq-public-brand {
+        max-width: calc(100% - 125px);
+        min-height: 48px;
+    }
+
+    .pq-auth-navbar .pq-public-mobile-menu,
+    .pq-auth-navbar .pq-public-mobile-menu[open] {
+        display: block;
+        position: static;
+        width: 100%;
+        margin: 0;
+    }
+
+    .pq-auth-navbar .pq-public-mobile-menu summary,
+    .pq-auth-navbar .pq-public-mobile-menu[open] summary {
+        position: absolute;
+        top: 0;
+        right: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 48px;
+        margin: 0;
+        z-index: 2;
+    }
+
+    .pq-auth-navbar .pq-public-mobile-menu nav,
+    .pq-auth-navbar .pq-public-mobile-menu[open] nav {
+        position: static;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        max-width: none;
+        min-width: 0;
+        margin: 12px 0 0;
+        box-sizing: border-box;
+        box-shadow: none;
+    }
+
+    .pq-auth-navbar .pq-public-mobile-menu:not([open]) nav {
+        display: none;
+    }
+
+    .pq-auth-navbar .pq-public-mobile-menu nav form {
+        width: 100%;
+        margin: 8px 0 0;
+    }
+
+    .pq-auth-navbar .pq-public-mobile-menu nav a {
+        overflow-wrap: anywhere;
+    }
+}
+
+/* Keep navigation controls stationary on hover */
+.pq-public-navbar a:hover,
+.pq-public-navbar button:hover {
+    transform: none;
+}
+
+/* Authenticated tablet menu styling */
+@media (min-width: 761px) and (max-width: 1100px) {
+    .pq-auth-navbar .pq-public-mobile-menu summary {
+        gap: 10px;
+        min-width: 44px;
+        padding: 8px 12px;
+        color: #ffffff;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        cursor: pointer;
+        list-style: none;
+        font-size: 14px;
+        font-weight: 600;
+    }
+    .pq-auth-navbar .pq-public-mobile-menu summary::-webkit-details-marker {
+        display: none;
+    }
+    .pq-auth-navbar .pq-public-menu-icon {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+    .pq-auth-navbar .pq-public-menu-icon span {
+        display: block;
+        width: 19px;
+        height: 2px;
+        background: #ffffff;
+        border-radius: 2px;
+    }
+    .pq-auth-navbar .pq-public-mobile-menu nav {
+        padding: 12px;
+        gap: 5px;
+        background: #0e192b;
+        border: 1px solid #334155;
+        border-radius: 12px;
+    }
+    .pq-auth-navbar .pq-public-mobile-menu nav a {
+        display: block;
+        padding: 12px;
+        min-height: 44px;
+        border-radius: 7px;
+    }
+}

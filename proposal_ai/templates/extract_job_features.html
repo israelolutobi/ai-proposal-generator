@@ -4,11 +4,15 @@
 {% load static %}
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
 
     <title>Extract Job Features - ProposalQ</title>
 
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
 
+    <link rel="stylesheet" href="{% static 'css/action-buttons.css' %}">
 </head>
 
 <body style="background-color:#0b1120; color:white; font-family:Arial; margin:0;">
@@ -97,7 +101,7 @@
                         border:none;
                     ">{{ form.raw_job_text.value|default_if_none:'' }}</textarea>
 
-            <div style="margin-top:30px; display:flex; gap:15px; flex-wrap:wrap;">
+            <div class="pq-action-group" style="--pq-action-columns:2; margin-top:30px; display:flex; gap:15px; flex-wrap:wrap;">
 
                 <button
                         type="submit"

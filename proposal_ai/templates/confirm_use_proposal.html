@@ -4,6 +4,8 @@
 {% load static %}
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
 
     <title>
         Confirm Submission - ProposalQ
@@ -13,7 +15,9 @@
         rel="stylesheet"
         href="{% static 'css/style.css' %}"
     >
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
 
+<link rel="stylesheet" href="{% static 'css/action-buttons.css' %}">
 </head>
 
 
@@ -45,7 +49,7 @@
         <!-- PAGE HEADER -->
         <!-- ===================================================== -->
 
-        <h2
+        <h1
             id="page-heading"
             style="
                 margin-top:0;
@@ -54,7 +58,7 @@
             "
         >
             Confirm {{ application_label|default:"Application" }} Submission
-        </h2>
+        </h1>
 
 
         <p style="
@@ -447,15 +451,8 @@
             <!-- ACTIONS -->
             <!-- ================================================= -->
 
-            <div style="
-                display:flex;
-                gap:15px;
-                margin-top:35px;
-                flex-wrap:wrap;
-                align-items:center;
-            ">
-
-                <a
+            <div class="pq-action-group" style="--pq-action-columns:2; margin-top:24px;">
+<a
                     href="{% url 'dashboard' %}"
                     style="
                         background-color:#334155;

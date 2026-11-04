@@ -1013,23 +1013,61 @@ CONFIRMED JOB DETAILS
         try:
             ai_limits.check_characters(profile_context, ai_limits.PROFILE_CONTEXT_CHARACTERS, "Formatted profile context", stored=True, normalize=False)
             ai_limits.check_characters(job_context, ai_limits.JOB_CONTEXT_CHARACTERS, "Formatted job context", normalize=False)
-            # Retrieve from the current snapshot BEFORE budget validation/admission.
-            # The exact enriched input is fingerprinted and sent unchanged.
-            research = build_research_context(job_post)
-            application_context += "\n\n" + research.text
+            # Research is optional enrichment, never a generation prerequisite.
+            # Missing or unavailable research must not exclude freelancers or jobs.
+            # Resolve enrichment before admission so the actual provider input
+            # remains identical to the fingerprinted, validated request.
+            try:
+                research = build_research_context(job_post)
+            except (ResearchUnavailable, DatabaseError):
+                research = None
+
+            if research is not None:
+                application_context += "\n\n" + research.text
             messages = [{"role": "system", "content": proposal_writing_instructions},
                         {"role": "user", "content": application_context}]
             ai_limits.check_request(messages, "proposal")
-            admitted = ai_control.admit(request.user, ai_control.Operation.PROPOSAL_GENERATION,
-                                        request.POST.get("ai_nonce", ""), form.cleaned_data, messages, job_post.pk)
+
+            generation_mode = form.cleaned_data["generation_mode"]
+            generation_config = services.proposal_generation_config(
+                generation_mode
+            )
+
+            effective_input = {
+                "messages": messages,
+                "generation_mode": generation_mode,
+                "generation_config": generation_config,
+            }
+
+            admitted = ai_control.admit(
+                request.user,
+                ai_control.Operation.PROPOSAL_GENERATION,
+                request.POST.get("ai_nonce", ""),
+                form.cleaned_data,
+                effective_input,
+                job_post.pk,
+            )
+
             if admitted.replay:
                 return redirect("dashboard")
-            result = ai_control.call_provider(admitted.request, lambda: services.generate_proposal(
-                proposal_writing_instructions, application_context,
-            ))
+
+            result = ai_control.call_provider(
+                admitted.request,
+                lambda: services.generate_proposal(
+                    proposal_writing_instructions,
+                    application_context,
+                    generation_mode=generation_mode,
+                ),
+                generation_mode=generation_mode,
+            )
             generated_content = result.value
-        except (ResearchUnavailable, DatabaseError):
-            form.add_error(None, ResearchUnavailable.user_message)
+        except DatabaseError:
+            # Database failures outside optional research are genuine
+            # service failures, not missing research information.
+            form.add_error(
+                None,
+                "A database service error occurred. Please try again later.",
+            )
             response_status = 503
         except ai_control.ControlError as error:
             form.add_error(None, error.user_message)
@@ -1075,13 +1113,20 @@ CONFIRMED JOB DETAILS
                 )
 
             try:
-                ai_control.succeed(admitted.request, persist_proposal)
+                saved_proposal = ai_control.succeed(
+                    admitted.request,
+                    persist_proposal,
+                )
             except ai_control.ControlError as error:
                 form.add_error(None, error.user_message)
                 response_status = error.status
                 control_error = error
             else:
-                return redirect("dashboard")
+                dashboard_response = redirect("dashboard")
+                dashboard_response["Location"] += (
+                    f"#proposal-{saved_proposal.pk}"
+                )
+                return dashboard_response
 
 
     # -------------------------------------------------------------
@@ -1169,4 +1214,33 @@ def update_outcome(request, proposal_id):
         "platform_config": platform_config,
         "application_label": platform_config["application_label"],
         "content_label": platform_config["content_label"],
+    })
+
+
+# Public interactive product demonstration.
+# Uses fictional sample content; no AI calls or payments.
+def public_demo(request):
+    return render(request, "public_demo.html")
+
+
+# Public legal and trust information.
+# Content is developer-controlled, never supplied by visitors.
+def public_legal_page(request, page):
+    from django.http import Http404
+
+    pages = {
+        "terms": "Terms of Service",
+        "privacy": "Privacy Policy",
+        "cookies": "Cookie Policy",
+        "subscriptions": "Subscriptions & Cancellation",
+        "ai_transparency": "AI Transparency",
+        "data_security": "Data & Security",
+    }
+
+    if page not in pages:
+        raise Http404("Page not found")
+
+    return render(request, "public_legal.html", {
+        "page_title": pages[page],
+        "legal_template": f"legal/{page}.html",
     })

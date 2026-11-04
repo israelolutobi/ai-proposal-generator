@@ -4,6 +4,8 @@
 {% load static %}
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
 
     <title>
         Update Application Outcome - ProposalQ
@@ -13,7 +15,9 @@
         rel="stylesheet"
         href="{% static 'css/style.css' %}"
     >
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
 
+<link rel="stylesheet" href="{% static 'css/action-buttons.css' %}">
 </head>
 
 
@@ -45,13 +49,13 @@
         <!-- PAGE HEADER -->
         <!-- ===================================================== -->
 
-        <h2 style="
+        <h1 style="
             margin-top:0;
             font-size:36px;
             margin-bottom:10px;
         ">
             Update Application Outcome
-        </h2>
+        </h1>
 
 
         <p style="
@@ -423,13 +427,8 @@
             <!-- ACTIONS -->
             <!-- ================================================= -->
 
-            <div style="
-                display:flex;
-                gap:15px;
-                flex-wrap:wrap;
-            ">
-
-                <a
+            <div class="pq-action-group" style="--pq-action-columns:2; margin-top:24px;">
+<a
                     href="{% url 'dashboard' %}"
                     style="
                         background-color:#334155;

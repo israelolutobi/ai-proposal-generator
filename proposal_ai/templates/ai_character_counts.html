@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", function () {
             const current = Array.from(input.value.trim()).length;
             const maximum = Number(input.dataset.aiMax);
             counter.textContent = current.toLocaleString() + " / " + maximum.toLocaleString()
-                + " characters. Server validation is authoritative.";
+                + " characters.";
             counter.style.color = current > maximum ? "#fca5a5" : "#94a3b8";
         };
         input.addEventListener("input", update);

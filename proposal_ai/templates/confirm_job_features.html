@@ -4,6 +4,8 @@
 {% load static %}
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
 
     <title>
         Confirm Opportunity Details - ProposalQ
@@ -13,7 +15,53 @@
         rel="stylesheet"
         href="{% static 'css/style.css' %}"
     >
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
 
+<link rel="stylesheet" href="{% static 'css/action-buttons.css' %}">
+
+    <style>
+        .pq-generation-choice:focus-within {
+            outline: 3px solid #93c5fd;
+            outline-offset: 3px;
+        }
+
+        .pq-generation-choice input[type="radio"] {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            accent-color: #22c55e;
+        }
+
+        @media (max-width: 600px) {
+            .pq-confirm-container {
+                margin: 28px auto !important;
+                padding: 0 12px !important;
+            }
+
+            .pq-confirm-card {
+                padding: 20px 16px !important;
+            }
+
+            .pq-confirm-heading {
+                font-size: 28px !important;
+                line-height: 1.2;
+                overflow-wrap: anywhere;
+            }
+
+            .pq-confirm-card fieldset {
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+
+            .pq-confirm-card input,
+            .pq-confirm-card textarea,
+            .pq-confirm-card select {
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+        }
+    </style>
 </head>
 
 
@@ -27,13 +75,13 @@
 {% include "partials/navbar.html" %}
 
 
-<div style="
+<div class="pq-confirm-container" style="
     max-width:900px;
     margin:70px auto;
     padding:0 20px;
 ">
 
-    <div style="
+    <div class="pq-confirm-card" style="
         background-color:#111827;
         padding:40px;
         border-radius:16px;
@@ -45,7 +93,7 @@
         <!-- PAGE HEADER -->
         <!-- ===================================================== -->
 
-        <h1 style="
+        <h1 class="pq-confirm-heading" style="
             margin-top:0;
             font-size:38px;
             margin-bottom:10px;
@@ -768,14 +816,62 @@
                 <p>Unchecked records are excluded from this request and remain stored. A selection with no records uses your profile alone.</p>
             </fieldset>
 
-            <div style="
-                display:flex;
-                gap:15px;
-                flex-wrap:wrap;
-                align-items:center;
+            <!-- GENERATION MODE -->
+            <fieldset style="
+                border:1px solid #334155;
+                border-radius:12px;
+                padding:20px;
+                margin-bottom:24px;
+                min-width:0;
             ">
+                <legend style="font-weight:bold; color:white;">
+                    Generation mode
+                </legend>
 
-                <a
+                <p style="color:#cbd5e1; line-height:1.6; margin-top:4px;">
+                    Choose how ProposalQ prepares your application.
+                    Quick is selected by default.
+                </p>
+
+                <div style="display:grid; gap:12px;">
+                    {% for choice in form.generation_mode %}
+                        <label class="pq-generation-choice" style="
+                            display:flex;
+                            align-items:flex-start;
+                            gap:12px;
+                            padding:16px;
+                            background:#0f172a;
+                            border:1px solid #334155;
+                            border-radius:10px;
+                            cursor:pointer;
+                            color:white;
+                        ">
+                            {{ choice.tag }}
+                            <span>
+                                <strong>{{ choice.choice_label }}</strong>
+                                <span style="
+                                    display:block;
+                                    color:#cbd5e1;
+                                    font-size:14px;
+                                    line-height:1.5;
+                                    margin-top:5px;
+                                ">
+                                    {% if choice.data.value == "quick" %}
+                                        Fast, tailored application content.
+                                        Recommended for everyday opportunities.
+                                    {% else %}
+                                        Deeper analysis for complex opportunities.
+                                        May take longer to generate.
+                                    {% endif %}
+                                </span>
+                            </span>
+                        </label>
+                    {% endfor %}
+                </div>
+            </fieldset>
+
+            <div class="pq-action-group" style="--pq-action-columns:2; margin-top:24px;">
+<a
                     id="cancel-link"
                     href="{% url 'dashboard' %}"
                     style="

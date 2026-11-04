@@ -170,6 +170,20 @@ class ExperienceSelectionField(forms.ModelMultipleChoiceField):
 
 
 class ProposalGenerationForm(JobConfirmationForm):
+    generation_mode = forms.ChoiceField(
+        choices=(
+            ("quick", "Quick"),
+            ("advanced", "Advanced"),
+        ),
+        initial="quick",
+        required=False,
+        label="Generation mode",
+        widget=forms.RadioSelect,
+    )
+
+    def clean_generation_mode(self):
+        mode = self.cleaned_data.get("generation_mode")
+        return mode or "quick"
     selected_experiences = ExperienceSelectionField(
         queryset=WorkExperience.objects.none(), required=False,
         widget=forms.CheckboxSelectMultiple, label="Work experiences included in this application",

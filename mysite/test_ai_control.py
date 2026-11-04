@@ -407,6 +407,112 @@ class WorkflowTests(TestCase):
             self.providers[name] = mocked.start()
             self.addCleanup(mocked.stop)
 
+    def test_generation_mode_selector_renders_on_confirmation_page(self):
+        from bs4 import BeautifulSoup
+        from django.urls import reverse
+
+        response = self.client.get(
+            reverse("confirm_job_features", args=[self.job.pk])
+        )
+        self.assertEqual(response.status_code, 200)
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        form = soup.find("form", id="confirm-job-form")
+        self.assertIsNotNone(form)
+
+        radios = form.select('input[name="generation_mode"]')
+
+        self.assertEqual(len(radios), 2)
+
+        by_value = {radio.get("value"): radio for radio in radios}
+        self.assertEqual(set(by_value), {"quick", "advanced"})
+
+        self.assertTrue(by_value["quick"].has_attr("checked"))
+        self.assertFalse(by_value["advanced"].has_attr("checked"))
+
+        for radio in radios:
+            input_id = radio.get("id")
+            wrapping_label = radio.find_parent("label")
+            explicit_label = (
+                form.find("label", attrs={"for": input_id})
+                if input_id else None
+            )
+            self.assertTrue(
+                wrapping_label is not None or explicit_label is not None,
+                f"Missing accessible label for {radio.get('value')}",
+            )
+
+    def test_quick_generation_mode_is_default(self):
+        response = self.post(O.PROPOSAL_GENERATION)
+
+        self.assertEqual(response.status_code, 302)
+        row = AIRequest.objects.get(operation=O.PROPOSAL_GENERATION)
+        self.assertEqual(row.requested_model, "gpt-5-mini")
+        self.assertEqual(row.completion_token_cap, 4096)
+
+        self.providers["generate_proposal"].assert_called_once()
+        self.assertEqual(
+            self.providers["generate_proposal"].call_args.kwargs["generation_mode"],
+            "quick",
+        )
+
+    def test_advanced_generation_mode(self):
+        response = self.post(
+            O.PROPOSAL_GENERATION,
+            generation_mode="advanced",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        row = AIRequest.objects.get(operation=O.PROPOSAL_GENERATION)
+        self.assertEqual(row.requested_model, "gpt-5")
+        self.assertEqual(row.completion_token_cap, 6144)
+
+        self.providers["generate_proposal"].assert_called_once()
+        self.assertEqual(
+            self.providers["generate_proposal"].call_args.kwargs["generation_mode"],
+            "advanced",
+        )
+
+    def test_invalid_generation_mode_rejected(self):
+        response = self.post(
+            O.PROPOSAL_GENERATION,
+            generation_mode="unsupported",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Select a valid choice")
+        self.assertFalse(
+            AIRequest.objects.filter(
+                operation=O.PROPOSAL_GENERATION,
+            ).exists()
+        )
+        self.providers["generate_proposal"].assert_not_called()
+
+    def test_reusing_nonce_with_different_generation_mode_rejected(self):
+        token = self.token(O.PROPOSAL_GENERATION)
+
+        first = self.post(
+            O.PROPOSAL_GENERATION,
+            token,
+            generation_mode="quick",
+        )
+        self.assertEqual(first.status_code, 302)
+
+        second = self.post(
+            O.PROPOSAL_GENERATION,
+            token,
+            generation_mode="advanced",
+        )
+        self.assertEqual(second.status_code, 409)
+
+        self.assertEqual(
+            AIRequest.objects.filter(
+                operation=O.PROPOSAL_GENERATION,
+            ).count(),
+            1,
+        )
+        self.providers["generate_proposal"].assert_called_once()
+
     def test_research_pipeline_fingerprints_exact_provider_prompt_and_replays_once(self):
         from proposal_ai.models import ResearchDataset, ResearchCase, ResearchTerm
         dataset = ResearchDataset.objects.get(active=True)
@@ -433,20 +539,102 @@ class WorkflowTests(TestCase):
         self.assertIn('"selected_cases":1', messages[1]["content"])
         self.assertNotIn("PRIVATE_RESEARCH_PERSON", messages[1]["content"])
         row = AIRequest.objects.get(operation=O.PROPOSAL_GENERATION)
-        self.assertEqual(row.effective_fingerprint, control.fingerprint(messages, "effective"))
+        expected_effective_input = {
+            "messages": messages,
+            "generation_mode": "quick",
+            "generation_config": services.proposal_generation_config("quick"),
+        }
+        self.assertEqual(
+            row.effective_fingerprint,
+            control.fingerprint(expected_effective_input, "effective"),
+        )
         self.assertEqual(row.quota_state, Q.CONSUMED)
         self.assertEqual(row.lifecycle, L.SUCCEEDED)
         self.assertEqual(row.input_tokens, 20)
         self.assertEqual(Proposal.objects.get().final_text, "Safe proposal.")
 
-    def test_missing_research_stops_before_reservation_and_provider(self):
+    def test_unqualified_freelancer_can_generate_proposal(self):
+        # A freelancer without matching experience must still be eligible.
+        self.profile.professional_title = "Retail assistant"
+        self.profile.profile_summary = "Retail customer service experience"
+        self.profile.save()
+
+        self.experience.delete()
+        self.job.job_title = "Senior Kubernetes security engineer"
+        self.job.job_description = "Requires Kubernetes security engineering experience."
+        self.job.save()
+
+        response = self.post(
+            O.PROPOSAL_GENERATION,
+            job_title="Senior Kubernetes security engineer",
+            job_description="Requires Kubernetes security engineering experience.",
+            selected_experiences=[],
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.providers["generate_proposal"].assert_called_once()
+
+        context = self.providers["generate_proposal"].call_args.args[1]
+        self.assertIn("Retail customer service experience", context)
+        self.assertIn("Kubernetes", context)
+        self.assertIn("No detailed work experiences were provided.", context)
+
+        self.assertEqual(Proposal.objects.count(), 1)
+        self.assertEqual(
+            AIRequest.objects.get(operation=O.PROPOSAL_GENERATION).lifecycle,
+            L.SUCCEEDED,
+        )
+
+    def test_unmatched_research_allows_proposal_generation(self):
+        from proposal_ai.models import ResearchDataset, ResearchCase, ResearchTerm
+
+        dataset = ResearchDataset.objects.get(active=True)
+        case = ResearchCase.objects.create(
+            dataset=dataset,
+            case_key="UNRELATED001",
+            domain_niche="Marine biology",
+            outcome="Unknown",
+            application_route="Cold",
+        )
+        ResearchTerm.objects.create(research_case=case, token="oceanography")
+
+        response = self.post(
+            O.PROPOSAL_GENERATION,
+            job_title="Kubernetes security engineering",
+            job_description="Configure Kubernetes security controls.",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.providers["generate_proposal"].assert_called_once()
+
+        context = self.providers["generate_proposal"].call_args.args[1]
+        self.assertIn("Kubernetes", context)
+        self.assertNotIn("Marine biology", context)
+
+        self.assertEqual(Proposal.objects.count(), 1)
+        request = AIRequest.objects.get(operation=O.PROPOSAL_GENERATION)
+        self.assertEqual(request.lifecycle, L.SUCCEEDED)
+        self.assertEqual(request.quota_state, Q.CONSUMED)
+
+    def test_missing_research_allows_proposal_generation(self):
         from proposal_ai.models import ResearchDataset
+
         ResearchDataset.objects.update(active=False)
+
         response = self.post(O.PROPOSAL_GENERATION)
-        self.assertEqual(response.status_code, 503)
-        self.providers["generate_proposal"].assert_not_called()
-        self.assertFalse(AIRequest.objects.exists())
-        self.assertFalse(Proposal.objects.exists())
+
+        self.assertEqual(response.status_code, 302)
+        self.providers["generate_proposal"].assert_called_once()
+
+        instructions, context = self.providers["generate_proposal"].call_args.args
+        self.assertNotIn("INTERNAL RESEARCH DECISION SUPPORT", context)
+
+        self.assertEqual(Proposal.objects.count(), 1)
+        self.assertEqual(Proposal.objects.get().final_text, "PRIVATE_PROPOSAL")
+
+        request = AIRequest.objects.get(operation=O.PROPOSAL_GENERATION)
+        self.assertEqual(request.lifecycle, L.SUCCEEDED)
+        self.assertEqual(request.quota_state, Q.CONSUMED)
 
     def token(self, operation, intent=I.GENERATE):
         resource = self.job.pk if operation == O.PROPOSAL_GENERATION else None
@@ -649,7 +837,7 @@ class WorkflowTests(TestCase):
         self.assertEqual(AIRequest.objects.get().lifecycle, L.UNCERTAIN)
 
     def test_late_proposal_worker_cannot_save(self):
-        def expire(*args):
+        def expire(*args, **kwargs):
             self.clock_mock.return_value = MOMENT + control.LEASE
             control.recover_stale(self.user)
             return service_result("Generated")

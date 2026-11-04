@@ -1,158 +1,328 @@
-
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
-
-{% load static %}
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>ProposalQ | AI Proposal Generator for Freelancers</title>
-
-    <meta name="description"
-          content="ProposalQ helps freelancers generate, optimise and track freelance proposals using AI and real-world feedback.">
-
+    <meta name="description" content="Analyse freelance opportunities, generate tailored proposals and track your applications with ProposalQ.">
     <link rel="canonical" href="https://proposalq.com/">
 
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/landing.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
 </head>
 
-<body style="
-    background-color:#0b1120;
-    color:white;
-    font-family:Arial;
-    margin:0;
-">
+<body class="pq-landing">
 
+{% if user.is_authenticated %}
+{% include "partials/navbar.html" %}
+{% else %}
 {% include "partials/public_navbar.html" %}
+{% endif %}
 
-<div style="
-    text-align:center;
-    padding-top:120px;
-    padding-left:10%;
-    padding-right:10%;
-">
+<main>
 
-    <h1 style="
-        font-size:52px;
-        margin-bottom:20px;
-    ">
-        Smarter freelance proposals powered by AI.
-    </h1>
+    <!-- Hero -->
+    <section class="pq-hero">
+        <div class="pq-container">
 
-    <p style="
-        font-size:22px;
-        color:#cbd5e1;
-        max-width:850px;
-        margin:auto;
-        line-height:1.6;
-    ">
-        ProposalQ helps freelancers generate, optimise and track proposals
-        using AI and real-world behavioural feedback.
-    </p>
+            <span class="pq-eyebrow">Your AI-powered freelance workspace</span>
 
-    <div style="margin-top:50px;">
+            <h1>
+                Understand the job.<br>
+                <span class="pq-gradient-text">Write a stronger proposal.</span>
+            </h1>
 
-        {% if user.is_authenticated %}
+            <p class="pq-hero-description">
+                Turn complex freelance opportunities into clear requirements,
+                tailored proposals and organised applications — all in one place.
+            </p>
 
-            <a href="/dashboard/" style="
-                background-color:#1e90ff;
-                color:white;
-                padding:16px 34px;
-                border-radius:10px;
-                text-decoration:none;
-                font-size:18px;
-                font-weight:bold;
-            ">
-                Go To Dashboard
-            </a>
+            <div class="pq-actions">
+                {% if user.is_authenticated %}
+                    <a class="pq-button pq-button-primary" href="/dashboard/">
+                        Go to Dashboard
+                    </a>
+                {% elif registration_enabled %}
+                    <a class="pq-button pq-button-primary" href="{% url 'register' %}">
+                        Get Started Free
+                    </a>
+                {% else %}
+                    <a class="pq-button pq-button-primary" href="{% url 'login' %}">
+                        Log In
+                    </a>
+                {% endif %}
 
-        {% elif registration_enabled %}
+                <a class="pq-button pq-button-secondary" href="#how-it-works">
+                    See How It Works
+                </a>
+            </div>
 
-            <a href="{% url 'register' %}" style="
-                background-color:#1e90ff;
-                color:white;
-                padding:16px 34px;
-                border-radius:10px;
-                text-decoration:none;
-                font-size:18px;
-                font-weight:bold;
-            ">
-                Get Started
-            </a>
-
-        {% else %}
-
-            <p>Beta registration is currently closed.</p>
-            <a href="{% url 'login' %}" style="
-                background-color:#1e90ff;
-                color:white;
-                padding:16px 34px;
-                border-radius:10px;
-                text-decoration:none;
-                font-size:18px;
-                font-weight:bold;
-            ">
-                Login
-            </a>
-
-        {% endif %}
-
-    </div>
-
-</div>
-
-    <section aria-labelledby="how-it-works" style="
-        max-width:1100px;
-        margin:100px auto 80px;
-        padding:0 24px;
-        text-align:center;
-    ">
-        <h2 id="how-it-works" style="font-size:36px;margin-bottom:20px;">
-            How ProposalQ Works
-        </h2>
-
-        <p style="color:#cbd5e1;font-size:18px;line-height:1.7;max-width:850px;margin:0 auto 40px;">
-            ProposalQ is an AI proposal generator for freelancers.
-            Analyse freelance opportunities, create tailored application
-            content and track your proposals in one place.
-        </p>
-
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px;text-align:left;">
-            <article style="background:#111827;border:1px solid #1e293b;border-radius:14px;padding:25px;">
-                <h3>Analyse Freelance Jobs</h3>
-                <p style="color:#cbd5e1;line-height:1.7;">
-                    Paste a freelance job description to identify requirements,
-                    skills, budgets and other opportunity details.
+            {% if not registration_enabled and not user.is_authenticated %}
+                <p style="color:#a8b8d0;margin-top:20px;">
+                    Beta registration is currently closed.
                 </p>
-            </article>
+            {% endif %}
 
-            <article style="background:#111827;border:1px solid #1e293b;border-radius:14px;padding:25px;">
-                <h3>Generate AI Proposals</h3>
-                <p style="color:#cbd5e1;line-height:1.7;">
-                    Generate tailored freelance application content based on
-                    the opportunity and its platform.
-                </p>
-            </article>
-
-            <article style="background:#111827;border:1px solid #1e293b;border-radius:14px;padding:25px;">
-                <h3>Manage Applications</h3>
-                <p style="color:#cbd5e1;line-height:1.7;">
-                    Save generated proposals, copy application content and
-                    record when applications are submitted.
-                </p>
-            </article>
-
-            <article style="background:#111827;border:1px solid #1e293b;border-radius:14px;padding:25px;">
-                <h3>Track Proposal Outcomes</h3>
-                <p style="color:#cbd5e1;line-height:1.7;">
-                    Update application outcomes and keep a record of your
-                    freelance opportunities and submissions.
-                </p>
-            </article>
         </div>
     </section>
+
+    <!-- Product demonstration -->
+    <section class="pq-section" aria-labelledby="demo-heading">
+        <div class="pq-container">
+
+            <div class="pq-section-heading">
+                <span class="pq-eyebrow">See ProposalQ in action</span>
+                <h2 id="demo-heading" style="margin-top:20px;">
+                    From job description to tailored proposal
+                </h2>
+                <p>
+                    A simple example of how ProposalQ helps you understand
+                    opportunities and prepare better applications.
+                </p>
+            </div>
+
+            <div class="pq-demo">
+
+                <div class="pq-demo-panel">
+                    <div class="pq-demo-label">01 · Freelance opportunity</div>
+                    <h3>Django Developer Needed</h3>
+                    <p>
+                        Looking for a Python developer to build REST APIs,
+                        integrate third-party services and deploy a Django
+                        application to the cloud.
+                    </p>
+                    <div class="pq-demo-tag">Python</div>
+                    <div class="pq-demo-tag">Django</div>
+                    <div class="pq-demo-tag">REST APIs</div>
+                </div>
+
+                <div class="pq-demo-panel">
+                    <div class="pq-demo-label">02 · AI requirement analysis</div>
+                    <h3>Key requirements identified</h3>
+                    <ul class="pq-demo-checklist">
+                        <li>Python and Django experience</li>
+                        <li>REST API development</li>
+                        <li>Third-party integrations</li>
+                        <li>Cloud deployment</li>
+                    </ul>
+                </div>
+
+                <div class="pq-demo-panel pq-demo-proposal">
+                    <div class="pq-demo-label">03 · Tailored proposal</div>
+                    <h3>Ready for your review</h3>
+                    <p>
+                        Hi, I can help develop your Django application,
+                        build reliable REST APIs and integrate your required
+                        third-party services. My approach would begin with...
+                    </p>
+                    <span class="pq-demo-status">✓ Proposal draft prepared</span>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Success journey -->
+    <section class="pq-section" aria-labelledby="success-heading">
+        <div class="pq-container">
+
+            <div class="pq-section-heading">
+                <span class="pq-eyebrow">Your proposal journey</span>
+                <h2 id="success-heading" style="margin-top:20px;">
+                    From opportunity to outcome
+                </h2>
+                <p>
+                    Stay organised from your first analysis
+                    through to recording your application results.
+                </p>
+            </div>
+
+            <ol class="pq-success-journey" aria-label="Illustrative proposal workflow">
+                <li class="pq-journey-step">
+                    <span class="pq-journey-icon">01</span>
+                    <strong>Analyse</strong>
+                    <span>Understand the job</span>
+                </li>
+
+                <li class="pq-journey-step">
+                    <span class="pq-journey-icon">02</span>
+                    <strong>Prepare</strong>
+                    <span>Create your proposal</span>
+                </li>
+
+                <li class="pq-journey-step">
+                    <span class="pq-journey-icon">03</span>
+                    <strong>Apply</strong>
+                    <span>Submit your application</span>
+                </li>
+
+                <li class="pq-journey-step pq-journey-success">
+                    <span class="pq-journey-icon">✓</span>
+                    <strong>Track your outcome</strong>
+                    <span>Record your application result</span>
+                </li>
+            </ol>
+
+            <p class="pq-demo-disclaimer">
+                Illustrative workflow only. ProposalQ does not guarantee
+                that an application will be successful.
+            </p>
+
+        </div>
+    </section>
+
+    <!-- Features -->
+    <section class="pq-section" id="how-it-works" aria-labelledby="features-heading">
+        <div class="pq-container">
+
+            <div class="pq-section-heading">
+                <span class="pq-eyebrow">Everything in one workspace</span>
+                <h2 id="features-heading" style="margin-top:20px;">
+                    Built for the way freelancers work
+                </h2>
+                <p>
+                    Understand opportunities, prepare tailored content
+                    and keep track of your applications.
+                </p>
+            </div>
+
+            <div class="pq-feature-grid">
+
+                <article class="pq-card">
+                    <h3>Analyse Freelance Jobs</h3>
+                    <p>
+                        Identify requirements, skills, budgets and
+                        important details from freelance job descriptions.
+                    </p>
+                </article>
+
+                <article class="pq-card">
+                    <h3>Generate AI Proposals</h3>
+                    <p>
+                        Prepare tailored freelance proposals based
+                        on each opportunity and its requirements.
+                    </p>
+                </article>
+
+                <article class="pq-card">
+                    <h3>Manage Applications</h3>
+                    <p>
+                        Save proposals, copy application content
+                        and organise your freelance opportunities.
+                    </p>
+                </article>
+
+                <article class="pq-card">
+                    <h3>Track Proposal Outcomes</h3>
+                    <p>
+                        Record application results and build
+                        a clearer picture of your proposal activity.
+                    </p>
+                </article>
+
+            </div>
+
+        </div>
+    </section>
+
+
+    <!-- Freelance market research -->
+    <section class="pq-section pq-market-section"
+             id="market-insights"
+             aria-labelledby="market-heading">
+
+        <div class="pq-market-intro">
+            <span class="pq-market-eyebrow">THE FREELANCE ECONOMY</span>
+
+            <h2 id="market-heading">
+                The freelance market is evolving.
+                <span>Your proposals should too.</span>
+            </h2>
+
+            <p>
+                Freelancing is becoming an increasingly important
+                part of the skilled workforce. Understanding client
+                requirements and communicating your value clearly
+                matters in a competitive marketplace.
+            </p>
+        </div>
+
+        <div class="pq-market-grid">
+
+            <article class="pq-market-card">
+                <div class="pq-market-number">28%</div>
+                <h3>Skilled knowledge workers freelancing</h3>
+                <p>
+                    Upwork's 2025 Future Workforce Index reported
+                    that 28% of US skilled knowledge workers
+                    worked independently.
+                </p>
+                <a href="https://www.upwork.com/research/future-workforce-index-2025"
+                   target="_blank"
+                   rel="noopener noreferrer">
+                    Upwork research, 2025 ↗
+                </a>
+            </article>
+
+            <article class="pq-market-card">
+                <div class="pq-market-number">$1.5T</div>
+                <h3>Economic contribution</h3>
+                <p>
+                    Upwork estimated that skilled freelancers
+                    generated approximately $1.5 trillion
+                    in US earnings in 2024.
+                </p>
+                <a href="https://www.upwork.com/research/future-workforce-index-2025"
+                   target="_blank"
+                   rel="noopener noreferrer">
+                    Upwork research, 2025 ↗
+                </a>
+            </article>
+
+            <article class="pq-market-card">
+                <div class="pq-market-number">AI</div>
+                <h3>A changing skills landscape</h3>
+                <p>
+                    Upwork's published skills research highlights
+                    growing demand for AI-related expertise,
+                    alongside established technical and
+                    professional skills.
+                </p>
+                <a href="https://www.upwork.com/research/in-demand-skills-2025"
+                   target="_blank"
+                   rel="noopener noreferrer">
+                    Upwork skills research, 2025 ↗
+                </a>
+            </article>
+
+        </div>
+
+        <div class="pq-market-message">
+            <h3>Turn opportunity into a stronger application.</h3>
+            <p>
+                ProposalQ helps you analyse freelance job
+                descriptions, identify important requirements,
+                prepare personalised proposal drafts and
+                organise your applications.
+            </p>
+            <p class="pq-market-disclaimer">
+                Market statistics are attributed to Upwork's
+                published research and do not represent
+                ProposalQ customer outcomes. ProposalQ is an
+                independent service and is not affiliated
+                with or endorsed by Upwork.
+            </p>
+        </div>
+
+    </section>
+
+</main>
+
+
+{% include "partials/public_footer.html" %}
 
 </body>
 </html>

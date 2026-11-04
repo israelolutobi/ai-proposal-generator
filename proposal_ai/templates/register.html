@@ -4,8 +4,11 @@
 {% load static %}
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
     <title>Register - ProposalQ</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
 </head>
 
 <body style="
@@ -28,12 +31,12 @@
 
     {% if registration_enabled %}
 
-    <h2 style="
+    <h1 style="
         margin-top:0;
         font-size:32px;
     ">
         Create your account
-    </h2>
+    </h1>
 
     {% if form.errors %}
         <div role="alert" style="color:#ef4444;">
@@ -145,7 +148,7 @@
 
     {% else %}
 
-    <h2>Beta access</h2>
+    <h1>Beta access</h1>
     <p>Beta registration is currently closed.</p>
 
     {% endif %}

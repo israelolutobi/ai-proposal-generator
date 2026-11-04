@@ -54,6 +54,4 @@ footer a{margin-left:10px}
 .usage-panel,.manage-panel{align-items:stretch;flex-direction:column;padding:22px;gap:18px}
 .usage-detail{min-width:0}
 .pricing-faq{margin-top:42px}
-body>div:first-of-type{flex-wrap:wrap;gap:16px}
-body>div:first-of-type>div:last-child{flex-wrap:wrap;gap:14px!important}
 }

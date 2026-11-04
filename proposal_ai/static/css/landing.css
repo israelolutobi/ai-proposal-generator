@@ -1,0 +1,1142 @@
+/* ProposalQ Premium Landing Page */
+
+:root {
+    --pq-bg: #080e1c;
+    --pq-surface: #111d33;
+    --pq-surface-light: #192944;
+    --pq-primary: #3b82f6;
+    --pq-cyan: #22d3ee;
+    --pq-text: #f8fafc;
+    --pq-muted: #a8b8d0;
+    --pq-border: rgba(148, 163, 184, 0.18);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body.pq-landing {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--pq-bg);
+    color: var(--pq-text);
+    font-family: Inter, Arial, sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+.pq-landing a {
+    text-decoration: none;
+}
+
+.pq-container {
+    width: min(1160px, calc(100% - 40px));
+    margin-inline: auto;
+}
+
+.pq-hero {
+    position: relative;
+    isolation: isolate;
+    padding: 110px 0 85px;
+    text-align: center;
+}
+
+.pq-hero::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    top: -160px;
+    left: 50%;
+    width: min(850px, 100%);
+    height: 650px;
+    transform: translateX(-50%);
+    background: radial-gradient(
+        ellipse,
+        rgba(37, 99, 235, 0.25),
+        rgba(34, 211, 238, 0.06) 45%,
+        transparent 72%
+    );
+    pointer-events: none;
+}
+
+.pq-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border: 1px solid rgba(96, 165, 250, 0.3);
+    border-radius: 100px;
+    background: rgba(59, 130, 246, 0.1);
+    color: #93c5fd;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.pq-hero h1 {
+    max-width: 940px;
+    margin: 28px auto 24px;
+    font-size: clamp(40px, 6vw, 76px);
+    line-height: 1.1;
+    letter-spacing: -0.045em;
+    font-weight: 800;
+}
+
+.pq-gradient-text {
+    background: linear-gradient(110deg, #60a5fa, #22d3ee);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.pq-hero-description {
+    max-width: 700px;
+    margin: 0 auto;
+    color: var(--pq-muted);
+    font-size: clamp(16px, 2vw, 20px);
+}
+
+.pq-actions {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 34px;
+}
+
+.pq-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 50px;
+    padding: 13px 25px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pq-button-primary {
+    background: linear-gradient(135deg, #2563eb, #0284c7);
+    color: white;
+    box-shadow: 0 8px 30px rgba(37, 99, 235, 0.25);
+}
+
+.pq-button-secondary {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--pq-border);
+    color: white;
+}
+
+.pq-button:hover {
+    transform: translateY(-2px);
+}
+
+.pq-button:focus-visible {
+    outline: 3px solid var(--pq-cyan);
+    outline-offset: 4px;
+}
+
+.pq-section {
+    padding: 80px 0;
+}
+
+.pq-section-heading {
+    max-width: 720px;
+    margin: 0 auto 45px;
+    text-align: center;
+}
+
+.pq-section-heading h2 {
+    margin: 0 0 15px;
+    font-size: clamp(30px, 4vw, 46px);
+    line-height: 1.15;
+    letter-spacing: -0.03em;
+}
+
+.pq-section-heading p {
+    color: var(--pq-muted);
+    font-size: 17px;
+}
+
+.pq-feature-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.pq-card {
+    padding: 28px;
+    background: linear-gradient(145deg, #14213a, #0e1729);
+    border: 1px solid var(--pq-border);
+    border-radius: 20px;
+    transition: transform 0.25s ease, border-color 0.25s ease;
+}
+
+.pq-card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(96, 165, 250, 0.5);
+}
+
+.pq-card h3 {
+    margin: 0 0 12px;
+    font-size: 19px;
+}
+
+.pq-card p {
+    margin: 0;
+    color: var(--pq-muted);
+    font-size: 15px;
+}
+
+@media (max-width: 900px) {
+    .pq-feature-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .pq-container {
+        width: min(100% - 28px, 1160px);
+    }
+
+    .pq-hero {
+        padding: 75px 0 55px;
+    }
+
+    .pq-section {
+        padding: 55px 0;
+    }
+
+    .pq-feature-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pq-card {
+        padding: 23px;
+    }
+
+    .pq-button {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+
+    .pq-button,
+    .pq-card {
+        transition: none;
+    }
+
+    .pq-button:hover,
+    .pq-card:hover {
+        transform: none;
+    }
+}
+
+/* Premium AI product demonstration */
+
+.pq-demo {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+    align-items: stretch;
+}
+
+.pq-demo-panel {
+    position: relative;
+    min-width: 0;
+    padding: 30px;
+    overflow: hidden;
+    background: linear-gradient(155deg, #182b49, #0d1729);
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    border-radius: 22px;
+    box-shadow: 0 18px 55px rgba(0, 0, 0, 0.18);
+    animation: pq-panel-appear 0.8s ease both;
+}
+
+.pq-demo-panel:nth-child(2) {
+    animation-delay: 0.3s;
+}
+
+.pq-demo-panel:nth-child(3) {
+    animation-delay: 0.6s;
+}
+
+.pq-demo-panel::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 15%;
+    width: 70%;
+    height: 2px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(34, 211, 238, 0.8),
+        transparent
+    );
+}
+
+.pq-demo-label {
+    margin-bottom: 18px;
+    color: #67e8f9;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.pq-demo-panel h3 {
+    margin: 0 0 16px;
+    color: #f8fafc;
+    font-size: 22px;
+    line-height: 1.3;
+}
+
+.pq-demo-panel p {
+    color: #cbd5e1;
+    font-size: 15px;
+    line-height: 1.8;
+}
+
+.pq-demo-tag {
+    display: inline-block;
+    margin: 8px 6px 0 0;
+    padding: 6px 11px;
+    background: rgba(59, 130, 246, 0.14);
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    border-radius: 8px;
+    color: #bfdbfe;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.pq-demo-checklist {
+    padding: 0;
+    margin: 0;
+    list-style: none;
+}
+
+.pq-demo-checklist li {
+    position: relative;
+    padding: 10px 0 10px 28px;
+    color: #dbeafe;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.pq-demo-checklist li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #22d3ee;
+    font-weight: 800;
+}
+
+.pq-demo-proposal {
+    border-color: rgba(34, 211, 238, 0.4);
+    background: linear-gradient(155deg, #17324a, #101a30);
+}
+
+.pq-demo-status {
+    display: inline-block;
+    margin-top: 15px;
+    padding: 9px 13px;
+    border-radius: 9px;
+    background: rgba(34, 197, 94, 0.12);
+    color: #86efac;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* Animated success journey */
+
+.pq-success-journey {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.pq-journey-step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 190px;
+    padding: 24px 15px;
+    text-align: center;
+    background: #111d33;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 20px;
+    animation: pq-panel-appear 0.7s ease both;
+}
+
+.pq-journey-step:nth-child(2) {
+    animation-delay: 0.35s;
+}
+
+.pq-journey-step:nth-child(3) {
+    animation-delay: 0.7s;
+}
+
+.pq-journey-step:nth-child(4) {
+    animation-delay: 1.05s;
+}
+
+.pq-journey-icon {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 16px;
+    border-radius: 16px;
+    background: rgba(59, 130, 246, 0.14);
+    color: #93c5fd;
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.pq-journey-step strong {
+    color: #f8fafc;
+    font-size: 17px;
+}
+
+.pq-journey-step > span:last-child {
+    margin-top: 8px;
+    color: #a8b8d0;
+    font-size: 13px;
+}
+
+.pq-journey-success {
+    background: linear-gradient(145deg, #103b35, #10261f);
+    border-color: rgba(74, 222, 128, 0.35);
+}
+
+.pq-journey-success .pq-journey-icon {
+    background: rgba(74, 222, 128, 0.15);
+    color: #86efac;
+    animation: pq-success-glow 2.8s ease-in-out 1.5s infinite;
+}
+
+.pq-demo-disclaimer {
+    margin: 25px auto 0;
+    max-width: 650px;
+    color: #94a3b8;
+    text-align: center;
+    font-size: 12px;
+}
+
+/* Animation keyframes */
+
+@keyframes pq-panel-appear {
+    from {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pq-success-glow {
+    0%, 100% {
+        box-shadow: 0 0 0 rgba(74, 222, 128, 0);
+    }
+    50% {
+        box-shadow: 0 0 28px rgba(74, 222, 128, 0.35);
+    }
+}
+
+/* Responsive layouts */
+
+@media (max-width: 900px) {
+    .pq-demo {
+        grid-template-columns: 1fr;
+    }
+
+    .pq-success-journey {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .pq-demo {
+        gap: 16px;
+    }
+
+    .pq-demo-panel {
+        padding: 22px 20px;
+        border-radius: 16px;
+        overflow-wrap: anywhere;
+    }
+
+    .pq-demo-panel h3 {
+        line-height: 1.35;
+    }
+
+    .pq-demo-checklist li {
+        line-height: 1.65;
+    }
+
+    .pq-demo-status {
+        max-width: 100%;
+        white-space: normal;
+    }
+
+    .pq-success-journey {
+        grid-template-columns: 1fr;
+    }
+
+    .pq-journey-step {
+        min-height: 150px;
+    }
+}
+
+/* Accessibility */
+
+@media (prefers-reduced-motion: reduce) {
+    .pq-demo-panel,
+    .pq-journey-step,
+    .pq-journey-success .pq-journey-icon {
+        animation: none;
+    }
+}
+
+/* ProposalQ interactive demo celebration */
+
+.demo-content {
+    position: relative;
+}
+
+.demo-confetti {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 5;
+}
+
+.demo-confetti span {
+    position: absolute;
+    top: -15px;
+    width: 9px;
+    height: 15px;
+    border-radius: 2px;
+    opacity: 0;
+    animation: pq-confetti-fall 3s ease-in forwards;
+}
+
+@keyframes pq-confetti-fall {
+    0% {
+        transform: translateY(-20px) rotate(0deg);
+        opacity: 1;
+    }
+
+    85% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: translateY(650px) rotate(720deg);
+        opacity: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .demo-confetti span {
+        animation: none;
+        display: none;
+    }
+}
+
+/* ==========================================
+   PROPOSALQ — FREELANCE MARKET INSIGHTS
+   ========================================== */
+
+.pq-market-section {
+    position: relative;
+    overflow: hidden;
+    padding: 110px 24px;
+    background:
+        radial-gradient(
+            ellipse at 50% 0%,
+            rgba(37, 99, 235, 0.12),
+            transparent 65%
+        ),
+        #080d19;
+}
+
+.pq-market-intro {
+    max-width: 850px;
+    margin: 0 auto 55px;
+    text-align: center;
+}
+
+.pq-market-eyebrow {
+    display: inline-block;
+    margin-bottom: 20px;
+    color: #60a5fa;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 3px;
+}
+
+.pq-market-intro h2 {
+    margin: 0 0 22px;
+    color: #f8fafc;
+    font-size: clamp(32px, 4vw, 52px);
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -1.5px;
+}
+
+.pq-market-intro h2 span {
+    display: block;
+    color: #60a5fa;
+}
+
+.pq-market-intro > p {
+    max-width: 680px;
+    margin: 0 auto;
+    color: #a6b4ce;
+    font-size: 17px;
+    line-height: 1.8;
+}
+
+.pq-market-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px;
+    max-width: 1200px;
+    margin: 0 auto 65px;
+}
+
+.pq-market-card {
+    position: relative;
+    padding: 36px 30px;
+    background: linear-gradient(
+        145deg,
+        #111e35,
+        #0b1425
+    );
+    border: 1px solid #253653;
+    border-radius: 20px;
+    transition:
+        transform 0.3s ease,
+        border-color 0.3s ease,
+        box-shadow 0.3s ease;
+}
+
+.pq-market-card:hover {
+    transform: translateY(-7px);
+    border-color: #3b82f6;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.25);
+}
+
+.pq-market-number {
+    margin-bottom: 22px;
+    font-size: clamp(42px, 5vw, 64px);
+    font-weight: 850;
+    line-height: 1;
+    letter-spacing: -2px;
+    background: linear-gradient(
+        120deg,
+        #93c5fd,
+        #3b82f6,
+        #22d3ee
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.pq-market-card h3 {
+    margin: 0 0 14px;
+    color: #f8fafc;
+    font-size: 19px;
+    line-height: 1.4;
+}
+
+.pq-market-card p {
+    min-height: 115px;
+    margin: 0 0 24px;
+    color: #a6b4ce;
+    font-size: 15px;
+    line-height: 1.75;
+}
+
+.pq-market-card a {
+    color: #93c5fd;
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.pq-market-card a:hover {
+    color: #ffffff;
+    text-decoration: underline;
+}
+
+.pq-market-card a:focus-visible,
+.pq-footer-column a:focus-visible,
+.pq-footer-logo:focus-visible {
+    outline: 3px solid #22d3ee;
+    outline-offset: 4px;
+    border-radius: 4px;
+    text-decoration: underline;
+}
+
+.pq-market-message {
+    max-width: 950px;
+    margin: 0 auto;
+    padding: 44px;
+    text-align: center;
+    background: linear-gradient(
+        135deg,
+        rgba(37, 99, 235, 0.13),
+        rgba(8, 13, 25, 0.7)
+    );
+    border: 1px solid #29446b;
+    border-radius: 24px;
+}
+
+.pq-market-message h3 {
+    margin: 0 0 16px;
+    color: #f8fafc;
+    font-size: clamp(24px, 3vw, 32px);
+}
+
+.pq-market-message > p {
+    max-width: 730px;
+    margin: 0 auto 18px;
+    color: #c0cce0;
+    font-size: 16px;
+    line-height: 1.8;
+}
+
+.pq-market-message .pq-market-disclaimer {
+    margin-top: 28px;
+    margin-bottom: 0;
+    color: #8494ae;
+    font-size: 12px;
+    line-height: 1.7;
+}
+
+@media (max-width: 850px) {
+    .pq-market-section {
+        padding: 75px 20px;
+    }
+
+    .pq-market-grid {
+        grid-template-columns: 1fr;
+        max-width: 540px;
+        gap: 18px;
+    }
+
+    .pq-market-card p {
+        min-height: 0;
+    }
+
+    .pq-market-message {
+        padding: 30px 22px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pq-market-card {
+        transition: none;
+    }
+
+    .pq-market-card:hover {
+        transform: none;
+    }
+}
+
+
+/* ==========================================
+   PROPOSALQ — PROFESSIONAL PUBLIC FOOTER
+   ========================================== */
+
+.pq-footer {
+    background: #050a14;
+    border-top: 1px solid #1e304a;
+    padding: 75px 28px 25px;
+    color: #cbd5e1;
+}
+
+.pq-footer-inner {
+    max-width: 1250px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1.3fr 2fr;
+    gap: 75px;
+}
+
+.pq-footer-brand {
+    max-width: 330px;
+}
+
+.pq-footer-logo {
+    display: inline-block;
+    margin-bottom: 20px;
+    color: #ffffff;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    text-decoration: none;
+}
+
+.pq-footer-logo span {
+    color: #3b82f6;
+}
+
+.pq-footer-brand > p {
+    margin: 0 0 16px;
+    color: #e2e8f0;
+    font-size: 15px;
+    line-height: 1.7;
+}
+
+.pq-footer-brand .pq-footer-description {
+    color: #94a3b8;
+    font-size: 14px;
+    line-height: 1.8;
+}
+
+.pq-footer-links {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 28px;
+}
+
+.pq-footer-column {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+}
+
+.pq-footer-column h3 {
+    margin: 0 0 8px;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 750;
+}
+
+.pq-footer-column a,
+.pq-footer-column span {
+    color: #94a3b8;
+    font-size: 13px;
+    line-height: 1.6;
+    text-decoration: none;
+}
+
+.pq-footer-column a {
+    transition: color 0.2s ease;
+}
+
+.pq-footer-column a:hover {
+    color: #60a5fa;
+}
+
+.pq-footer-column span {
+    color: #64748b;
+}
+
+.pq-footer-bottom {
+    max-width: 1250px;
+    margin: 65px auto 0;
+    padding-top: 24px;
+    border-top: 1px solid #1e293b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+}
+
+.pq-footer-bottom p {
+    margin: 0;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.7;
+}
+
+.pq-footer-bottom p:last-child {
+    max-width: 500px;
+    text-align: right;
+}
+
+@media (max-width: 1050px) {
+    .pq-footer-inner {
+        grid-template-columns: 1fr;
+        gap: 45px;
+    }
+
+    .pq-footer-brand {
+        max-width: 600px;
+    }
+}
+
+@media (max-width: 650px) {
+    .pq-footer {
+        padding: 55px 20px 25px;
+    }
+
+    .pq-footer-links {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 35px 20px;
+    }
+
+    .pq-footer-bottom {
+        margin-top: 45px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .pq-footer-bottom p:last-child {
+        text-align: left;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pq-footer-column a {
+        transition: none;
+    }
+}
+
+
+/* ==========================================
+   PROPOSALQ — LEGAL & TRUST PAGES
+   ========================================== */
+
+.pq-legal-page {
+    min-height: 75vh;
+    padding: 85px 24px 110px;
+    background:
+        radial-gradient(
+            ellipse at 50% 0%,
+            rgba(37, 99, 235, 0.12),
+            transparent 55%
+        ),
+        #080d19;
+    color: #e2e8f0;
+}
+
+.pq-legal-header {
+    max-width: 900px;
+    margin: 0 auto 65px;
+    text-align: center;
+}
+
+.pq-legal-header h1 {
+    margin: 12px 0 18px;
+    font-size: clamp(34px, 5vw, 56px);
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    color: #ffffff;
+}
+
+.pq-legal-header p {
+    max-width: 650px;
+    margin: 0 auto;
+    color: #94a3b8;
+    font-size: 16px;
+    line-height: 1.8;
+}
+
+.pq-legal-layout {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    gap: 35px;
+    align-items: start;
+}
+
+.pq-legal-sidebar {
+    position: sticky;
+    top: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 26px 18px;
+    background: #0e192b;
+    border: 1px solid #24344f;
+    border-radius: 18px;
+}
+
+.pq-legal-sidebar h2 {
+    margin: 0 0 15px;
+    padding: 0 12px;
+    color: #ffffff;
+    font-size: 17px;
+}
+
+.pq-legal-sidebar a {
+    display: block;
+    padding: 12px;
+    color: #a6b4ce;
+    font-size: 14px;
+    text-decoration: none;
+    border-radius: 9px;
+    transition: background .2s, color .2s;
+}
+
+.pq-legal-sidebar a:hover,
+.pq-legal-sidebar a:focus-visible {
+    color: #ffffff;
+    background: #1d3557;
+}
+
+.pq-legal-content {
+    min-width: 0;
+    padding: 45px;
+    background: linear-gradient(145deg, #111e35, #0c1525);
+    border: 1px solid #253653;
+    border-radius: 20px;
+}
+
+.pq-legal-document {
+    color: #cbd5e1;
+    font-size: 15px;
+    line-height: 1.9;
+    overflow-wrap: anywhere;
+}
+
+.pq-legal-document h2 {
+    margin: 0 0 22px;
+    color: #ffffff;
+    font-size: 25px;
+}
+
+.pq-legal-document h3 {
+    margin: 32px 0 12px;
+    color: #f1f5f9;
+    font-size: 19px;
+}
+
+.pq-legal-document p {
+    margin: 0 0 20px;
+}
+
+.pq-legal-document a {
+    color: #93c5fd;
+    text-underline-offset: 3px;
+}
+
+.pq-legal-document ul,
+.pq-legal-document ol {
+    padding-left: 24px;
+    margin-bottom: 24px;
+}
+
+.pq-legal-document li {
+    margin-bottom: 10px;
+}
+
+@media (max-width: 850px) {
+    .pq-legal-page {
+        padding: 65px 18px 80px;
+    }
+
+    .pq-legal-layout {
+        grid-template-columns: 1fr;
+        gap: 22px;
+    }
+
+    .pq-legal-sidebar {
+        position: static;
+    }
+
+    .pq-legal-content {
+        padding: 30px 24px;
+    }
+
+    .pq-legal-header {
+        margin-bottom: 40px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pq-legal-sidebar a {
+        transition: none;
+    }
+}
+
+
+
+/* Highlight the currently selected legal document */
+.pq-legal-sidebar a.is-active {
+    color: #ffffff;
+    background: #1d3557;
+    font-weight: 600;
+}
+
+
+/* ProposalQ Mobile Hero Refinements */
+
+@media (max-width: 600px) {
+
+    .pq-hero {
+        padding: 55px 0 50px;
+    }
+
+    .pq-hero h1 {
+        max-width: 100%;
+        font-size: clamp(30px, 8.5vw, 38px);
+        line-height: 1.15;
+        letter-spacing: -0.035em;
+        overflow-wrap: normal;
+    }
+
+    .pq-hero .pq-gradient-text {
+        display: inline;
+    }
+
+    .pq-hero-description {
+        max-width: 100%;
+        font-size: 16px;
+        line-height: 1.7;
+    }
+
+    .pq-hero .pq-eyebrow {
+        max-width: 100%;
+        padding: 8px 12px;
+        font-size: 11px;
+        line-height: 1.5;
+        text-align: center;
+        white-space: normal;
+    }
+
+    .pq-hero .pq-actions {
+        margin-top: 28px;
+        gap: 12px;
+    }
+
+    .pq-hero .pq-button {
+        width: 100%;
+        min-height: 48px;
+    }
+}
+
+@media (max-width: 360px) {
+    .pq-hero h1 {
+        font-size: 29px;
+    }
+}

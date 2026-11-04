@@ -27,6 +27,27 @@ from mysite.configuration import validate_phase_b
 
 
 CHAT_MODEL = "gpt-5"
+
+PROPOSAL_GENERATION_CONFIGS = {
+    "quick": {
+        "model": "gpt-5-mini",
+        "reasoning_effort": "low",
+        "completion_tokens": 4096,
+    },
+    "advanced": {
+        "model": "gpt-5",
+        "reasoning_effort": "medium",
+        "completion_tokens": 6144,
+    },
+}
+
+
+def proposal_generation_config(mode):
+    """Return an approved server-side proposal generation configuration."""
+    if mode not in PROPOSAL_GENERATION_CONFIGS:
+        raise ValueError("Unsupported proposal generation mode.")
+
+    return PROPOSAL_GENERATION_CONFIGS[mode].copy()
 LEGACY_PROFILE_MODEL = "gpt-5-mini"
 REQUEST_TIMEOUT = httpx.Timeout(45.0, connect=5.0)
 # Fail once and let the user retry. Automatic repeats are deferred until the
@@ -96,13 +117,30 @@ class AIServiceResult:
             raise TypeError("Invalid AI service result.")
 
 
-def request_telemetry(operation):
+def request_telemetry(operation, *, generation_mode=None):
     """Public non-secret configuration snapshot, without client construction."""
-    budget = {"profile_summary": "summary", "job_extraction": "extraction",
-              "proposal_generation": "proposal"}[operation]
-    return AITelemetry(provider="openai", api_style="chat_completions",
-                       requested_model=CHAT_MODEL,
-                       completion_token_cap=ai_limits.COMPLETION_TOKENS[budget])
+    budget = {
+        "profile_summary": "summary",
+        "job_extraction": "extraction",
+        "proposal_generation": "proposal",
+    }[operation]
+
+    model = CHAT_MODEL
+    completion_tokens = ai_limits.COMPLETION_TOKENS[budget]
+
+    if operation == "proposal_generation" and generation_mode is not None:
+        config = proposal_generation_config(generation_mode)
+        model = config["model"]
+        completion_tokens = config["completion_tokens"]
+    elif generation_mode is not None:
+        raise ValueError("Generation mode is only valid for proposals.")
+
+    return AITelemetry(
+        provider="openai",
+        api_style="chat_completions",
+        requested_model=model,
+        completion_token_cap=completion_tokens,
+    )
 
 
 class AIError(Exception):
@@ -344,19 +382,41 @@ def _response_telemetry(response, telemetry):
     )
 
 
-def _chat_text(messages, operation, output_maximum):
-    telemetry = AITelemetry(provider="openai", api_style="chat_completions",
-                            requested_model=CHAT_MODEL,
-                            completion_token_cap=ai_limits.COMPLETION_TOKENS[operation])
+def _chat_text(messages, operation, output_maximum, *, generation_mode=None):
+    if generation_mode is not None and operation != "proposal":
+        raise ValueError("Generation mode is only valid for proposals.")
+
+    config = (
+        proposal_generation_config(generation_mode)
+        if generation_mode is not None
+        else None
+    )
+
+    model = config["model"] if config else CHAT_MODEL
+    token_cap = (
+        config["completion_tokens"]
+        if config
+        else ai_limits.COMPLETION_TOKENS[operation]
+    )
+
+    telemetry = AITelemetry(
+        provider="openai",
+        api_style="chat_completions",
+        requested_model=model,
+        completion_token_cap=token_cap,
+    )
     try:
         ai_limits.check_request(messages, operation)
     except ValidationError:
         raise AIInputError(telemetry) from None
     request_options = {
-        "model": CHAT_MODEL,
+        "model": model,
         "messages": messages,
-        "max_completion_tokens": ai_limits.COMPLETION_TOKENS[operation],
+        "max_completion_tokens": token_cap,
     }
+
+    if config is not None:
+        request_options["reasoning_effort"] = config["reasoning_effort"]
 
     if operation == "extraction":
         request_options["response_format"] = {"type": "json_object"}
@@ -391,11 +451,17 @@ def generate_profile_summary(prompt):
     return _chat_text([{"role": "user", "content": prompt}], "summary", ai_limits.SUMMARY_OUTPUT_CHARACTERS)
 
 
-def generate_proposal(writing_instructions, application_context):
+def generate_proposal(
+    writing_instructions,
+    application_context,
+    *,
+    generation_mode=None,
+):
     return _chat_text([
         {"role": "system", "content": writing_instructions},
         {"role": "user", "content": application_context},
-    ], "proposal", ai_limits.PROPOSAL_OUTPUT_CHARACTERS)
+    ], "proposal", ai_limits.PROPOSAL_OUTPUT_CHARACTERS,
+        generation_mode=generation_mode)
 
 
 def generate_freelancer_profile_summary(

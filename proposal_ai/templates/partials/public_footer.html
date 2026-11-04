@@ -1,0 +1,64 @@
+{% load static %}
+
+<footer class="pq-footer">
+    <div class="pq-footer-inner">
+
+        <div class="pq-footer-brand">
+            <a href="{% url 'public_home' %}" class="pq-footer-logo">
+                Proposal<span>Q</span>
+            </a>
+
+            <p>
+                Understand the job. Write a stronger proposal.
+            </p>
+
+            <p class="pq-footer-description">
+                AI-powered assistance for freelancers who want
+                to understand opportunities, prepare personalised
+                proposals and manage their applications.
+            </p>
+        </div>
+
+        <div class="pq-footer-links">
+
+            <div class="pq-footer-column">
+                <h3>Product</h3>
+                <a href="{% url 'public_home' %}#how-it-works">Features</a>
+                <a href="{% url 'public_demo' %}">Interactive Demo</a>
+                <a href="{% url 'pricing' %}">Pricing</a>
+            </div>
+
+            <div class="pq-footer-column">
+                <h3>Support</h3>
+                <span>Contact Us — Coming soon</span>
+                <span>Help Centre — Coming soon</span>
+            </div>
+
+            <div class="pq-footer-column">
+                <h3>Legal</h3>
+                <a href="{% url 'terms' %}">Terms of Service</a>
+                <a href="{% url 'privacy' %}">Privacy Policy</a>
+                <a href="{% url 'cookies' %}">Cookie Policy</a>
+                <a href="{% url 'subscriptions' %}">Subscription &amp; Cancellation</a>
+            </div>
+
+            <div class="pq-footer-column">
+                <h3>Trust</h3>
+                <a href="{% url 'ai_transparency' %}">AI Transparency</a>
+                <a href="{% url 'data_security' %}">Data &amp; Security</a>
+                <a href="{% url 'public_home' %}#market-insights">
+                    Freelance Market Research
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="pq-footer-bottom">
+        <p>© {% now "Y" %} ProposalQ. All rights reserved.</p>
+        <p>
+            ProposalQ is an independent service and is not
+            affiliated with or endorsed by Upwork or Fiverr.
+        </p>
+    </div>
+</footer>

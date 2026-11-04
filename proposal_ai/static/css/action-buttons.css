@@ -1,0 +1,54 @@
+/* ProposalQ shared responsive action groups */
+
+.pq-action-group {
+    display: grid !important;
+    grid-template-columns: repeat(
+        var(--pq-action-columns, 3),
+        minmax(0, 1fr)
+    );
+    gap: 16px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.pq-action-group > a,
+.pq-action-group > button {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 48px;
+    max-width: 100%;
+    text-align: center;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    margin: 0;
+}
+
+.pq-action-group > a:focus-visible,
+.pq-action-group > button:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 3px;
+}
+
+@media (min-width: 601px) and (max-width: 900px) {
+    .pq-action-group {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .pq-action-group > :last-child:nth-child(odd) {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 600px) {
+    .pq-action-group {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .pq-action-group > * {
+        grid-column: auto !important;
+    }
+}

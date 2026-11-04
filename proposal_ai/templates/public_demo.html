@@ -1,0 +1,362 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Interactive Demo | ProposalQ</title>
+    <meta name="description" content="Explore how ProposalQ analyses freelance jobs, prepares proposals and helps track applications.">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/landing.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
+    <style>
+        .demo-page { max-width: 1250px; margin: auto; padding: 65px 22px 100px; }
+        .demo-heading { text-align: center; margin-bottom: 38px; }
+        .demo-heading h1 { font-size: clamp(35px,5vw,58px); line-height:1.12; margin:18px 0; }
+        .demo-heading p { color:#a8b8d0; max-width:680px; margin:auto; }
+        .demo-workspace { display:grid; grid-template-columns:280px minmax(0,1fr); gap:18px; }
+        .demo-sidebar,.demo-main { background:#101c31; border:1px solid #30415c; border-radius:20px; padding:23px; min-width:0; }
+        .demo-sidebar h2 { font-size:16px; margin:0 0 17px; }
+        .demo-job { display:block; width:100%; padding:15px; margin-bottom:10px; background:#172740; border:1px solid #30415c; border-radius:12px; color:#e2e8f0; text-align:left; cursor:pointer; font:inherit; }
+        .demo-job.active { border-color:#60a5fa; background:#19385d; }
+        .demo-job small { display:block; margin-top:5px; color:#a8b8d0; }
+        .demo-stages { display:flex; gap:7px; flex-wrap:wrap; margin:0 0 24px; }
+        .demo-stage { flex:1; min-width:95px; padding:11px 7px; border:1px solid #30415c; border-radius:10px; background:#172740; color:#cbd5e1; cursor:pointer; font:inherit; font-size:12px; }
+        .demo-stage.active { background:#2563eb; border-color:#60a5fa; color:white; }
+        .demo-content { background:#0b1425; border:1px solid #293a56; border-radius:15px; padding:28px; min-height:470px; max-height:620px; overflow-y:auto; }
+        .demo-content h2 { font-size:25px; line-height:1.3; margin:12px 0 18px; }
+        .demo-content h3 { font-size:17px; margin:25px 0 10px; color:#bfdbfe; }
+        .demo-content p,.demo-content li { color:#cbd5e1; line-height:1.8; }
+        .demo-content ul { padding-left:22px; }
+        .demo-meta { color:#93c5fd; font-size:13px; font-weight:600; }
+        .demo-pill { display:inline-block; margin:5px 6px 5px 0; padding:5px 11px; border-radius:20px; background:#19385d; color:#bfdbfe; font-size:12px; }
+        .demo-controls { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:20px; }
+        .demo-btn { padding:12px 18px; border-radius:10px; border:1px solid #405676; background:#172740; color:white; font:inherit; font-weight:600; cursor:pointer; }
+        .demo-btn.primary { background:#2563eb; border-color:#2563eb; }
+        .demo-btn:focus-visible,.demo-job:focus-visible,.demo-stage:focus-visible { outline:3px solid #22d3ee; outline-offset:3px; }
+        .demo-note { color:#94a3b8; font-size:12px; margin-top:20px; }
+        .demo-progress { height:5px; border-radius:8px; background:#263852; margin-top:22px; overflow:hidden; }
+        .demo-progress-fill { height:100%; background:linear-gradient(90deg,#2563eb,#22d3ee); transition:width .4s ease; }
+        .demo-enter { animation:demoEnter .4s ease both; }
+        @keyframes demoEnter { from {opacity:0;transform:translateY(12px)} to {opacity:1;transform:translateY(0)} }
+        @media(max-width:850px) { .demo-workspace {grid-template-columns:1fr} .demo-content {max-height:560px} }
+        @media(max-width:550px) { .demo-page {padding-top:40px} .demo-main,.demo-sidebar {padding:15px} .demo-content {padding:17px} .demo-stage {min-width:85px} }
+        @media(prefers-reduced-motion:reduce) { .demo-enter {animation:none} .demo-progress-fill {transition:none} }
+    </style>
+
+</head>
+<body class="pq-landing">
+{% include "partials/public_navbar.html" %}
+
+<main class="demo-page">
+    <header class="demo-heading">
+        <span class="pq-eyebrow">Interactive product walkthrough</span>
+        <h1>Experience <span class="pq-gradient-text">ProposalQ</span></h1>
+        <p>Explore a realistic freelance opportunity, see how requirements can be extracted, review a tailored proposal and follow an example application journey.</p>
+    </header>
+
+    <div class="demo-workspace">
+        <aside class="demo-sidebar">
+            <h2>Choose a job prospect</h2>
+            <div id="demo-jobs"></div>
+            <p class="demo-note">These are fictional opportunities created to demonstrate the workflow.</p>
+        </aside>
+
+        <section class="demo-main" aria-label="Interactive ProposalQ demonstration">
+            <div class="demo-stages" id="demo-stages"></div>
+            <div class="demo-content" id="demo-content" aria-live="polite"></div>
+            <div class="demo-progress"><div class="demo-progress-fill" id="demo-progress"></div></div>
+            <div class="demo-controls">
+                <button class="demo-btn primary" id="demo-play" type="button">▶ Watch Demo</button>
+                <button class="demo-btn" id="demo-prev" type="button">← Previous</button>
+                <button class="demo-btn" id="demo-next" type="button">Next →</button>
+                <button class="demo-btn" id="demo-restart" type="button">↻ Restart</button>
+            </div>
+            <p class="demo-note">Simulated demonstration. No live AI requests, real applications or guaranteed client outcomes.</p>
+        </section>
+    </div>
+</main>
+
+<script src="{% static 'js/demo-animation.js' %}"></script>
+<script>
+(function () {
+    "use strict";
+
+    const jobs = [
+        {
+            name: "Django SaaS Development",
+            budget: "£2,500",
+            title: "Experienced Python / Django Developer Needed to Build a Subscription-Based SaaS Dashboard",
+            duration: "4–6 weeks",
+            level: "Expert",
+            overview: "We are a UK-based technology startup developing a subscription-based SaaS platform for small businesses. Our existing backend uses Python and Django. We need an experienced developer to complete a customer portal where subscribers can create accounts, manage paid plans, access a personalised dashboard, view usage information and update billing details.",
+            responsibilities: [
+                "Develop secure registration, authentication and account management.",
+                "Build REST APIs using Django REST Framework.",
+                "Integrate Stripe Checkout, recurring subscriptions and webhooks.",
+                "Configure PostgreSQL and optimise database queries.",
+                "Implement customer and administrator permissions.",
+                "Create responsive dashboard pages for desktop and mobile.",
+                "Deploy the application and document the setup.",
+                "Write automated tests for critical workflows."
+            ],
+            skills: ["Python", "Django", "PostgreSQL", "Stripe", "REST APIs", "Security", "Cloud deployment"],
+            questions: [
+                "Have you implemented Stripe subscription billing before?",
+                "How would you structure this project?",
+                "What timeline would you estimate?",
+                "Can you provide examples of similar work?"
+            ],
+            proposal: [
+                "Hello,",
+                "Your project needs more than a dashboard: it needs a reliable subscription workflow, secure customer access and a backend that will remain maintainable as the platform grows.",
+                "I would begin by reviewing the existing Django codebase and confirming the user roles, subscription plans and dashboard requirements. From there, I would define the API contracts and database changes before implementing the new functionality in manageable milestones.",
+                "For billing, I would integrate Stripe Checkout and subscription webhooks, including appropriate verification, duplicate-event handling and tests for important payment states. I would also review authentication, permissions and database access to ensure that customers can only access their own information.",
+                "My proposed delivery stages would be requirements and architecture, core dashboard and API development, Stripe integration, testing, and deployment with documentation. A four-to-six-week schedule may be feasible, subject to reviewing the existing application and confirming scope.",
+                "A few questions: Is the dashboard design already available? Which hosting provider do you use? Are subscription products and prices configured in Stripe?",
+                "I would be happy to discuss the existing codebase and agree on a clear delivery plan."
+            ]
+        },
+        {
+            name: "AI Automation",
+            budget: "£1,200",
+            title: "AI Automation Specialist for Lead Qualification and HubSpot CRM Integration",
+            duration: "2–3 weeks",
+            level: "Intermediate",
+            overview: "We are a digital marketing agency looking to automate inbound lead qualification. New website enquiries should flow through an automation that identifies the lead's requirements, assigns a qualification score, updates our HubSpot CRM and prepares an appropriate follow-up email for review.",
+            responsibilities: [
+                "Receive leads from website forms and validate incoming fields.",
+                "Build n8n workflows for routing and processing leads.",
+                "Use an AI model to classify lead requirements and priorities.",
+                "Create scoring rules for qualification.",
+                "Create or update HubSpot contact records.",
+                "Detect duplicate submissions and handle failed API requests.",
+                "Prepare personalised follow-up emails for review.",
+                "Document the workflow and provide a handover session."
+            ],
+            skills: ["n8n", "OpenAI API", "HubSpot", "Webhooks", "API integration", "Error handling"],
+            questions: [
+                "What similar n8n automations have you built?",
+                "How would you handle failed API requests?",
+                "What access would you need from our team?"
+            ],
+            proposal: [
+                "Hello,",
+                "Your lead qualification workflow is a strong candidate for automation, particularly if your team currently spends time reviewing enquiries and entering information into HubSpot manually.",
+                "I would start by mapping your existing lead intake process, qualification criteria and HubSpot fields. The n8n workflow would validate each submission, apply your scoring rules, use AI where classification adds value and then create or update the appropriate CRM record.",
+                "Reliability would be a key part of the build. I would include duplicate detection, error logging and a clear path for retrying failed integrations. AI-generated classifications would be constrained by defined categories, with uncertain cases flagged for human review.",
+                "The final handover would include workflow documentation, testing scenarios and a walkthrough so your team can maintain the automation.",
+                "Could you confirm which website forms you use, whether HubSpot custom properties already exist, and whether follow-up emails should be automatically sent or approved first?",
+                "I would be happy to agree on milestones and a delivery timeline after reviewing your existing systems."
+            ]
+        },
+        {
+            name: "UI/UX Dashboard Design",
+            budget: "£900",
+            title: "UI/UX Designer Needed to Redesign a B2B Analytics Dashboard in Figma",
+            duration: "2 weeks",
+            level: "Intermediate",
+            overview: "We are looking for a UI/UX designer to modernise our business analytics dashboard. The existing interface contains KPI cards, reporting tables, date filters, charts and account settings. We want clearer visual hierarchy, improved usability and a consistent component system across desktop and mobile.",
+            responsibilities: [
+                "Review the existing dashboard and identify usability issues.",
+                "Create wireframes for key screens and workflows.",
+                "Produce high-fidelity Figma designs.",
+                "Design responsive desktop and mobile layouts.",
+                "Improve colour contrast and accessible interaction states.",
+                "Build reusable components and design tokens.",
+                "Create an interactive prototype for stakeholder review.",
+                "Provide developer-ready design handoff files."
+            ],
+            skills: ["Figma", "UI Design", "UX", "Design systems", "Responsive design", "Accessibility"],
+            questions: [
+                "Can you share relevant dashboard designs?",
+                "How would you approach usability improvements?",
+                "How many revision rounds are included?"
+            ],
+            proposal: [
+                "Hello,",
+                "An analytics dashboard should make important information easy to find and act on. I would approach your redesign by focusing first on clarity and usability, then developing a consistent visual system.",
+                "I would begin with a review of the current screens, user tasks and common navigation paths. Next, I would create wireframes that establish information hierarchy for KPI cards, charts, filters and reporting tables.",
+                "Once the structure is agreed, I would prepare high-fidelity Figma designs for desktop and mobile, including accessible contrast, clear interaction states and reusable components. An interactive prototype would allow your team to review the main workflows before developer handoff.",
+                "The final package would include organised Figma files, reusable components, responsive screen designs and implementation notes. We could agree on a defined number of revision rounds before work begins.",
+                "Could you share screenshots of the existing dashboard, your brand guidelines and the main user journeys you want to improve?",
+                "I would be happy to discuss the scope and prioritise the most valuable screens."
+            ]
+        }
+    ];
+
+    const stageNames = ["Job Prospect", "AI Analysis", "Proposal", "Application", "Outcome"];
+    let jobIndex = 0;
+    let stageIndex = 0;
+    let timer = null;
+
+    const jobsEl = document.getElementById("demo-jobs");
+    const stagesEl = document.getElementById("demo-stages");
+    const contentEl = document.getElementById("demo-content");
+    const progressEl = document.getElementById("demo-progress");
+    const playBtn = document.getElementById("demo-play");
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function (character) {
+            return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[character];
+        });
+    }
+
+    function list(items) {
+        return "<ul>" + items.map(item => "<li>" + escapeHtml(item) + "</li>").join("") + "</ul>";
+    }
+
+    function stopPlayback() {
+        if (timer !== null) clearInterval(timer);
+        timer = null;
+    }
+
+    function navigateDemo() {
+        const animation = window.ProposalQDemoAnimation;
+        const wasActive = animation && animation.getState().playing;
+
+        stopPlayback();
+        render();
+
+        if (wasActive) {
+            animation.goToStage(stageIndex);
+        }
+    }
+
+    function render() {
+        const job = jobs[jobIndex];
+
+        jobsEl.innerHTML = jobs.map((item, i) =>
+            `<button type="button" class="demo-job ${i === jobIndex ? "active" : ""}" data-job="${i}" aria-pressed="${i === jobIndex}">
+                ${escapeHtml(item.name)}<small>${escapeHtml(item.budget)} · ${escapeHtml(item.duration)}</small>
+            </button>`
+        ).join("");
+
+        stagesEl.innerHTML = stageNames.map((name, i) =>
+            `<button type="button" class="demo-stage ${i === stageIndex ? "active" : ""}" data-stage="${i}" aria-current="${i === stageIndex ? "step" : "false"}">${i + 1}. ${name}</button>`
+        ).join("");
+
+        let html = "";
+
+        if (stageIndex === 0) {
+            html = `
+                <div class="demo-meta">FREELANCE OPPORTUNITY · FIXED PRICE · REMOTE</div>
+                <h2>${escapeHtml(job.title)}</h2>
+                <span class="demo-pill">${escapeHtml(job.budget)} budget</span>
+                <span class="demo-pill">${escapeHtml(job.duration)}</span>
+                <span class="demo-pill">${escapeHtml(job.level)}</span>
+                <h3>Project overview</h3><p>${escapeHtml(job.overview)}</p>
+                <h3>Scope of work</h3>${list(job.responsibilities)}
+                <h3>Required skills</h3>
+                ${job.skills.map(skill => `<span class="demo-pill">${escapeHtml(skill)}</span>`).join("")}
+                <h3>Questions for applicants</h3>${list(job.questions)}
+                <h3>Example client profile</h3>
+                <p>United Kingdom · Payment verified · 12 jobs posted · £8,000 spent · 4.8/5 rating</p>
+            `;
+        } else if (stageIndex === 1) {
+            html = `
+                <div class="demo-meta">PROPOSALQ · EXAMPLE REQUIREMENT EXTRACTION</div>
+                <h2>Understanding the opportunity</h2>
+                <h3>Client's main objective</h3><p>${escapeHtml(job.overview)}</p>
+                <h3>Identified deliverables</h3>${list(job.responsibilities)}
+                <h3>Technical and professional skills</h3>
+                ${job.skills.map(skill => `<span class="demo-pill">${escapeHtml(skill)}</span>`).join("")}
+                <h3>Application questions to address</h3>${list(job.questions)}
+                <h3>Recommended next step</h3>
+                <p>Review the extracted requirements, verify any assumptions and tailor the proposal to your actual experience.</p>
+            `;
+        } else if (stageIndex === 2) {
+            html = `
+                <div class="demo-meta">PROPOSALQ · ILLUSTRATIVE PROPOSAL DRAFT</div>
+                <h2>Tailored proposal ready for review</h2>
+                ${job.proposal.map(paragraph => `<p>${escapeHtml(paragraph)}</p>`).join("")}
+                <p class="demo-note">Sample proposal only. The freelancer should personalise it and verify all claims before submitting.</p>
+            `;
+        } else if (stageIndex === 3) {
+            html = `
+                <div class="demo-meta">APPLICATION TRACKER · EXAMPLE</div>
+                <h2>Application recorded</h2>
+                <h3>${escapeHtml(job.title)}</h3>
+                <p><strong>Budget:</strong> ${escapeHtml(job.budget)}</p>
+                <p><strong>Application status:</strong> Submitted (illustrative)</p>
+                <p><strong>Proposal:</strong> Draft reviewed and copied for submission</p>
+                <p><strong>Next action:</strong> Track the client's response and update the application outcome.</p>
+                <h3>Progress</h3>
+                ${list(["Job analysed", "Requirements reviewed", "Proposal prepared", "Application submitted"])}
+            `;
+        } else {
+            html = `
+                <div class="demo-meta">ILLUSTRATIVE OUTCOME · SUCCESS SCENARIO</div>
+                <h2>🎉 Your proposal was accepted!</h2>
+                <p>In this example scenario, the client selects the freelancer for the project.</p>
+                <h3>${escapeHtml(job.title)}</h3>
+                <p><strong>Example project value:</strong> ${escapeHtml(job.budget)}</p>
+                <p><strong>Application status:</strong> Won</p>
+                <p>ProposalQ helps you organise your proposal journey. Actual results depend on the client, your qualifications, competition and other factors.</p>
+            `;
+        }
+
+        contentEl.innerHTML = `<div class="demo-enter">${html}</div>`;
+        contentEl.scrollTop = 0;
+        progressEl.style.width = ((stageIndex + 1) / stageNames.length * 100) + "%";
+        document.getElementById("demo-prev").disabled = stageIndex === 0;
+        document.getElementById("demo-next").textContent = stageIndex === stageNames.length - 1 ? "Replay ↻" : "Next →";
+    }
+
+    jobsEl.addEventListener("click", function (event) {
+        const button = event.target.closest("[data-job]");
+        if (!button) return;
+        // Auto Demo remains enabled during manual navigation.
+        jobIndex = Number(button.dataset.job);
+        stageIndex = 0;
+        navigateDemo();
+    });
+
+    stagesEl.addEventListener("click", function (event) {
+        const button = event.target.closest("[data-stage]");
+        if (!button) return;
+        // Auto Demo remains enabled during manual navigation.
+        stageIndex = Number(button.dataset.stage);
+        navigateDemo();
+    });
+
+    document.getElementById("demo-prev").addEventListener("click", function () {
+        // Auto Demo remains enabled during manual navigation.
+        stageIndex = Math.max(0, stageIndex - 1);
+        navigateDemo();
+    });
+
+    document.getElementById("demo-next").addEventListener("click", function () {
+        // Auto Demo remains enabled during manual navigation.
+        stageIndex = (stageIndex + 1) % stageNames.length;
+        navigateDemo();
+    });
+
+    document.getElementById("demo-restart").addEventListener("click", function () {
+        // Auto Demo remains enabled during manual navigation.
+        stageIndex = 0;
+        navigateDemo();
+    });
+
+    playBtn.addEventListener("click", function () {
+        const animation = window.ProposalQDemoAnimation;
+        if (animation.getState().playing) {
+            animation.stop();
+        } else {
+            animation.play();
+        }
+    });
+
+    document.addEventListener("proposalq:demo-stage", function (event) {
+        stageIndex = event.detail.stage;
+        render();
+    });
+
+    render();
+})();
+</script>
+
+{% include "partials/public_footer.html" %}
+
+</body>
+</html>

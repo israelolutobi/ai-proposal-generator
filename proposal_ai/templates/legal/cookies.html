@@ -1,0 +1,132 @@
+<p><strong>Draft — under review. Not yet approved for publication.</strong></p>
+
+<p>
+This Cookie Policy explains how ProposalQ uses cookies and
+similar technologies to support its website and application.
+</p>
+
+<h3>1. What Are Cookies?</h3>
+
+<p>
+Cookies are small pieces of information stored by a browser.
+They can help websites maintain login sessions, remember
+preferences and support security functionality.
+</p>
+
+<h3>2. Essential Cookies</h3>
+
+<p>
+ProposalQ is built using Django, which supports cookies
+for authentication sessions and protection against
+cross-site request forgery (CSRF).
+</p>
+
+<p>
+The following cookies are associated with Django's
+standard functionality. Their actual use and configuration
+must be confirmed against the deployed application.
+</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Cookie</th>
+            <th>Purpose</th>
+            <th>Typical duration</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>sessionid</td>
+            <td>Maintains an authenticated user session.</td>
+            <td>Up to 2 weeks by Django default, subject to configuration.</td>
+        </tr>
+        <tr>
+            <td>csrftoken</td>
+            <td>Supports protection against forged requests.</td>
+            <td>Up to 1 year by Django default, subject to configuration.</td>
+        </tr>
+    </tbody>
+</table>
+
+<h3>3. Cookie Security</h3>
+
+<p>
+ProposalQ's reviewed Django configuration enables
+the Secure attribute for session and CSRF cookies
+in production.
+</p>
+
+<p>
+This attribute instructs compatible browsers to
+transmit those cookies only over secure HTTPS connections.
+</p>
+
+<h3>4. Analytics and Optional Cookies</h3>
+
+<p>
+The presence, purposes and providers of any analytics,
+advertising or other non-essential cookies have not
+yet been fully verified.
+</p>
+
+<p>
+Before any non-essential cookies are deployed,
+ProposalQ must assess applicable consent requirements
+and implement appropriate controls where required.
+</p>
+
+<h3>5. Third-Party Services</h3>
+
+<p>
+ProposalQ integrates with external providers,
+including Stripe for billing and OpenAI for
+AI-assisted processing.
+</p>
+
+<p>
+Some external services may operate on their own
+websites or hosted interfaces and apply their
+own cookie policies.
+</p>
+
+<p>
+Users should consult the relevant provider's
+privacy and cookie information when using
+those external services.
+</p>
+
+<h3>6. Managing Cookies</h3>
+
+<p>
+Most browsers allow users to inspect, block
+or delete cookies through their settings.
+</p>
+
+<p>
+Blocking essential cookies may prevent
+authentication or other application
+functions from working correctly.
+</p>
+
+<h3>7. Updates to This Policy</h3>
+
+<p>
+This document may require updates when
+ProposalQ introduces new integrations,
+analytics services or cookie functionality.
+</p>
+
+<h3>8. Policy Status</h3>
+
+<p>
+This document is a draft based on ProposalQ's
+reviewed Django configuration.
+</p>
+
+<p>
+A live cookie inventory, confirmation of
+cookie durations, assessment of third-party
+tracking and any necessary consent mechanisms
+must be completed before publication.
+</p>

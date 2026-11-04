@@ -1,0 +1,58 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>{{ page_title }} | ProposalQ</title>
+
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/landing.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
+</head>
+
+<body>
+
+{% include "partials/public_navbar.html" %}
+
+<main class="pq-legal-page">
+
+    <div class="pq-legal-header">
+        <span class="pq-market-eyebrow">PROPOSALQ · LEGAL & TRUST</span>
+
+        <h1>{{ page_title }}</h1>
+
+        <p>
+            Clear information about how ProposalQ operates,
+            protects users and provides its services.
+        </p>
+    </div>
+
+    <div class="pq-legal-layout">
+
+        <nav class="pq-legal-sidebar" aria-label="Legal and trust pages">
+            <h2>Legal & Trust</h2>
+
+            <a href="{% url 'terms' %}" {% if legal_template == "legal/terms.html" %}class="is-active" aria-current="page"{% endif %}>Terms of Service</a>
+            <a href="{% url 'privacy' %}" {% if legal_template == "legal/privacy.html" %}class="is-active" aria-current="page"{% endif %}>Privacy Policy</a>
+            <a href="{% url 'cookies' %}" {% if legal_template == "legal/cookies.html" %}class="is-active" aria-current="page"{% endif %}>Cookie Policy</a>
+            <a href="{% url 'subscriptions' %}" {% if legal_template == "legal/subscriptions.html" %}class="is-active" aria-current="page"{% endif %}>Subscriptions & Cancellation</a>
+            <a href="{% url 'ai_transparency' %}" {% if legal_template == "legal/ai_transparency.html" %}class="is-active" aria-current="page"{% endif %}>AI Transparency</a>
+            <a href="{% url 'data_security' %}" {% if legal_template == "legal/data_security.html" %}class="is-active" aria-current="page"{% endif %}>Data & Security</a>
+        </nav>
+
+        <article class="pq-legal-content">
+            <div class="pq-legal-document">
+                {% include legal_template %}
+            </div>
+        </article>
+
+    </div>
+
+</main>
+
+{% include "partials/public_footer.html" %}
+
+</body>
+</html>

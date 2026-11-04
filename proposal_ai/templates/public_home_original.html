@@ -1,0 +1,160 @@
+
+<!DOCTYPE html>
+<html lang="en">
+
+{% load static %}
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>ProposalQ | AI Proposal Generator for Freelancers</title>
+
+    <meta name="description"
+          content="ProposalQ helps freelancers generate, optimise and track freelance proposals using AI and real-world feedback.">
+
+    <link rel="canonical" href="https://proposalq.com/">
+
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/landing.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
+</head>
+
+<body style="
+    background-color:#0b1120;
+    color:white;
+    font-family:Arial;
+    margin:0;
+">
+
+{% include "partials/public_navbar.html" %}
+
+<div style="
+    text-align:center;
+    padding-top:120px;
+    padding-left:10%;
+    padding-right:10%;
+">
+
+    <h1 style="
+        font-size:52px;
+        margin-bottom:20px;
+    ">
+        Smarter freelance proposals powered by AI.
+    </h1>
+
+    <p style="
+        font-size:22px;
+        color:#cbd5e1;
+        max-width:850px;
+        margin:auto;
+        line-height:1.6;
+    ">
+        ProposalQ helps freelancers generate, optimise and track proposals
+        using AI and real-world behavioural feedback.
+    </p>
+
+    <div style="margin-top:50px;">
+
+        {% if user.is_authenticated %}
+
+            <a href="/dashboard/" style="
+                background-color:#1e90ff;
+                color:white;
+                padding:16px 34px;
+                border-radius:10px;
+                text-decoration:none;
+                font-size:18px;
+                font-weight:bold;
+            ">
+                Go To Dashboard
+            </a>
+
+        {% elif registration_enabled %}
+
+            <a href="{% url 'register' %}" style="
+                background-color:#1e90ff;
+                color:white;
+                padding:16px 34px;
+                border-radius:10px;
+                text-decoration:none;
+                font-size:18px;
+                font-weight:bold;
+            ">
+                Get Started
+            </a>
+
+        {% else %}
+
+            <p>Beta registration is currently closed.</p>
+            <a href="{% url 'login' %}" style="
+                background-color:#1e90ff;
+                color:white;
+                padding:16px 34px;
+                border-radius:10px;
+                text-decoration:none;
+                font-size:18px;
+                font-weight:bold;
+            ">
+                Login
+            </a>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+    <section aria-labelledby="how-it-works" style="
+        max-width:1100px;
+        margin:100px auto 80px;
+        padding:0 24px;
+        text-align:center;
+    ">
+        <h2 id="how-it-works" style="font-size:36px;margin-bottom:20px;">
+            How ProposalQ Works
+        </h2>
+
+        <p style="color:#cbd5e1;font-size:18px;line-height:1.7;max-width:850px;margin:0 auto 40px;">
+            ProposalQ is an AI proposal generator for freelancers.
+            Analyse freelance opportunities, create tailored application
+            content and track your proposals in one place.
+        </p>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px;text-align:left;">
+            <article style="background:#111827;border:1px solid #1e293b;border-radius:14px;padding:25px;">
+                <h3>Analyse Freelance Jobs</h3>
+                <p style="color:#cbd5e1;line-height:1.7;">
+                    Paste a freelance job description to identify requirements,
+                    skills, budgets and other opportunity details.
+                </p>
+            </article>
+
+            <article style="background:#111827;border:1px solid #1e293b;border-radius:14px;padding:25px;">
+                <h3>Generate AI Proposals</h3>
+                <p style="color:#cbd5e1;line-height:1.7;">
+                    Generate tailored freelance application content based on
+                    the opportunity and its platform.
+                </p>
+            </article>
+
+            <article style="background:#111827;border:1px solid #1e293b;border-radius:14px;padding:25px;">
+                <h3>Manage Applications</h3>
+                <p style="color:#cbd5e1;line-height:1.7;">
+                    Save generated proposals, copy application content and
+                    record when applications are submitted.
+                </p>
+            </article>
+
+            <article style="background:#111827;border:1px solid #1e293b;border-radius:14px;padding:25px;">
+                <h3>Track Proposal Outcomes</h3>
+                <p style="color:#cbd5e1;line-height:1.7;">
+                    Update application outcomes and keep a record of your
+                    freelance opportunities and submissions.
+                </p>
+            </article>
+        </div>
+    </section>
+
+</body>
+</html>

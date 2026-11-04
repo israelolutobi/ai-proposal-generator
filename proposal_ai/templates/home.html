@@ -4,6 +4,8 @@
 {% load static %}
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
 
     <title>Dashboard - ProposalQ</title>
 
@@ -11,6 +13,67 @@
         rel="stylesheet"
         href="{% static 'css/style.css' %}"
     >
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
+<link rel="stylesheet" href="{% static 'css/action-buttons.css' %}">
+
+
+<style>
+    .pq-dashboard-panel {
+        box-sizing: border-box;
+        min-width: 0;
+        padding: 40px;
+    }
+
+    .pq-dashboard-panel--compact {
+        padding: 30px;
+    }
+
+    @media (max-width: 900px) {
+        .pq-dashboard-panel,
+        .pq-dashboard-panel--compact {
+            padding: 24px;
+        }
+    }
+
+    @media (max-width: 600px) {
+        .pq-dashboard-panel,
+        .pq-dashboard-panel--compact {
+            padding: 16px;
+        }
+    }
+</style>
+
+
+<style id="pq-standard-mobile-layout">
+@media (max-width:600px) {
+    .pq-standard-page {
+        box-sizing:border-box;
+        width:100%;
+        max-width:100%;
+        margin:24px auto !important;
+        padding:0 24px !important;
+    }
+
+    .pq-standard-page > div[style*="padding:40px"] {
+        box-sizing:border-box;
+        padding:0 !important;
+    }
+
+    .pq-standard-heading {
+        font-size:36px !important;
+        line-height:1.15;
+        margin-top:0 !important;
+        margin-bottom:24px !important;
+        overflow-wrap:break-word;
+    }
+
+    .pq-standard-description {
+        margin-top:0 !important;
+        margin-bottom:32px !important;
+        line-height:1.6;
+    }
+}
+</style>
 
 </head>
 
@@ -25,7 +88,7 @@
 {% include "partials/navbar.html" %}
 
 
-<div style="
+<div class="pq-standard-page" style="
     max-width:1000px;
     margin:60px auto;
     padding:0 20px;
@@ -35,7 +98,7 @@
     <!-- DASHBOARD HEADER -->
     <!-- ========================================================= -->
 
-    <h1 style="
+    <h1 class="pq-standard-heading" style="
         font-size:44px;
         margin-bottom:10px;
     ">
@@ -43,7 +106,7 @@
     </h1>
 
 
-    <p style="
+    <p class="pq-standard-description" style="
         color:#cbd5e1;
         font-size:18px;
         line-height:1.6;
@@ -70,9 +133,8 @@
 
     {% if pending_outcomes %}
 
-        <div style="
+        <div class="pq-dashboard-panel pq-dashboard-panel--compact" style="
             background-color:#1e293b;
-            padding:30px;
             border-radius:16px;
             border:1px solid #334155;
             margin-bottom:35px;
@@ -185,9 +247,8 @@
     <!-- EXTRACT JOB / OPPORTUNITY -->
     <!-- ========================================================= -->
 
-    <div style="
+    <div class="pq-dashboard-panel" style="
         background-color:#111827;
-        padding:40px;
         border-radius:16px;
         border:1px solid #1e293b;
     ">
@@ -307,10 +368,9 @@
     <!-- SAVED APPLICATIONS -->
     <!-- ========================================================= -->
 
-    <div style="
+    <div class="pq-dashboard-panel" style="
         margin-top:35px;
         background-color:#111827;
-        padding:40px;
         border-radius:16px;
         border:1px solid #1e293b;
     ">
@@ -337,7 +397,8 @@
 
             {% for proposal in proposals %}
 
-                <div style="
+                <div id="proposal-{{ proposal.id }}" style="
+                    scroll-margin-top:24px;
                     background-color:#0f172a;
                     padding:25px;
                     border-radius:12px;
@@ -499,10 +560,8 @@
                         >{{ proposal.final_text }}</div>
 
 
-                        <div style="
-                            display:flex;
-                            gap:12px;
-                            flex-wrap:wrap;
+                        <div class="pq-action-group" style="
+                            --pq-action-columns:2;
                             margin-top:18px;
                         ">
 

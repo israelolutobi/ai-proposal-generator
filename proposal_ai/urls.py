@@ -5,6 +5,14 @@ from . import billing_views
 
 
 urlpatterns = [
+    path("terms/", views.public_legal_page, {"page": "terms"}, name="terms"),
+    path("privacy/", views.public_legal_page, {"page": "privacy"}, name="privacy"),
+    path("cookies/", views.public_legal_page, {"page": "cookies"}, name="cookies"),
+    path("subscriptions/", views.public_legal_page, {"page": "subscriptions"}, name="subscriptions"),
+    path("ai-transparency/", views.public_legal_page, {"page": "ai_transparency"}, name="ai_transparency"),
+    path("data-security/", views.public_legal_page, {"page": "data_security"}, name="data_security"),
+    path("demo/", views.public_demo, name="public_demo"),
+
     path("pricing/", billing_views.pricing, name="pricing"),
     path("billing/checkout/", billing_views.checkout, name="billing_checkout"),
     path("billing/portal/", billing_views.portal, name="billing_portal"),

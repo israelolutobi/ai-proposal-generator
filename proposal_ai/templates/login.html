@@ -4,8 +4,11 @@
 {% load static %}
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
     <title>Login - ProposalQ</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
 </head>
 
 <body style="
@@ -26,12 +29,12 @@
     border:1px solid #1e293b;
 ">
 
-    <h2 style="
+    <h1 style="
         font-size:32px;
         margin-top:0;
     ">
         Login
-    </h2>
+    </h1>
 
     {% if form.errors %}
         <div role="alert" style="color:#ef4444;">

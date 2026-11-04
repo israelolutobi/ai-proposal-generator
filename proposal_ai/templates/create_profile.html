@@ -4,11 +4,82 @@
 {% load static %}
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
 
     <title>{{ page_title }} - ProposalQ</title>
 
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="stylesheet" href="{% static 'css/navigation.css' %}">
 
+
+<style>
+@media (max-width:600px) {
+    .pq-profile-actions {
+        flex-direction:column;
+        align-items:stretch;
+        gap:15px;
+    }
+    .pq-profile-actions > a,
+    .pq-profile-actions > button {
+        box-sizing:border-box;
+        display:block;
+        width:100%;
+        max-width:100%;
+        text-align:center;
+        white-space:normal;
+    }
+}
+</style>
+
+
+<style id="pq-standard-mobile-layout">
+@media (max-width:600px) {
+    .pq-standard-page {
+        box-sizing:border-box;
+        width:100%;
+        max-width:100%;
+        margin:24px auto !important;
+        padding:0 24px !important;
+    }
+
+    .pq-standard-page > div[style*="padding:40px"] {
+        box-sizing:border-box;
+        padding:0 !important;
+    }
+
+    .pq-standard-heading {
+        font-size:36px !important;
+        line-height:1.15;
+        margin-top:0 !important;
+        margin-bottom:24px !important;
+        overflow-wrap:break-word;
+    }
+
+    .pq-standard-description {
+        margin-top:0 !important;
+        margin-bottom:32px !important;
+        line-height:1.6;
+    }
+}
+</style>
+
+
+<style id="pq-summary-mobile-buttons">
+@media (max-width:600px) {
+    #generate-summary-btn,
+    #skip-summary-btn {
+        box-sizing:border-box;
+        display:block;
+        width:100%;
+        max-width:100%;
+        text-align:center;
+        white-space:normal;
+    }
+}
+</style>
+
+    <link rel="stylesheet" href="{% static 'css/action-buttons.css' %}">
 </head>
 
 <body style="
@@ -20,7 +91,7 @@
 
 {% include "partials/navbar.html" %}
 
-<div style="
+<div class="pq-standard-page" style="
     max-width:850px;
     margin:60px auto;
 ">
@@ -32,14 +103,14 @@
         border:1px solid #1e293b;
     ">
 
-        <h2 style="
+        <h1 class="pq-standard-heading" style="
             margin-top:0;
             font-size:38px;
         ">
             {{ page_title }}
-        </h2>
+        </h1>
 
-        <p style="
+        <p class="pq-standard-description" style="
             color:#cbd5e1;
             line-height:1.6;
             margin-bottom:35px;
@@ -120,15 +191,15 @@
                     margin-bottom:8px;
                 ">
 
-                    <label
-                        for="profile_summary"
+                    <h2
                         style="
                             font-size:18px;
                             font-weight:bold;
+                            margin:0;
                         "
                     >
                         Profile Summary
-                    </label>
+                    </h2>
 
                     <span style="
                         background-color:#1e293b;
@@ -200,7 +271,7 @@
 
                 <!-- GENERATOR BUTTONS -->
 
-                <div style="
+                <div class="pq-action-group" style="--pq-action-columns:2;
                     display:flex;
                     gap:12px;
                     flex-wrap:wrap;
@@ -343,7 +414,7 @@
 
             <!-- NAVIGATION / SAVE BUTTONS -->
 
-            <div style="
+            <div class="pq-profile-actions pq-action-group" style="
                 display:flex;
                 gap:15px;
                 flex-wrap:wrap;

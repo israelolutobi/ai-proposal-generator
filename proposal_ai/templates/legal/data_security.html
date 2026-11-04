@@ -1,0 +1,196 @@
+<p><strong>Draft — under review. Not yet approved for publication.</strong></p>
+
+<p>
+ProposalQ uses application security controls and third-party
+infrastructure to support the protection of user accounts,
+professional information and application records.
+</p>
+
+<p>
+This document describes the security-related features identified
+during our review of ProposalQ's implementation and highlights
+areas requiring further verification.
+</p>
+
+<h3>1. Application Security</h3>
+
+<p>
+ProposalQ is built using Django, a Python web framework
+that provides security-related functionality including
+authentication, session management and CSRF protection.
+</p>
+
+<p>
+The effectiveness of these protections depends on
+correct configuration, deployment and ongoing maintenance.
+</p>
+
+<h3>2. HTTPS and Secure Connections</h3>
+
+<p>
+ProposalQ's reviewed production configuration includes
+HTTPS redirection and security settings for session
+and CSRF cookies.
+</p>
+
+<p>
+These settings are intended to help protect browser
+communications when the application is correctly deployed.
+</p>
+
+<p>
+The live deployment configuration must be verified
+before making broader security assurances.
+</p>
+
+<h3>3. Account and Session Protection</h3>
+
+<p>
+ProposalQ uses Django-based account and session
+functionality to support authenticated access.
+</p>
+
+<p>
+Users should choose strong, unique passwords,
+protect their account credentials and avoid
+sharing access with unauthorised individuals.
+</p>
+
+<h3>4. Database and Information Storage</h3>
+
+<p>
+ProposalQ's reviewed architecture uses PostgreSQL
+database services provided through Neon.
+</p>
+
+<p>
+Application records may include freelancer profiles,
+work experience, job descriptions, proposals,
+application outcomes and subscription information.
+</p>
+
+<p>
+Database access controls, backup arrangements,
+retention periods and recovery procedures
+require operational verification.
+</p>
+
+<h3>5. AI Request Security</h3>
+
+<p>
+ProposalQ integrates with OpenAI to provide
+AI-assisted analysis and proposal generation.
+</p>
+
+<p>
+The reviewed implementation includes input validation,
+request-size limits, processing timeouts and instructions
+designed to reduce the risk of malicious instructions
+embedded in user-supplied content.
+</p>
+
+<p>
+These controls reduce certain risks but cannot
+eliminate every possible AI-related security issue.
+</p>
+
+<h3>6. Third-Party Infrastructure</h3>
+
+<p>
+ProposalQ's reviewed technical architecture includes:
+</p>
+
+<ul>
+    <li>Render for application hosting.</li>
+    <li>Neon PostgreSQL for database services.</li>
+    <li>OpenAI for AI-assisted processing.</li>
+    <li>Stripe for subscription billing integration.</li>
+</ul>
+
+<p>
+These providers operate their own infrastructure
+and security processes.
+</p>
+
+<p>
+ProposalQ must verify the applicable contractual,
+technical and data-protection arrangements
+before making specific assurances about them.
+</p>
+
+<h3>7. Operational Monitoring</h3>
+
+<p>
+ProposalQ records certain operational information
+associated with AI requests, including request
+status, timestamps, processing outcomes and
+usage-related metadata.
+</p>
+
+<p>
+These records support application functionality
+and operational investigation.
+</p>
+
+<p>
+The scope of production security monitoring,
+alerting and incident-response procedures
+requires further confirmation.
+</p>
+
+<h3>8. Security Incidents</h3>
+
+<p>
+No online service can guarantee complete protection
+against every security threat.
+</p>
+
+<p>
+ProposalQ must establish documented procedures
+for investigating security incidents and assessing
+whether notifications are required under
+applicable data-protection law.
+</p>
+
+<h3>9. Responsible Security Reporting</h3>
+
+<p>
+A verified security contact and vulnerability-reporting
+process must be established before this document
+is published.
+</p>
+
+<p>
+Security researchers should not attempt to access,
+alter or disclose other users' information
+without authorisation.
+</p>
+
+<h3>10. Security Review and Improvement</h3>
+
+<p>
+Security controls should be reviewed as ProposalQ
+develops, including changes to authentication,
+AI integrations, infrastructure, billing
+and database functionality.
+</p>
+
+<p>
+No claim of independent certification,
+penetration-testing approval or formal
+security accreditation is made in this document.
+</p>
+
+<h3>11. Document Status</h3>
+
+<p>
+This document is a working draft based on
+ProposalQ's reviewed implementation.
+</p>
+
+<p>
+Production infrastructure, access controls,
+backup and recovery arrangements, incident
+response and security reporting procedures
+must be verified before publication.
+</p>

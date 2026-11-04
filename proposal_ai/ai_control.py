@@ -415,8 +415,11 @@ def _check_live_dispatch(row):
         raise ControlError("This request expired before dispatch. Start a new generation.", 503)
 
 
-def call_provider(row, function):
-    requested = services.request_telemetry(row.operation)
+def call_provider(row, function, *, generation_mode=None):
+    requested = services.request_telemetry(
+        row.operation,
+        generation_mode=generation_mode,
+    )
     try:
         services.check_configuration()
     except services.AIDisabledError:
