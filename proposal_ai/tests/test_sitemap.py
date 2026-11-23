@@ -2,6 +2,12 @@ from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 
 
+@override_settings(
+    STORAGES={
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {"BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"},
+    }
+)
 class PublicSitemapTests(SimpleTestCase):
 
     @override_settings(ALLOWED_HOSTS=["proposalq.com"])
