@@ -1,4 +1,3 @@
-
 from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 
@@ -6,7 +5,7 @@ from django.urls import reverse
 class PublicSitemapTests(SimpleTestCase):
 
     @override_settings(ALLOWED_HOSTS=["proposalq.com"])
-    def test_sitemap_contains_only_public_homepage(self):
+    def test_sitemap_contains_only_public_product_pages(self):
         response = self.client.get(
             reverse("django.contrib.sitemaps.views.sitemap"),
             HTTP_HOST="proposalq.com",
@@ -14,16 +13,20 @@ class PublicSitemapTests(SimpleTestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-
         content = response.content.decode()
 
-        self.assertIn(
-            "<loc>https://proposalq.com/</loc>",
-            content,
-        )
+        expected_paths = ["/", "/pricing/", "/demo/"]
+        for path in expected_paths:
+            self.assertIn(f"<loc>https://proposalq.com{path}</loc>", content)
+        self.assertEqual(content.count("<loc>"), len(expected_paths))
 
-        self.assertEqual(content.count("<loc>"), 1)
-
-        self.assertNotIn("/dashboard/", content)
-        self.assertNotIn("/my-experiences/", content)
-        self.assertNotIn("/use-proposal/", content)
+        for path in [
+            "/dashboard/",
+            "/my-experiences/",
+            "/use-proposal/",
+            "/login/",
+            "/register/",
+            "/billing/checkout/",
+            "/billing/webhook/",
+        ]:
+            self.assertNotIn(f"<loc>https://proposalq.com{path}</loc>", content)
