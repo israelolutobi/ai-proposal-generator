@@ -30,3 +30,25 @@ class PublicSitemapTests(SimpleTestCase):
             "/billing/webhook/",
         ]:
             self.assertNotIn(f"<loc>https://proposalq.com{path}</loc>", content)
+
+    @override_settings(ALLOWED_HOSTS=["proposalq.com"])
+    def test_public_product_pages_are_accessible_and_self_canonical(self):
+        for name, path in [
+            ("public_home", "/"),
+            ("pricing", "/pricing/"),
+            ("public_demo", "/demo/"),
+        ]:
+            with self.subTest(page=name):
+                self.assertEqual(reverse(name), path)
+                response = self.client.get(
+                    path,
+                    HTTP_HOST="proposalq.com",
+                    secure=True,
+                )
+                self.assertEqual(response.status_code, 200)
+                content = response.content.decode()
+                canonical = f'<link rel="canonical" href="https://proposalq.com{path}">'
+                self.assertIn(canonical, content)
+                self.assertEqual(content.count('rel="canonical"'), 1)
+                self.assertNotIn('name="robots" content="noindex"', content.lower())
+                self.assertNotIn("noindex", response.get("X-Robots-Tag", "").lower())
